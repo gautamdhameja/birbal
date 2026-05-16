@@ -1,5 +1,6 @@
 import { XMLParser } from "fast-xml-parser";
 
+import { BIRBAL_USER_AGENT } from "../http/headers.js";
 import { getArxivConfig } from "./config.js";
 
 type ArxivSearchOptions = {
@@ -99,22 +100,22 @@ export function parseArxivAtomFeed(xml: string): ArxivPaper[] {
 
 function buildArxivUrl({ query, maxResults }: ArxivSearchOptions, mode: "phrase" | "all-terms"): string {
   const { ARXIV_QUERY_URL } = getArxivConfig();
-  const params = new URLSearchParams({
-    search_query: buildArxivSearchQuery(query, mode),
-    start: "0",
-    max_results: String(maxResults),
-    sortBy: "submittedDate",
-    sortOrder: "descending",
-  });
+  const url = new URL(ARXIV_QUERY_URL);
 
-  return `${ARXIV_QUERY_URL}?${params.toString()}`;
+  url.searchParams.set("search_query", buildArxivSearchQuery(query, mode));
+  url.searchParams.set("start", "0");
+  url.searchParams.set("max_results", String(maxResults));
+  url.searchParams.set("sortBy", "submittedDate");
+  url.searchParams.set("sortOrder", "descending");
+
+  return url.toString();
 }
 
 async function fetchArxivSearch(options: ArxivSearchOptions, mode: "phrase" | "all-terms"): Promise<ArxivPaper[]> {
   const response = await fetch(buildArxivUrl(options, mode), {
     headers: {
       accept: "application/atom+xml, application/xml, text/xml",
-      "user-agent": "birbal/1.0 local-agent-harness",
+      "user-agent": BIRBAL_USER_AGENT,
     },
   });
 

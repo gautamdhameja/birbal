@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { buildArxivSearchQuery, parseArxivAtomFeed } from "../src/arxiv/client.js";
+import { normalizeHackerNewsHit } from "../src/hackernews/client.js";
 import { formatLocalIsoString } from "../src/tools/get-time.js";
 import { listTools, renderToolsForPrompt } from "../src/tools/registry.js";
 import { runTool } from "../src/tools/runner.js";
@@ -26,7 +27,7 @@ describe("tool registry", () => {
   it("lists the get_time tool", () => {
     assert.deepEqual(
       listTools().map((tool) => tool.name),
-      ["get_time", "search_arxiv"],
+      ["get_time", "search_arxiv", "search_hackernews"],
     );
   });
 
@@ -39,6 +40,8 @@ describe("tool registry", () => {
     assert.match(renderedTools, /name: search_arxiv/);
     assert.match(renderedTools, /description: Search recent arXiv papers by query\./);
     assert.match(renderedTools, /"required":\["query"\]/);
+    assert.match(renderedTools, /name: search_hackernews/);
+    assert.match(renderedTools, /description: Search recent Hacker News stories by query\./);
   });
 
   it("parses arXiv Atom search results", () => {
@@ -85,6 +88,48 @@ describe("tool registry", () => {
     );
   });
 
+  it("normalizes Hacker News stories", () => {
+    assert.deepEqual(
+      normalizeHackerNewsHit({
+        author: "pg",
+        created_at: "2026-05-16T10:00:00Z",
+        objectID: "123",
+        points: 42,
+        title: "llama.cpp local inference",
+        url: "https://example.com/story",
+      }),
+      {
+        title: "llama.cpp local inference",
+        url: "https://example.com/story",
+        hn_url: "https://news.ycombinator.com/item?id=123",
+        points: 42,
+        author: "pg",
+        created_at: "2026-05-16T10:00:00Z",
+      },
+    );
+  });
+
+  it("uses the Hacker News item URL when a story has no external URL", () => {
+    assert.deepEqual(
+      normalizeHackerNewsHit({
+        author: "pg",
+        created_at: "2026-05-16T10:00:00Z",
+        objectID: "123",
+        points: null,
+        title: "Ask HN: Local LLM inference",
+        url: null,
+      }),
+      {
+        title: "Ask HN: Local LLM inference",
+        url: "https://news.ycombinator.com/item?id=123",
+        hn_url: "https://news.ycombinator.com/item?id=123",
+        points: null,
+        author: "pg",
+        created_at: "2026-05-16T10:00:00Z",
+      },
+    );
+  });
+
   it("runs get_time", async () => {
     const result = await runTool("get_time", {});
 
@@ -121,5 +166,15 @@ describe("tool registry", () => {
     const error = result.error;
     assertString(error);
     assert.match(error, /Invalid args for tool "search_arxiv"/);
+  });
+
+  it("validates search_hackernews args before making a request", async () => {
+    const result = await runTool("search_hackernews", { query: "llama.cpp", max_results: 11 });
+
+    assertRecord(result);
+    assert.ok("error" in result);
+    const error = result.error;
+    assertString(error);
+    assert.match(error, /Invalid args for tool "search_hackernews"/);
   });
 });

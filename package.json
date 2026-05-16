@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx src/main.ts",
+    "daily": "tsx src/daily/run.ts",
     "test": "LOG_LEVEL=silent tsx --test tests/**/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
