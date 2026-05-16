@@ -1,16 +1,22 @@
 {
   "name": "birbal",
   "version": "1.0.0",
-  "description": "",
+  "description": "A minimal TypeScript harness for experimenting with local LLM agents and basic tools.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/main.ts",
     "test": "LOG_LEVEL=silent tsx --test tests/**/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "agent",
+    "harness",
+    "AI",
+    "local-llm",
+    "tools"
+  ],
+  "author": "Gautam Dhameja",
+  "license": "MIT",
   "dependencies": {
     "dotenv": "^17.4.2",
     "fast-xml-parser": "^5.8.0",
