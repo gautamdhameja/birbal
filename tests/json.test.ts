@@ -38,4 +38,11 @@ describe("parseAgentResponse", () => {
       answer: "hello {world}",
     });
   });
+
+  it("repairs unescaped newlines inside JSON strings", () => {
+    assert.deepEqual(parseAgentResponse('{"type":"final","answer":"hello\nworld"}'), {
+      type: "final",
+      answer: "hello\nworld",
+    });
+  });
 });

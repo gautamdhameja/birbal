@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { buildArxivSearchQuery, parseArxivAtomFeed } from "../src/arxiv/client.js";
 import { formatLocalIsoString } from "../src/tools/get-time.js";
-import { listTools, renderToolsForPrompt, runTool } from "../src/tools/registry.js";
+import { listTools, renderToolsForPrompt } from "../src/tools/registry.js";
+import { runTool } from "../src/tools/runner.js";
 
 function assertRecord(value: unknown): asserts value is Record<string, unknown> {
   assert.equal(typeof value, "object");
@@ -24,7 +26,7 @@ describe("tool registry", () => {
   it("lists the get_time tool", () => {
     assert.deepEqual(
       listTools().map((tool) => tool.name),
-      ["get_time"],
+      ["get_time", "search_arxiv"],
     );
   });
 
@@ -34,6 +36,53 @@ describe("tool registry", () => {
     assert.match(renderedTools, /name: get_time/);
     assert.match(renderedTools, /description: Get the current local time as an ISO string\./);
     assert.match(renderedTools, /args: \{"type":"object","properties":\{\},"additionalProperties":false\}/);
+    assert.match(renderedTools, /name: search_arxiv/);
+    assert.match(renderedTools, /description: Search recent arXiv papers by query\./);
+    assert.match(renderedTools, /"required":\["query"\]/);
+  });
+
+  it("parses arXiv Atom search results", () => {
+    const papers = parseArxivAtomFeed(`
+      <?xml version="1.0" encoding="UTF-8"?>
+      <feed xmlns="http://www.w3.org/2005/Atom">
+        <entry>
+          <id>http://arxiv.org/abs/2501.12345v1</id>
+          <updated>2025-01-03T00:00:00Z</updated>
+          <published>2025-01-02T00:00:00Z</published>
+          <title>
+            Example   Agent Evaluation Paper
+          </title>
+          <summary>
+            This paper evaluates LLM agents.
+          </summary>
+          <author>
+            <name>Ada Lovelace</name>
+          </author>
+          <author>
+            <name>Alan Turing</name>
+          </author>
+          <link href="http://arxiv.org/abs/2501.12345v1" rel="alternate" type="text/html"/>
+        </entry>
+      </feed>
+    `);
+
+    assert.deepEqual(papers, [
+      {
+        title: "Example Agent Evaluation Paper",
+        url: "http://arxiv.org/abs/2501.12345v1",
+        summary: "This paper evaluates LLM agents.",
+        authors: ["Ada Lovelace", "Alan Turing"],
+        published: "2025-01-02T00:00:00Z",
+      },
+    ]);
+  });
+
+  it("builds precise arXiv queries for natural language searches", () => {
+    assert.equal(buildArxivSearchQuery("LLM agent evaluation"), 'all:"LLM agent evaluation"');
+    assert.equal(
+      buildArxivSearchQuery("LLM agent evaluation", "all-terms"),
+      "all:LLM AND all:agent AND all:evaluation",
+    );
   });
 
   it("runs get_time", async () => {
@@ -62,5 +111,15 @@ describe("tool registry", () => {
     const error = result.error;
     assertString(error);
     assert.match(error, /Invalid args for tool "get_time"/);
+  });
+
+  it("validates search_arxiv args before making a request", async () => {
+    const result = await runTool("search_arxiv", { query: "agents", max_results: 11 });
+
+    assertRecord(result);
+    assert.ok("error" in result);
+    const error = result.error;
+    assertString(error);
+    assert.match(error, /Invalid args for tool "search_arxiv"/);
   });
 });

@@ -5,7 +5,8 @@ import { z } from "zod";
 import { logger } from "../logging/logger.js";
 import { complete } from "../llama/client.js";
 import type { ChatMessage } from "../llama/schema.js";
-import { runTool, renderToolsForPrompt } from "../tools/registry.js";
+import { renderToolsForPrompt } from "../tools/registry.js";
+import { runTool } from "../tools/runner.js";
 import { parseAgentResponse } from "../utils/json.js";
 import { buildSystemPrompt } from "./prompts.js";
 
@@ -26,6 +27,10 @@ function buildToolResultMessage(tool: string, result: unknown): ChatMessage {
       result,
     }),
   };
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export async function runAgent(task: string, options: RunAgentOptions = {}): Promise<string> {
@@ -80,7 +85,31 @@ export async function runAgent(task: string, options: RunAgentOptions = {}): Pro
       "received model response",
     );
 
-    const parsed = parseAgentResponse(raw);
+    const parsed = (() => {
+      try {
+        return parseAgentResponse(raw);
+      } catch (error) {
+        const message = getErrorMessage(error);
+
+        logger.debug(
+          {
+            event: "agent.response.parse_failed",
+            traceId,
+            modelPassId,
+            step,
+            raw,
+            error: message,
+          },
+          "model response failed protocol parsing",
+        );
+
+        return { error: message };
+      }
+    })();
+
+    if ("error" in parsed) {
+      return `Agent returned an invalid response: ${parsed.error}`;
+    }
 
     messages.push({
       role: "assistant",
