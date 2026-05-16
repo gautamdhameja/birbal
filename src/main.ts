@@ -4,12 +4,17 @@ dotenv.config({ path: [".env.local", ".env"], quiet: true });
 
 const { complete } = await import("./llama/client.js");
 const { buildSystemPrompt } = await import("./agent/prompts.js");
+const { renderToolsForPrompt } = await import("./tools/registry.js");
 const { parseAgentResponse } = await import("./utils/json.js");
+
+const toolsText = renderToolsForPrompt();
+
+console.log(toolsText);
 
 const response = await complete([
   {
     role: "system",
-    content: buildSystemPrompt(""),
+    content: buildSystemPrompt(toolsText),
   },
   {
     role: "user",
