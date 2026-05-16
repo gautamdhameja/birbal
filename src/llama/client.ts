@@ -1,20 +1,23 @@
 import { getLlamaConfig } from "./config.js";
 import {
-  ChatMessageSchema,
   CompleteOptionsSchema,
+  LlamaChatCompletionRequestSchema,
   LlamaChatCompletionResponseSchema,
 } from "./schema.js";
 import type { ChatMessage, CompleteOptions } from "./schema.js";
-
-const ChatMessagesSchema = ChatMessageSchema.array();
 
 export async function complete(
   messages: ChatMessage[],
   options: CompleteOptions = {},
 ): Promise<string> {
   const { serverUrl, model } = getLlamaConfig();
-  const parsedMessages = ChatMessagesSchema.parse(messages);
   const parsedOptions = CompleteOptionsSchema.parse(options);
+  const requestBody = LlamaChatCompletionRequestSchema.parse({
+    model,
+    messages,
+    temperature: parsedOptions.temperature,
+    max_tokens: parsedOptions.max_tokens,
+  });
 
   let response: Response;
   try {
@@ -23,12 +26,7 @@ export async function complete(
       headers: {
         "content-type": "application/json",
       },
-      body: JSON.stringify({
-        model,
-        messages: parsedMessages,
-        temperature: parsedOptions.temperature,
-        max_tokens: parsedOptions.max_tokens,
-      }),
+      body: JSON.stringify(requestBody),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

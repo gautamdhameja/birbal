@@ -1,12 +1,7 @@
 import { AgentResponseSchema } from "../agent/protocol.js";
 import type { AgentResponse } from "../agent/protocol.js";
 
-function extractFirstJsonObject(raw: string): string | null {
-  const start = raw.indexOf("{");
-  if (start === -1) {
-    return null;
-  }
-
+function extractBalancedJsonObject(raw: string, start: number): string | null {
   let depth = 0;
   let inString = false;
   let escaped = false;
@@ -49,21 +44,38 @@ function extractFirstJsonObject(raw: string): string | null {
   return null;
 }
 
+function* extractJsonObjectCandidates(raw: string): Generator<string> {
+  for (let index = 0; index < raw.length; index += 1) {
+    if (raw[index] !== "{") {
+      continue;
+    }
+
+    const extracted = extractBalancedJsonObject(raw, index);
+    if (extracted) {
+      yield extracted;
+    }
+  }
+}
+
 function parseJson(raw: string): unknown {
   try {
     return JSON.parse(raw);
   } catch {
-    const extracted = extractFirstJsonObject(raw);
-    if (!extracted) {
-      throw new Error("Agent response is not valid JSON and no JSON object could be extracted.");
+    let lastErrorMessage: string | null = null;
+
+    for (const extracted of extractJsonObjectCandidates(raw)) {
+      try {
+        return JSON.parse(extracted);
+      } catch (error) {
+        lastErrorMessage = error instanceof Error ? error.message : String(error);
+      }
     }
 
-    try {
-      return JSON.parse(extracted);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Extracted agent response JSON is invalid: ${message}`);
+    if (lastErrorMessage) {
+      throw new Error(`No extracted agent response JSON object was valid: ${lastErrorMessage}`);
     }
+
+    throw new Error("Agent response is not valid JSON and no JSON object could be extracted.");
   }
 }
 

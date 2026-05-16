@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx src/main.ts",
+    "test": "tsx --test tests/**/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [],
