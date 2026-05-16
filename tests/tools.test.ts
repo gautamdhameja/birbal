@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { formatLocalIsoString } from "../src/tools/get-time.js";
 import { listTools, renderToolsForPrompt, runTool } from "../src/tools/registry.js";
 
 function assertRecord(value: unknown): asserts value is Record<string, unknown> {
@@ -13,6 +14,13 @@ function assertString(value: unknown): asserts value is string {
 }
 
 describe("tool registry", () => {
+  it("formats local ISO timestamps with an explicit timezone offset", () => {
+    assert.match(
+      formatLocalIsoString(new Date()),
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}[+-]\d{2}:\d{2}$/,
+    );
+  });
+
   it("lists the get_time tool", () => {
     assert.deepEqual(
       listTools().map((tool) => tool.name),
@@ -35,6 +43,8 @@ describe("tool registry", () => {
     assert.ok("now" in result);
     const now = result.now;
     assertString(now);
+    assert.match(now, /^\d{4}-\d{2}-\d{2}T/);
+    assert.doesNotMatch(now, /Z$/);
     assert.doesNotThrow(() => new Date(now).toISOString());
   });
 

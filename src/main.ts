@@ -2,26 +2,14 @@ import dotenv from "dotenv";
 
 dotenv.config({ path: [".env.local", ".env"], quiet: true });
 
-const { complete } = await import("./llama/client.js");
-const { buildSystemPrompt } = await import("./agent/prompts.js");
+const { runAgent } = await import("./agent/run.js");
 const { renderToolsForPrompt } = await import("./tools/registry.js");
-const { parseAgentResponse } = await import("./utils/json.js");
 
 const toolsText = renderToolsForPrompt();
+const task = process.argv.slice(2).join(" ").trim() || "Say hello through the final response protocol.";
 
 console.log(toolsText);
 
-const response = await complete([
-  {
-    role: "system",
-    content: buildSystemPrompt(toolsText),
-  },
-  {
-    role: "user",
-    content: "Say hello through the final response protocol.",
-  },
-]);
+const answer = await runAgent(task);
 
-const parsed = parseAgentResponse(response);
-
-console.dir(parsed, { depth: null });
+console.log(answer);
