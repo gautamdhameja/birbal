@@ -48,4 +48,16 @@ describe("SQLite item persistence", () => {
   it("rejects invalid list limits", () => {
     assert.throws(() => listRecentItems(0), /positive integer/);
   });
+
+  it("reinitializes when a different database path is requested", () => {
+    const firstDbPath = join(mkdtempSync(join(tmpdir(), "birbal-db-")), "agent.db");
+    const secondDbPath = join(mkdtempSync(join(tmpdir(), "birbal-db-")), "agent.db");
+
+    initDb(firstDbPath);
+    upsertItem(item({ url: "https://example.com/first" }));
+    assert.equal(itemExistsByUrl("https://example.com/first"), true);
+
+    initDb(secondDbPath);
+    assert.equal(itemExistsByUrl("https://example.com/first"), false);
+  });
 });

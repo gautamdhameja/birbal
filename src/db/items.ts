@@ -10,19 +10,22 @@ import type { CandidateItem } from "../daily/types.js";
 const DEFAULT_DB_PATH = join(process.cwd(), DATABASE.DIRECTORY, DATABASE.FILE_NAME);
 
 let db: DatabaseConnection | null = null;
+let activeDbPath: string | null = null;
 
 function getDb(): DatabaseConnection {
   return db ?? initDb();
 }
 
 export function initDb(dbPath = DEFAULT_DB_PATH): DatabaseConnection {
-  if (db) {
+  if (db && activeDbPath === dbPath) {
     return db;
   }
 
+  db?.close();
   mkdirSync(dirname(dbPath), { recursive: true });
 
   db = new Database(dbPath);
+  activeDbPath = dbPath;
   db.pragma(DATABASE.JOURNAL_MODE);
   db.exec(DATABASE.SQL.INIT_SCHEMA);
 

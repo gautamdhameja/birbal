@@ -21,6 +21,11 @@ type SourceCollectionResult = {
   error?: DailyCollectionError;
 };
 
+type SourceCollector = {
+  source: CandidateItem["source"];
+  collect(topic: string): Promise<CandidateItem[]>;
+};
+
 export function normalizeUrl(url: string): string {
   const trimmed = url.trim();
 
@@ -107,41 +112,37 @@ function isRateLimitError(error: DailyCollectionError): boolean {
   return error.error.includes(DAILY_READING.RATE_LIMIT_ERROR_FRAGMENT);
 }
 
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-async function collectArxivCandidates(topic: string): Promise<SourceCollectionResult> {
+async function collectFromSource(sourceCollector: SourceCollector, topic: string): Promise<SourceCollectionResult> {
   try {
-    const results = await searchArxiv({ query: topic, maxResults: DAILY_READING.MAX_RESULTS_PER_TOPIC });
-    return { candidates: results.map(toArxivCandidate) };
+    return { candidates: await sourceCollector.collect(topic) };
   } catch (error) {
     return {
       candidates: [],
       error: {
-        source: SOURCES.ARXIV,
+        source: sourceCollector.source,
         topic,
-        error: getErrorMessage(error),
+        error: error instanceof Error ? error.message : String(error),
       },
     };
   }
 }
 
-async function collectHackerNewsCandidates(topic: string): Promise<SourceCollectionResult> {
-  try {
-    const results = await searchHackerNews({ query: topic, maxResults: DAILY_READING.MAX_RESULTS_PER_TOPIC });
-    return { candidates: results.map(toHackerNewsCandidate) };
-  } catch (error) {
-    return {
-      candidates: [],
-      error: {
-        source: SOURCES.HACKER_NEWS,
-        topic,
-        error: getErrorMessage(error),
-      },
-    };
-  }
-}
+const SOURCE_COLLECTORS = [
+  {
+    source: SOURCES.ARXIV,
+    async collect(topic: string) {
+      const results = await searchArxiv({ query: topic, maxResults: DAILY_READING.MAX_RESULTS_PER_TOPIC });
+      return results.map(toArxivCandidate);
+    },
+  },
+  {
+    source: SOURCES.HACKER_NEWS,
+    async collect(topic: string) {
+      const results = await searchHackerNews({ query: topic, maxResults: DAILY_READING.MAX_RESULTS_PER_TOPIC });
+      return results.map(toHackerNewsCandidate);
+    },
+  },
+] satisfies SourceCollector[];
 
 export async function collectDailyCandidateResult(): Promise<DailyCollectionResult> {
   const candidates: CandidateItem[] = [];
@@ -150,12 +151,13 @@ export async function collectDailyCandidateResult(): Promise<DailyCollectionResu
 
   for (const topic of DAILY_READING.TOPICS) {
     const skippedSourceResult: SourceCollectionResult = { candidates: [] };
-    const sourceResults = await Promise.all([
-      disabledSources.has(SOURCES.ARXIV) ? Promise.resolve(skippedSourceResult) : collectArxivCandidates(topic),
-      disabledSources.has(SOURCES.HACKER_NEWS)
-        ? Promise.resolve(skippedSourceResult)
-        : collectHackerNewsCandidates(topic),
-    ]);
+    const sourceResults = await Promise.all(
+      SOURCE_COLLECTORS.map((sourceCollector) =>
+        disabledSources.has(sourceCollector.source)
+          ? skippedSourceResult
+          : collectFromSource(sourceCollector, topic),
+      ),
+    );
 
     for (const result of sourceResults) {
       candidates.push(...result.candidates);
