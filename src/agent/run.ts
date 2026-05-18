@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { z } from "zod";
 
+import { AGENT } from "../constants.js";
 import { logger } from "../logging/logger.js";
 import { complete } from "../llama/client.js";
 import type { ChatMessage } from "../llama/schema.js";
@@ -9,8 +10,6 @@ import { renderToolsForPrompt } from "../tools/registry.js";
 import { runTool } from "../tools/runner.js";
 import { parseAgentResponse } from "../utils/json.js";
 import { buildSystemPrompt } from "./prompts.js";
-
-const DEFAULT_MAX_STEPS = 8;
 
 const RunAgentOptionsSchema = z.strictObject({
   maxSteps: z.number().int().positive().optional(),
@@ -20,9 +19,9 @@ type RunAgentOptions = z.infer<typeof RunAgentOptionsSchema>;
 
 function buildToolResultMessage(tool: string, result: unknown): ChatMessage {
   return {
-    role: "user",
+    role: AGENT.ROLES.USER,
     content: JSON.stringify({
-      type: "tool_result",
+      type: AGENT.TOOL_RESULT_TYPE,
       tool,
       result,
     }),
@@ -35,27 +34,27 @@ function getErrorMessage(error: unknown): string {
 
 export async function runAgent(task: string, options: RunAgentOptions = {}): Promise<string> {
   const parsedOptions = RunAgentOptionsSchema.parse(options);
-  const maxSteps = parsedOptions.maxSteps ?? DEFAULT_MAX_STEPS;
+  const maxSteps = parsedOptions.maxSteps ?? AGENT.DEFAULT_MAX_STEPS;
   const traceId = randomUUID();
   const messages: ChatMessage[] = [
     {
-      role: "system",
+      role: AGENT.ROLES.SYSTEM,
       content: buildSystemPrompt(renderToolsForPrompt()),
     },
     {
-      role: "user",
+      role: AGENT.ROLES.USER,
       content: task,
     },
   ];
 
   logger.debug(
     {
-      event: "agent.run.start",
+      event: AGENT.LOG_EVENTS.RUN_START,
       traceId,
       task,
       maxSteps,
     },
-    "agent run started",
+    AGENT.LOG_MESSAGES.RUN_START,
   );
 
   for (let step = 0; step < maxSteps; step += 1) {
@@ -63,26 +62,26 @@ export async function runAgent(task: string, options: RunAgentOptions = {}): Pro
 
     logger.debug(
       {
-        event: "handoff.harness_to_model",
+        event: AGENT.LOG_EVENTS.HARNESS_TO_MODEL,
         traceId,
         modelPassId,
         step,
         messages,
       },
-      "sending messages to model",
+      AGENT.LOG_MESSAGES.HARNESS_TO_MODEL,
     );
 
     const raw = await complete(messages);
 
     logger.debug(
       {
-        event: "handoff.model_to_harness",
+        event: AGENT.LOG_EVENTS.MODEL_TO_HARNESS,
         traceId,
         modelPassId,
         step,
         raw,
       },
-      "received model response",
+      AGENT.LOG_MESSAGES.MODEL_TO_HARNESS,
     );
 
     const parsed = (() => {
@@ -93,14 +92,14 @@ export async function runAgent(task: string, options: RunAgentOptions = {}): Pro
 
         logger.debug(
           {
-            event: "agent.response.parse_failed",
+            event: AGENT.LOG_EVENTS.RESPONSE_PARSE_FAILED,
             traceId,
             modelPassId,
             step,
             raw,
             error: message,
           },
-          "model response failed protocol parsing",
+          AGENT.LOG_MESSAGES.RESPONSE_PARSE_FAILED,
         );
 
         return { error: message };
@@ -108,63 +107,63 @@ export async function runAgent(task: string, options: RunAgentOptions = {}): Pro
     })();
 
     if ("error" in parsed) {
-      return `Agent returned an invalid response: ${parsed.error}`;
+      return `${AGENT.ERRORS.INVALID_RESPONSE_PREFIX} ${parsed.error}`;
     }
 
     messages.push({
-      role: "assistant",
+      role: AGENT.ROLES.ASSISTANT,
       content: raw,
     });
 
     logger.debug(
       {
-        event: "agent.response.parsed",
+        event: AGENT.LOG_EVENTS.RESPONSE_PARSED,
         traceId,
         modelPassId,
         step,
         parsed,
       },
-      "parsed model response",
+      AGENT.LOG_MESSAGES.RESPONSE_PARSED,
     );
 
-    if (parsed.type === "final") {
+    if (parsed.type === AGENT.RESPONSE_TYPES.FINAL) {
       logger.debug(
         {
-          event: "agent.run.final",
+          event: AGENT.LOG_EVENTS.RUN_FINAL,
           traceId,
           modelPassId,
           step,
           answer: parsed.answer,
         },
-        "agent run completed with final answer",
+        AGENT.LOG_MESSAGES.RUN_FINAL,
       );
       return parsed.answer;
     }
 
-    if (parsed.type === "clarify") {
+    if (parsed.type === AGENT.RESPONSE_TYPES.CLARIFY) {
       logger.debug(
         {
-          event: "agent.run.clarify",
+          event: AGENT.LOG_EVENTS.RUN_CLARIFY,
           traceId,
           modelPassId,
           step,
           question: parsed.question,
         },
-        "agent run completed with clarification request",
+        AGENT.LOG_MESSAGES.RUN_CLARIFY,
       );
-      return `Clarification needed: ${parsed.question}`;
+      return `${AGENT.ERRORS.CLARIFICATION_PREFIX} ${parsed.question}`;
     }
 
     logger.debug(
       {
-        event: "handoff.harness_to_tool",
+        event: AGENT.LOG_EVENTS.HARNESS_TO_TOOL,
         traceId,
         modelPassId,
         step,
         tool: parsed.tool,
         args: parsed.args,
       },
-      "dispatching tool call",
+      AGENT.LOG_MESSAGES.HARNESS_TO_TOOL,
     );
 
     const result = await runTool(parsed.tool, parsed.args, {
@@ -175,14 +174,14 @@ export async function runAgent(task: string, options: RunAgentOptions = {}): Pro
 
     logger.debug(
       {
-        event: "handoff.tool_to_harness",
+        event: AGENT.LOG_EVENTS.TOOL_TO_HARNESS,
         traceId,
         modelPassId,
         step,
         tool: parsed.tool,
         result,
       },
-      "received tool result",
+      AGENT.LOG_MESSAGES.TOOL_TO_HARNESS,
     );
 
     const toolResultMessage = buildToolResultMessage(parsed.tool, result);
@@ -190,24 +189,24 @@ export async function runAgent(task: string, options: RunAgentOptions = {}): Pro
 
     logger.debug(
       {
-        event: "agent.messages.append_tool_result",
+        event: AGENT.LOG_EVENTS.APPEND_TOOL_RESULT,
         traceId,
         modelPassId,
         step,
         message: toolResultMessage,
       },
-      "appended tool result message",
+      AGENT.LOG_MESSAGES.APPEND_TOOL_RESULT,
     );
   }
 
   logger.debug(
     {
-      event: "agent.run.max_steps",
+      event: AGENT.LOG_EVENTS.MAX_STEPS,
       traceId,
       maxSteps,
     },
-    "agent run reached max step limit",
+    AGENT.LOG_MESSAGES.MAX_STEPS,
   );
 
-  return `Agent stopped after reaching the maximum step limit of ${maxSteps}.`;
+  return `${AGENT.ERRORS.MAX_STEPS_PREFIX} ${maxSteps}.`;
 }

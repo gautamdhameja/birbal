@@ -1,18 +1,20 @@
 import { z } from "zod";
 
+import { AGENT } from "../constants.js";
+
 export const FinalResponseSchema = z.strictObject({
-  type: z.literal("final"),
+  type: z.literal(AGENT.RESPONSE_TYPES.FINAL),
   answer: z.string(),
 });
 
 export const ToolCallResponseSchema = z.strictObject({
-  type: z.literal("tool_call"),
+  type: z.literal(AGENT.RESPONSE_TYPES.TOOL_CALL),
   tool: z.string(),
   args: z.record(z.string(), z.unknown()),
 });
 
 export const ClarifyResponseSchema = z.strictObject({
-  type: z.literal("clarify"),
+  type: z.literal(AGENT.RESPONSE_TYPES.CLARIFY),
   question: z.string(),
 });
 

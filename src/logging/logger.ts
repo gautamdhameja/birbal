@@ -1,24 +1,25 @@
 import pino from "pino";
 import pretty from "pino-pretty";
 
-const DEFAULT_LOG_LEVEL = "debug";
-const PRETTY_LOGGING_ENABLED = process.env.LOG_PRETTY === "true";
+import { LOGGING } from "../constants.js";
+
+const PRETTY_LOGGING_ENABLED = process.env.LOG_PRETTY === LOGGING.PRETTY_ENABLED_VALUE;
 
 const destination = PRETTY_LOGGING_ENABLED
   ? pretty({
       colorize: true,
-      destination: 2,
-      ignore: "pid,hostname",
+      destination: LOGGING.PRETTY_DESTINATION_FD,
+      ignore: LOGGING.PRETTY_IGNORED_FIELDS,
       sync: true,
-      translateTime: "SYS:standard",
+      translateTime: LOGGING.PRETTY_TRANSLATE_TIME,
     })
-  : pino.destination({ fd: 2, sync: true });
+  : pino.destination({ fd: LOGGING.PRETTY_DESTINATION_FD, sync: true });
 
 export const logger = pino(
   {
     base: undefined,
-    level: process.env.LOG_LEVEL?.trim() || DEFAULT_LOG_LEVEL,
-    name: "birbal",
+    level: process.env.LOG_LEVEL?.trim() || LOGGING.DEFAULT_LEVEL,
+    name: LOGGING.LOGGER_NAME,
     timestamp: pino.stdTimeFunctions.isoTime,
   },
   destination,

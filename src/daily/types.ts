@@ -1,6 +1,8 @@
+import { SOURCES } from "../constants.js";
+
 export type CandidateItem = {
   id: string;
-  source: "arxiv" | "hackernews";
+  source: (typeof SOURCES)[keyof typeof SOURCES];
   title: string;
   url: string;
   summary: string;

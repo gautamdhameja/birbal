@@ -1,31 +1,32 @@
 import { z } from "zod";
 
+import { TIME, TOOLS } from "../constants.js";
 import type { ToolDefinition } from "./types.js";
 
 const GetTimeArgsSchema = z.strictObject({});
 
-function pad(value: number, length = 2): string {
+function pad(value: number, length: number = TIME.DEFAULT_PAD_LENGTH): string {
   return String(value).padStart(length, "0");
 }
 
 export function formatLocalIsoString(date: Date): string {
   const offsetMinutes = -date.getTimezoneOffset();
-  const offsetSign = offsetMinutes >= 0 ? "+" : "-";
+  const offsetSign = offsetMinutes >= 0 ? TIME.POSITIVE_OFFSET_SIGN : TIME.NEGATIVE_OFFSET_SIGN;
   const absoluteOffsetMinutes = Math.abs(offsetMinutes);
-  const offsetHours = Math.trunc(absoluteOffsetMinutes / 60);
-  const remainingOffsetMinutes = absoluteOffsetMinutes % 60;
+  const offsetHours = Math.trunc(absoluteOffsetMinutes / TIME.MINUTES_PER_HOUR);
+  const remainingOffsetMinutes = absoluteOffsetMinutes % TIME.MINUTES_PER_HOUR;
 
   return [
     `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
-    `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`,
-    `.${pad(date.getMilliseconds(), 3)}`,
+    `${TIME.DATE_TIME_SEPARATOR}${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`,
+    `.${pad(date.getMilliseconds(), TIME.MILLISECOND_PAD_LENGTH)}`,
     `${offsetSign}${pad(offsetHours)}:${pad(remainingOffsetMinutes)}`,
   ].join("");
 }
 
 export const getTimeTool: ToolDefinition<typeof GetTimeArgsSchema> = {
-  name: "get_time",
-  description: "Get the current local time as an ISO string.",
+  name: TOOLS.GET_TIME.NAME,
+  description: TOOLS.GET_TIME.DESCRIPTION,
   argsSchema: GetTimeArgsSchema,
   async run() {
     return {

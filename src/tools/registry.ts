@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { TOOLS } from "../constants.js";
 import { getTimeTool } from "./get-time.js";
 import { searchArxivTool } from "./search-arxiv.js";
 import { searchHackerNewsTool } from "./search-hackernews.js";
@@ -36,9 +37,9 @@ export function renderToolsForPrompt(): string {
   return tools
     .map((tool) =>
       [
-        `name: ${tool.name}`,
-        `description: ${tool.description}`,
-        `args: ${renderArgsSchema(tool.argsSchema)}`,
+        `${TOOLS.PROMPT_LABELS.NAME}: ${tool.name}`,
+        `${TOOLS.PROMPT_LABELS.DESCRIPTION}: ${tool.description}`,
+        `${TOOLS.PROMPT_LABELS.ARGS}: ${renderArgsSchema(tool.argsSchema)}`,
       ].join("\n"),
     )
     .join("\n\n");

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { BIRBAL_USER_AGENT } from "../http/headers.js";
+import { HACKER_NEWS, HTTP } from "../constants.js";
 import { getHackerNewsConfig } from "./config.js";
 
 type HackerNewsSearchOptions = {
@@ -36,15 +36,15 @@ function buildHackerNewsSearchUrl({ query, maxResults }: HackerNewsSearchOptions
   const { HACKERNEWS_SEARCH_URL } = getHackerNewsConfig();
   const url = new URL(HACKERNEWS_SEARCH_URL);
 
-  url.searchParams.set("query", query);
-  url.searchParams.set("tags", "story");
-  url.searchParams.set("hitsPerPage", String(maxResults));
+  url.searchParams.set(HACKER_NEWS.QUERY_PARAMS.QUERY, query);
+  url.searchParams.set(HACKER_NEWS.QUERY_PARAMS.TAGS, HACKER_NEWS.STORY_TAG);
+  url.searchParams.set(HACKER_NEWS.QUERY_PARAMS.HITS_PER_PAGE, String(maxResults));
 
   return url.toString();
 }
 
 export function normalizeHackerNewsHit(hit: HackerNewsHit): HackerNewsStory {
-  const hn_url = `https://news.ycombinator.com/item?id=${hit.objectID}`;
+  const hn_url = `${HACKER_NEWS.ITEM_URL_PREFIX}${hit.objectID}`;
 
   return {
     title: hit.title ?? "",
@@ -59,15 +59,15 @@ export function normalizeHackerNewsHit(hit: HackerNewsHit): HackerNewsStory {
 export async function searchHackerNews(options: HackerNewsSearchOptions): Promise<HackerNewsStory[]> {
   const response = await fetch(buildHackerNewsSearchUrl(options), {
     headers: {
-      accept: "application/json",
-      "user-agent": BIRBAL_USER_AGENT,
+      accept: HTTP.JSON_ACCEPT,
+      [HTTP.USER_AGENT_HEADER]: HTTP.USER_AGENT,
     },
   });
 
   if (!response.ok) {
-    const body = await response.text().catch(() => "<failed to read response body>");
+    const body = await response.text().catch(() => HTTP.FAILED_RESPONSE_BODY);
     throw new Error(
-      `Hacker News search request failed with HTTP ${response.status} ${response.statusText}: ${body}`,
+      `${HACKER_NEWS.ERRORS.HTTP_FAILED_PREFIX} ${response.status} ${response.statusText}: ${body}`,
     );
   }
 

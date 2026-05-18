@@ -7,13 +7,13 @@ import {
   toArxivCandidate,
   toHackerNewsCandidate,
 } from "../src/daily/pipeline.js";
-import { DAILY_TOPICS } from "../src/daily/topics.js";
+import { DAILY_READING, SOURCES } from "../src/constants.js";
 import type { CandidateItem } from "../src/daily/types.js";
 
 function candidate(overrides: Partial<CandidateItem>): CandidateItem {
   return {
     id: "test:https://example.com/",
-    source: "arxiv",
+    source: SOURCES.ARXIV,
     title: "Example",
     url: "https://example.com/",
     summary: "",
@@ -25,7 +25,7 @@ function candidate(overrides: Partial<CandidateItem>): CandidateItem {
 
 describe("daily reading pipeline", () => {
   it("uses the fixed daily topic list", () => {
-    assert.deepEqual([...DAILY_TOPICS], [
+    assert.deepEqual([...DAILY_READING.TOPICS], [
       "LLM agents",
       "agent evaluation",
       "RAG systems",
@@ -51,7 +51,7 @@ describe("daily reading pipeline", () => {
       }),
       {
         id: "arxiv:https://arxiv.org/abs/2605.12345v1",
-        source: "arxiv",
+        source: SOURCES.ARXIV,
         title: "Agent Evaluation",
         url: "https://arxiv.org/abs/2605.12345v1",
         summary: "Evaluation summary",
@@ -77,7 +77,7 @@ describe("daily reading pipeline", () => {
       }),
       {
         id: "hackernews:https://example.com/local-llm",
-        source: "hackernews",
+        source: SOURCES.HACKER_NEWS,
         title: "Local LLM Inference",
         url: "https://example.com/local-llm",
         summary: "",
@@ -118,7 +118,7 @@ describe("daily reading pipeline", () => {
         candidate({
           id: "newer",
           title: "Newer",
-          source: "hackernews",
+          source: SOURCES.HACKER_NEWS,
           url: "https://example.com/newer",
           publishedAt: "2026-05-16T12:00:00Z",
         }),

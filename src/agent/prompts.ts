@@ -1,10 +1,12 @@
 import { readFileSync } from "node:fs";
 
-const SYSTEM_AGENT_PROMPT_URL = new URL("../../prompts/system-agent.txt", import.meta.url);
+import { PROMPTS } from "../constants.js";
+
+const SYSTEM_AGENT_PROMPT_URL = new URL(PROMPTS.SYSTEM_AGENT_PATH, import.meta.url);
 
 export function buildSystemPrompt(toolsText = ""): string {
   const basePrompt = readFileSync(SYSTEM_AGENT_PROMPT_URL, "utf8").trim();
-  const toolsSection = toolsText.trim() || "No tools are currently available.";
+  const toolsSection = toolsText.trim() || PROMPTS.NO_TOOLS_AVAILABLE;
 
-  return `${basePrompt}\n\nAvailable tools:\n${toolsSection}`;
+  return `${basePrompt}\n\n${PROMPTS.AVAILABLE_TOOLS_HEADING}\n${toolsSection}`;
 }

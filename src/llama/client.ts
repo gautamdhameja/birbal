@@ -1,3 +1,4 @@
+import { HTTP, LLAMA } from "../constants.js";
 import { getLlamaConfig } from "./config.js";
 import {
   CompleteOptionsSchema,
@@ -22,21 +23,21 @@ export async function complete(
   let response: Response;
   try {
     response = await fetch(serverUrl, {
-      method: "POST",
+      method: HTTP.POST_METHOD,
       headers: {
-        "content-type": "application/json",
+        [HTTP.CONTENT_TYPE_HEADER]: HTTP.JSON_CONTENT_TYPE,
       },
       body: JSON.stringify(requestBody),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to reach llama-server at ${serverUrl}: ${message}`);
+    throw new Error(`${LLAMA.ERRORS.REQUEST_FAILED_PREFIX} ${serverUrl}: ${message}`);
   }
 
   if (!response.ok) {
-    const body = await response.text().catch(() => "<failed to read response body>");
+    const body = await response.text().catch(() => HTTP.FAILED_RESPONSE_BODY);
     throw new Error(
-      `llama-server request failed with HTTP ${response.status} ${response.statusText}: ${body}`,
+      `${LLAMA.ERRORS.HTTP_FAILED_PREFIX} ${response.status} ${response.statusText}: ${body}`,
     );
   }
 
@@ -45,20 +46,20 @@ export async function complete(
     payload = await response.json();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`llama-server returned invalid JSON: ${message}`);
+    throw new Error(`${LLAMA.ERRORS.INVALID_JSON_PREFIX} ${message}`);
   }
 
   const parsedPayload = LlamaChatCompletionResponseSchema.safeParse(payload);
   if (!parsedPayload.success) {
     throw new Error(
-      `llama-server returned an invalid chat completions response shape: ${parsedPayload.error.message}`,
+      `${LLAMA.ERRORS.INVALID_SHAPE_PREFIX} ${parsedPayload.error.message}`,
     );
   }
 
   const parsed = parsedPayload.data;
   const firstChoice = parsed.choices[0];
   if (!firstChoice) {
-    throw new Error("llama-server returned no chat completion choices.");
+    throw new Error(LLAMA.ERRORS.NO_CHOICES);
   }
 
   return firstChoice.message.content;

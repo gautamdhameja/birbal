@@ -1,12 +1,14 @@
 import { z } from "zod";
 
+import { AGENT, LLAMA } from "../constants.js";
+
 export const ChatMessageSchema = z.strictObject({
-  role: z.enum(["system", "user", "assistant"]),
+  role: z.enum([AGENT.ROLES.SYSTEM, AGENT.ROLES.USER, AGENT.ROLES.ASSISTANT]),
   content: z.string(),
 });
 
 export const CompleteOptionsSchema = z.strictObject({
-  temperature: z.number().min(0).max(2).optional(),
+  temperature: z.number().min(LLAMA.TEMPERATURE_MIN).max(LLAMA.TEMPERATURE_MAX).optional(),
   max_tokens: z.number().int().positive().optional(),
 });
 

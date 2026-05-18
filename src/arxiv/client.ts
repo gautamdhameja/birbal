@@ -1,6 +1,7 @@
 import { XMLParser } from "fast-xml-parser";
 
-import { BIRBAL_USER_AGENT } from "../http/headers.js";
+import { ARXIV, HTTP } from "../constants.js";
+import type { ArxivSearchMode } from "../constants.js";
 import { getArxivConfig } from "./config.js";
 
 type ArxivSearchOptions = {
@@ -17,6 +18,10 @@ export type ArxivPaper = {
 };
 
 type ParsedXmlRecord = Record<string, unknown>;
+const RETRYABLE_ARXIV_STATUSES = new Set<number>(ARXIV.RETRYABLE_STATUSES);
+
+let nextArxivRequestAt = 0;
+let arxivRequestQueue = Promise.resolve();
 
 const parser = new XMLParser({
   attributeNamePrefix: "",
@@ -55,16 +60,18 @@ function tokenizeQuery(value: string): string[] {
     .filter(Boolean);
 }
 
-export function buildArxivSearchQuery(query: string, mode: "phrase" | "all-terms" = "phrase"): string {
+export function buildArxivSearchQuery(query: string, mode: ArxivSearchMode = ARXIV.SEARCH_MODES.PHRASE): string {
   const normalizedQuery = sanitizePhrase(query);
 
-  if (mode === "all-terms") {
+  if (mode === ARXIV.SEARCH_MODES.ALL_TERMS) {
     return tokenizeQuery(query)
-      .map((term) => `all:${term}`)
-      .join(" AND ");
+      .map((term) => `${ARXIV.QUERY_PREFIX}:${term}`)
+      .join(ARXIV.QUERY_OPERATOR);
   }
 
-  return normalizedQuery.includes(" ") ? `all:"${normalizedQuery}"` : `all:${normalizedQuery}`;
+  return normalizedQuery.includes(" ")
+    ? `${ARXIV.QUERY_PREFIX}:"${normalizedQuery}"`
+    : `${ARXIV.QUERY_PREFIX}:${normalizedQuery}`;
 }
 
 function extractAuthors(entry: ParsedXmlRecord): string[] {
@@ -76,7 +83,7 @@ function extractAuthors(entry: ParsedXmlRecord): string[] {
 function extractUrl(entry: ParsedXmlRecord): string {
   const alternateLink = asArray(entry.link)
     .map(asRecord)
-    .find((link) => link.rel === "alternate" && typeof link.href === "string");
+    .find((link) => link.rel === ARXIV.LINK_REL.ALTERNATE && typeof link.href === "string");
 
   return asString(alternateLink?.href) || asString(entry.id);
 }
@@ -98,40 +105,73 @@ export function parseArxivAtomFeed(xml: string): ArxivPaper[] {
   });
 }
 
-function buildArxivUrl({ query, maxResults }: ArxivSearchOptions, mode: "phrase" | "all-terms"): string {
+function buildArxivUrl({ query, maxResults }: ArxivSearchOptions, mode: ArxivSearchMode): string {
   const { ARXIV_QUERY_URL } = getArxivConfig();
   const url = new URL(ARXIV_QUERY_URL);
 
-  url.searchParams.set("search_query", buildArxivSearchQuery(query, mode));
-  url.searchParams.set("start", "0");
-  url.searchParams.set("max_results", String(maxResults));
-  url.searchParams.set("sortBy", "submittedDate");
-  url.searchParams.set("sortOrder", "descending");
+  url.searchParams.set(ARXIV.QUERY_PARAMS.SEARCH_QUERY, buildArxivSearchQuery(query, mode));
+  url.searchParams.set(ARXIV.QUERY_PARAMS.START, ARXIV.QUERY_VALUES.START);
+  url.searchParams.set(ARXIV.QUERY_PARAMS.MAX_RESULTS, String(maxResults));
+  url.searchParams.set(ARXIV.QUERY_PARAMS.SORT_BY, ARXIV.QUERY_VALUES.SORT_BY);
+  url.searchParams.set(ARXIV.QUERY_PARAMS.SORT_ORDER, ARXIV.QUERY_VALUES.SORT_ORDER);
 
   return url.toString();
 }
 
-async function fetchArxivSearch(options: ArxivSearchOptions, mode: "phrase" | "all-terms"): Promise<ArxivPaper[]> {
-  const response = await fetch(buildArxivUrl(options, mode), {
-    headers: {
-      accept: "application/atom+xml, application/xml, text/xml",
-      "user-agent": BIRBAL_USER_AGENT,
-    },
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function waitForArxivRequestSlot(): Promise<void> {
+  const waitTurn = arxivRequestQueue.then(async () => {
+    const waitMs = Math.max(0, nextArxivRequestAt - Date.now());
+    if (waitMs > 0) {
+      await delay(waitMs);
+    }
+
+    nextArxivRequestAt = Date.now() + ARXIV.REQUEST_INTERVAL_MS;
   });
 
-  if (!response.ok) {
-    const body = await response.text().catch(() => "<failed to read response body>");
-    throw new Error(`arXiv request failed with HTTP ${response.status} ${response.statusText}: ${body}`);
+  arxivRequestQueue = waitTurn.catch(() => undefined);
+  await waitTurn;
+}
+
+async function fetchArxivSearch(options: ArxivSearchOptions, mode: ArxivSearchMode): Promise<ArxivPaper[]> {
+  const url = buildArxivUrl(options, mode);
+
+  for (let attempt = 1; attempt <= ARXIV.MAX_ATTEMPTS; attempt += 1) {
+    await waitForArxivRequestSlot();
+
+    const response = await fetch(url, {
+      headers: {
+        accept: HTTP.XML_ACCEPT,
+        [HTTP.USER_AGENT_HEADER]: HTTP.USER_AGENT,
+      },
+    });
+
+    if (response.ok) {
+      return parseArxivAtomFeed(await response.text());
+    }
+
+    const body = await response.text().catch(() => HTTP.FAILED_RESPONSE_BODY);
+    const shouldRetry = RETRYABLE_ARXIV_STATUSES.has(response.status) && attempt < ARXIV.MAX_ATTEMPTS;
+    if (!shouldRetry) {
+      throw new Error(`${ARXIV.ERRORS.HTTP_FAILED_PREFIX} ${response.status} ${response.statusText}: ${body}`);
+    }
+
+    await delay(ARXIV.RETRY_DELAY_MS * attempt);
   }
 
-  return parseArxivAtomFeed(await response.text());
+  throw new Error(ARXIV.ERRORS.EXHAUSTED_RETRIES);
 }
 
 export async function searchArxiv(options: ArxivSearchOptions): Promise<ArxivPaper[]> {
-  const phraseResults = await fetchArxivSearch(options, "phrase");
+  const phraseResults = await fetchArxivSearch(options, ARXIV.SEARCH_MODES.PHRASE);
   if (phraseResults.length > 0) {
     return phraseResults;
   }
 
-  return fetchArxivSearch(options, "all-terms");
+  return fetchArxivSearch(options, ARXIV.SEARCH_MODES.ALL_TERMS);
 }

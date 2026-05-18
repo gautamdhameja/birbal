@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { TOOLS } from "../constants.js";
 import { logger } from "../logging/logger.js";
 import { getTool } from "./registry.js";
 import type { ToolError } from "./types.js";
@@ -20,12 +21,12 @@ export async function runTool(
     logger.debug(
       {
         ...traceContext,
-        event: "tool.lookup.failed",
+        event: TOOLS.RUNNER_EVENTS.LOOKUP_FAILED,
         tool: name,
       },
-      "tool lookup failed",
+      TOOLS.RUNNER_MESSAGES.LOOKUP_FAILED,
     );
-    return { error: `Unknown tool: ${name}` };
+    return { error: `${TOOLS.ERRORS.UNKNOWN_PREFIX} ${name}` };
   }
 
   const parsedArgs = tool.argsSchema.safeParse(args);
@@ -33,25 +34,25 @@ export async function runTool(
     logger.debug(
       {
         ...traceContext,
-        event: "tool.args.invalid",
+        event: TOOLS.RUNNER_EVENTS.ARGS_INVALID,
         tool: name,
         args,
         validationError: z.prettifyError(parsedArgs.error),
       },
-      "tool argument validation failed",
+      TOOLS.RUNNER_MESSAGES.ARGS_INVALID,
     );
-    return { error: `Invalid args for tool "${name}": ${z.prettifyError(parsedArgs.error)}` };
+    return { error: `${TOOLS.ERRORS.INVALID_ARGS_PREFIX} "${name}": ${z.prettifyError(parsedArgs.error)}` };
   }
 
   try {
     logger.debug(
       {
         ...traceContext,
-        event: "tool.run.start",
+        event: TOOLS.RUNNER_EVENTS.RUN_START,
         tool: name,
         args: parsedArgs.data,
       },
-      "tool run started",
+      TOOLS.RUNNER_MESSAGES.RUN_START,
     );
 
     const result = await tool.run(parsedArgs.data);
@@ -59,11 +60,11 @@ export async function runTool(
     logger.debug(
       {
         ...traceContext,
-        event: "tool.run.success",
+        event: TOOLS.RUNNER_EVENTS.RUN_SUCCESS,
         tool: name,
         result,
       },
-      "tool run completed",
+      TOOLS.RUNNER_MESSAGES.RUN_SUCCESS,
     );
 
     return result;
@@ -73,11 +74,11 @@ export async function runTool(
     logger.debug(
       {
         ...traceContext,
-        event: "tool.run.error",
+        event: TOOLS.RUNNER_EVENTS.RUN_ERROR,
         tool: name,
         error: message,
       },
-      "tool run failed",
+      TOOLS.RUNNER_MESSAGES.RUN_ERROR,
     );
 
     return { error: message };
