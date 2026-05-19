@@ -1,4 +1,5 @@
 export const HACKER_NEWS = {
+  ALLOWED_HOSTS: ["hn.algolia.com"],
   STORY_TAG: "story",
   ITEM_URL_PREFIX: "https://news.ycombinator.com/item?id=",
   QUERY_PARAMS: {

@@ -25,15 +25,18 @@ function candidate(overrides: Partial<CandidateItem>): CandidateItem {
 
 describe("daily reading pipeline", () => {
   it("uses the fixed daily topic list", () => {
-    assert.deepEqual([...DAILY_READING.TOPICS], [
-      "LLM agents",
-      "agent evaluation",
-      "RAG systems",
-      "local LLM inference",
-      "llama.cpp",
-      "vLLM",
-      "AI engineering",
-    ]);
+    assert.deepEqual(
+      [...DAILY_READING.TOPICS],
+      [
+        "LLM agents",
+        "agent evaluation",
+        "RAG systems",
+        "local LLM inference",
+        "llama.cpp",
+        "vLLM",
+        "AI engineering",
+      ],
+    );
   });
 
   it("normalizes candidate URLs before deduplication", () => {
@@ -129,6 +132,37 @@ describe("daily reading pipeline", () => {
     assert.deepEqual(
       ranked.map((item) => item.id),
       ["second-duplicate", "newer"],
+    );
+  });
+
+  it("applies daily source mix when ranking candidates", () => {
+    const ranked = rankDailyCandidates(
+      [
+        candidate({
+          id: "hn-newer",
+          source: SOURCES.HACKER_NEWS,
+          title: "HN newer",
+          url: "https://example.com/hn-newer",
+          publishedAt: "2026-05-18T10:00:00Z",
+        }),
+        candidate({
+          id: "arxiv-older",
+          source: SOURCES.ARXIV,
+          title: "arXiv older",
+          url: "https://example.com/arxiv-older",
+          publishedAt: "2026-05-17T10:00:00Z",
+        }),
+      ],
+      2,
+      {
+        arxiv: 1,
+        hackernews: 0,
+      },
+    );
+
+    assert.deepEqual(
+      ranked.map((item) => item.id),
+      ["arxiv-older"],
     );
   });
 });

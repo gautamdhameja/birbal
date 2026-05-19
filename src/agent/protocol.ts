@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { AGENT } from "../constants.js";
+import { AGENT } from "../constants/agent.js";
 
 export const FinalResponseSchema = z.strictObject({
   type: z.literal(AGENT.RESPONSE_TYPES.FINAL),

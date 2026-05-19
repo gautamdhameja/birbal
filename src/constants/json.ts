@@ -1,7 +1,7 @@
 export const JSON_PARSING = {
   CHARS: {
     BACKSLASH: "\\",
-    QUOTE: "\"",
+    QUOTE: '"',
     OPEN_BRACE: "{",
     CLOSE_BRACE: "}",
     NEWLINE: "\n",

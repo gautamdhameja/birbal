@@ -1,4 +1,6 @@
-import { HTTP, LLAMA } from "../constants.js";
+import { LLAMA } from "../constants/llama.js";
+import { HTTP } from "../constants/runtime.js";
+import { buildHttpStatusError, fetchWithTimeout, readResponseJson } from "../http/client.js";
 import { getLlamaConfig } from "./config.js";
 import {
   CompleteOptionsSchema,
@@ -18,11 +20,12 @@ export async function complete(
     messages,
     temperature: parsedOptions.temperature,
     max_tokens: parsedOptions.max_tokens,
+    response_format: parsedOptions.response_format,
   });
 
   let response: Response;
   try {
-    response = await fetch(serverUrl, {
+    response = await fetchWithTimeout(serverUrl, {
       method: HTTP.POST_METHOD,
       headers: {
         [HTTP.CONTENT_TYPE_HEADER]: HTTP.JSON_CONTENT_TYPE,
@@ -35,15 +38,12 @@ export async function complete(
   }
 
   if (!response.ok) {
-    const body = await response.text().catch(() => HTTP.FAILED_RESPONSE_BODY);
-    throw new Error(
-      `${LLAMA.ERRORS.HTTP_FAILED_PREFIX} ${response.status} ${response.statusText}: ${body}`,
-    );
+    throw await buildHttpStatusError(LLAMA.ERRORS.HTTP_FAILED_PREFIX, response);
   }
 
   let payload: unknown;
   try {
-    payload = await response.json();
+    payload = await readResponseJson(response);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`${LLAMA.ERRORS.INVALID_JSON_PREFIX} ${message}`);
@@ -51,9 +51,7 @@ export async function complete(
 
   const parsedPayload = LlamaChatCompletionResponseSchema.safeParse(payload);
   if (!parsedPayload.success) {
-    throw new Error(
-      `${LLAMA.ERRORS.INVALID_SHAPE_PREFIX} ${parsedPayload.error.message}`,
-    );
+    throw new Error(`${LLAMA.ERRORS.INVALID_SHAPE_PREFIX} ${parsedPayload.error.message}`);
   }
 
   const parsed = parsedPayload.data;

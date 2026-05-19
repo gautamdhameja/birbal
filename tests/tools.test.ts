@@ -36,7 +36,10 @@ describe("tool registry", () => {
 
     assert.match(renderedTools, /name: get_time/);
     assert.match(renderedTools, /description: Get the current local time as an ISO string\./);
-    assert.match(renderedTools, /args: \{"type":"object","properties":\{\},"additionalProperties":false\}/);
+    assert.match(
+      renderedTools,
+      /args: \{"type":"object","properties":\{\},"additionalProperties":false\}/,
+    );
     assert.match(renderedTools, /name: search_arxiv/);
     assert.match(renderedTools, /description: Search recent arXiv papers by query\./);
     assert.match(renderedTools, /"required":\["query"\]/);

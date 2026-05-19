@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { TOOLS } from "../constants.js";
+import { TOOLS } from "../constants/tools.js";
 import { getTimeTool } from "./get-time.js";
 import { searchArxivTool } from "./search-arxiv.js";
 import { searchHackerNewsTool } from "./search-hackernews.js";

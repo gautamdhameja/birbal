@@ -1,7 +1,7 @@
 import pino from "pino";
 import pretty from "pino-pretty";
 
-import { LOGGING } from "../constants.js";
+import { LOGGING } from "../constants/runtime.js";
 
 const PRETTY_LOGGING_ENABLED = process.env.LOG_PRETTY === LOGGING.PRETTY_ENABLED_VALUE;
 

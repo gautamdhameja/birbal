@@ -1,4 +1,4 @@
-import { JSON_PARSING } from "../constants.js";
+import { JSON_PARSING } from "../constants/json.js";
 
 function extractBalancedJsonObject(raw: string, start: number): string | null {
   let depth = 0;

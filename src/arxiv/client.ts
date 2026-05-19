@@ -1,7 +1,9 @@
 import { XMLParser } from "fast-xml-parser";
 
-import { ARXIV, HTTP } from "../constants.js";
-import type { ArxivSearchMode } from "../constants.js";
+import { ARXIV } from "../constants/arxiv.js";
+import type { ArxivSearchMode } from "../constants/arxiv.js";
+import { HTTP } from "../constants/runtime.js";
+import { buildHttpStatusError, fetchWithTimeout, readResponseText } from "../http/client.js";
 import { getArxivConfig } from "./config.js";
 
 type ArxivSearchOptions = {
@@ -60,7 +62,10 @@ function tokenizeQuery(value: string): string[] {
     .filter(Boolean);
 }
 
-export function buildArxivSearchQuery(query: string, mode: ArxivSearchMode = ARXIV.SEARCH_MODES.PHRASE): string {
+export function buildArxivSearchQuery(
+  query: string,
+  mode: ArxivSearchMode = ARXIV.SEARCH_MODES.PHRASE,
+): string {
   const normalizedQuery = sanitizePhrase(query);
 
   if (mode === ARXIV.SEARCH_MODES.ALL_TERMS) {
@@ -138,13 +143,16 @@ async function waitForArxivRequestSlot(): Promise<void> {
   await waitTurn;
 }
 
-async function fetchArxivSearch(options: ArxivSearchOptions, mode: ArxivSearchMode): Promise<ArxivPaper[]> {
+async function fetchArxivSearch(
+  options: ArxivSearchOptions,
+  mode: ArxivSearchMode,
+): Promise<ArxivPaper[]> {
   const url = buildArxivUrl(options, mode);
 
   for (let attempt = 1; attempt <= ARXIV.MAX_ATTEMPTS; attempt += 1) {
     await waitForArxivRequestSlot();
 
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       headers: {
         accept: HTTP.XML_ACCEPT,
         [HTTP.USER_AGENT_HEADER]: HTTP.USER_AGENT,
@@ -152,13 +160,13 @@ async function fetchArxivSearch(options: ArxivSearchOptions, mode: ArxivSearchMo
     });
 
     if (response.ok) {
-      return parseArxivAtomFeed(await response.text());
+      return parseArxivAtomFeed(await readResponseText(response));
     }
 
-    const body = await response.text().catch(() => HTTP.FAILED_RESPONSE_BODY);
-    const shouldRetry = RETRYABLE_ARXIV_STATUSES.has(response.status) && attempt < ARXIV.MAX_ATTEMPTS;
+    const shouldRetry =
+      RETRYABLE_ARXIV_STATUSES.has(response.status) && attempt < ARXIV.MAX_ATTEMPTS;
     if (!shouldRetry) {
-      throw new Error(`${ARXIV.ERRORS.HTTP_FAILED_PREFIX} ${response.status} ${response.statusText}: ${body}`);
+      throw await buildHttpStatusError(ARXIV.ERRORS.HTTP_FAILED_PREFIX, response);
     }
 
     await delay(ARXIV.RETRY_DELAY_MS * attempt);

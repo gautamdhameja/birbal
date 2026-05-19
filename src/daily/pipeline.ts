@@ -1,14 +1,18 @@
 import { searchArxiv } from "../arxiv/client.js";
 import type { ArxivPaper } from "../arxiv/client.js";
-import { DAILY_READING, SOURCES } from "../constants.js";
+import { DAILY_READING } from "../constants/daily.js";
+import { SOURCES } from "../constants/sources.js";
 import { searchHackerNews } from "../hackernews/client.js";
 import type { HackerNewsStory } from "../hackernews/client.js";
+import { isHttpStatusError } from "../http/client.js";
+import type { UserPreferences } from "../memory/types.js";
 import type { CandidateItem } from "./types.js";
 
 export type DailyCollectionError = {
   source: CandidateItem["source"];
   topic: string;
   error: string;
+  status?: number;
 };
 
 export type DailyCollectionResult = {
@@ -25,6 +29,8 @@ type SourceCollector = {
   source: CandidateItem["source"];
   collect(topic: string): Promise<CandidateItem[]>;
 };
+
+type DailyMix = UserPreferences["dailyMix"];
 
 export function normalizeUrl(url: string): string {
   const trimmed = url.trim();
@@ -104,15 +110,102 @@ function compareCandidates(left: CandidateItem, right: CandidateItem): number {
 export function rankDailyCandidates(
   candidates: CandidateItem[],
   maxCandidates: number = DAILY_READING.MAX_CANDIDATES,
+  dailyMix?: DailyMix,
 ): CandidateItem[] {
-  return dedupeByUrl([...candidates].sort(compareCandidates)).slice(0, maxCandidates);
+  const rankedCandidates = dedupeByUrl([...candidates].sort(compareCandidates));
+  if (!dailyMix) {
+    return rankedCandidates.slice(0, maxCandidates);
+  }
+
+  return applyDailyMix(rankedCandidates, maxCandidates, dailyMix);
+}
+
+function calculateSourceQuotas(
+  maxCandidates: number,
+  dailyMix: DailyMix,
+): Map<CandidateItem["source"], number> {
+  const weightedSources = Object.entries(dailyMix)
+    .map(([source, weight]) => ({
+      source: source as CandidateItem["source"],
+      weight,
+    }))
+    .filter(({ weight }) => weight > 0);
+
+  const totalWeight = weightedSources.reduce((sum, { weight }) => sum + weight, 0);
+  if (totalWeight <= 0) {
+    return new Map();
+  }
+
+  const quotas = new Map<CandidateItem["source"], number>();
+  const quotaParts = weightedSources.map(({ source, weight }) => {
+    const exactQuota = (weight / totalWeight) * maxCandidates;
+    const baseQuota = Math.floor(exactQuota);
+    quotas.set(source, baseQuota);
+
+    return {
+      source,
+      remainder: exactQuota - baseQuota,
+    };
+  });
+
+  let remainingSlots = maxCandidates - [...quotas.values()].reduce((sum, quota) => sum + quota, 0);
+  for (const { source } of quotaParts.sort((left, right) => {
+    const remainderOrder = right.remainder - left.remainder;
+    return remainderOrder !== 0 ? remainderOrder : left.source.localeCompare(right.source);
+  })) {
+    if (remainingSlots <= 0) {
+      break;
+    }
+
+    quotas.set(source, (quotas.get(source) ?? 0) + 1);
+    remainingSlots -= 1;
+  }
+
+  return quotas;
+}
+
+function applyDailyMix(
+  rankedCandidates: CandidateItem[],
+  maxCandidates: number,
+  dailyMix: DailyMix,
+): CandidateItem[] {
+  const quotas = calculateSourceQuotas(maxCandidates, dailyMix);
+  const allowedSources = new Set(quotas.keys());
+  const selectedIds = new Set<string>();
+  const selectedCandidates: CandidateItem[] = [];
+
+  for (const [source, quota] of quotas) {
+    const sourceCandidates = rankedCandidates.filter((candidate) => candidate.source === source);
+    for (const candidate of sourceCandidates.slice(0, quota)) {
+      selectedIds.add(candidate.id);
+      selectedCandidates.push(candidate);
+    }
+  }
+
+  for (const candidate of rankedCandidates) {
+    if (selectedCandidates.length >= maxCandidates) {
+      break;
+    }
+
+    if (!allowedSources.has(candidate.source) || selectedIds.has(candidate.id)) {
+      continue;
+    }
+
+    selectedIds.add(candidate.id);
+    selectedCandidates.push(candidate);
+  }
+
+  return selectedCandidates.sort(compareCandidates);
 }
 
 function isRateLimitError(error: DailyCollectionError): boolean {
-  return error.error.includes(DAILY_READING.RATE_LIMIT_ERROR_FRAGMENT);
+  return error.status === DAILY_READING.RATE_LIMIT_STATUS;
 }
 
-async function collectFromSource(sourceCollector: SourceCollector, topic: string): Promise<SourceCollectionResult> {
+async function collectFromSource(
+  sourceCollector: SourceCollector,
+  topic: string,
+): Promise<SourceCollectionResult> {
   try {
     return { candidates: await sourceCollector.collect(topic) };
   } catch (error) {
@@ -122,6 +215,7 @@ async function collectFromSource(sourceCollector: SourceCollector, topic: string
         source: sourceCollector.source,
         topic,
         error: error instanceof Error ? error.message : String(error),
+        status: isHttpStatusError(error) ? error.status : undefined,
       },
     };
   }
@@ -131,25 +225,34 @@ const SOURCE_COLLECTORS = [
   {
     source: SOURCES.ARXIV,
     async collect(topic: string) {
-      const results = await searchArxiv({ query: topic, maxResults: DAILY_READING.MAX_RESULTS_PER_TOPIC });
+      const results = await searchArxiv({
+        query: topic,
+        maxResults: DAILY_READING.MAX_RESULTS_PER_TOPIC,
+      });
       return results.map(toArxivCandidate);
     },
   },
   {
     source: SOURCES.HACKER_NEWS,
     async collect(topic: string) {
-      const results = await searchHackerNews({ query: topic, maxResults: DAILY_READING.MAX_RESULTS_PER_TOPIC });
+      const results = await searchHackerNews({
+        query: topic,
+        maxResults: DAILY_READING.MAX_RESULTS_PER_TOPIC,
+      });
       return results.map(toHackerNewsCandidate);
     },
   },
 ] satisfies SourceCollector[];
 
-export async function collectDailyCandidateResult(): Promise<DailyCollectionResult> {
+export async function collectDailyCandidateResult(
+  topics: readonly string[] = DAILY_READING.TOPICS,
+  dailyMix?: DailyMix,
+): Promise<DailyCollectionResult> {
   const candidates: CandidateItem[] = [];
   const errors: DailyCollectionError[] = [];
   const disabledSources = new Set<CandidateItem["source"]>();
 
-  for (const topic of DAILY_READING.TOPICS) {
+  for (const topic of topics) {
     const skippedSourceResult: SourceCollectionResult = { candidates: [] };
     const sourceResults = await Promise.all(
       SOURCE_COLLECTORS.map((sourceCollector) =>
@@ -171,11 +274,14 @@ export async function collectDailyCandidateResult(): Promise<DailyCollectionResu
   }
 
   return {
-    candidates: rankDailyCandidates(candidates),
+    candidates: rankDailyCandidates(candidates, DAILY_READING.MAX_CANDIDATES, dailyMix),
     errors,
   };
 }
 
-export async function collectDailyCandidates(): Promise<CandidateItem[]> {
-  return (await collectDailyCandidateResult()).candidates;
+export async function collectDailyCandidates(
+  topics: readonly string[] = DAILY_READING.TOPICS,
+  dailyMix?: DailyMix,
+): Promise<CandidateItem[]> {
+  return (await collectDailyCandidateResult(topics, dailyMix)).candidates;
 }

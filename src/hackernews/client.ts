@@ -1,6 +1,8 @@
 import { z } from "zod";
 
-import { HACKER_NEWS, HTTP } from "../constants.js";
+import { HACKER_NEWS } from "../constants/hacker-news.js";
+import { HTTP } from "../constants/runtime.js";
+import { buildHttpStatusError, fetchWithTimeout, readResponseJson } from "../http/client.js";
 import { getHackerNewsConfig } from "./config.js";
 
 type HackerNewsSearchOptions = {
@@ -56,8 +58,10 @@ export function normalizeHackerNewsHit(hit: HackerNewsHit): HackerNewsStory {
   };
 }
 
-export async function searchHackerNews(options: HackerNewsSearchOptions): Promise<HackerNewsStory[]> {
-  const response = await fetch(buildHackerNewsSearchUrl(options), {
+export async function searchHackerNews(
+  options: HackerNewsSearchOptions,
+): Promise<HackerNewsStory[]> {
+  const response = await fetchWithTimeout(buildHackerNewsSearchUrl(options), {
     headers: {
       accept: HTTP.JSON_ACCEPT,
       [HTTP.USER_AGENT_HEADER]: HTTP.USER_AGENT,
@@ -65,12 +69,9 @@ export async function searchHackerNews(options: HackerNewsSearchOptions): Promis
   });
 
   if (!response.ok) {
-    const body = await response.text().catch(() => HTTP.FAILED_RESPONSE_BODY);
-    throw new Error(
-      `${HACKER_NEWS.ERRORS.HTTP_FAILED_PREFIX} ${response.status} ${response.statusText}: ${body}`,
-    );
+    throw await buildHttpStatusError(HACKER_NEWS.ERRORS.HTTP_FAILED_PREFIX, response);
   }
 
-  const parsed = HackerNewsSearchResponseSchema.parse(await response.json());
+  const parsed = HackerNewsSearchResponseSchema.parse(await readResponseJson(response));
   return parsed.hits.map(normalizeHackerNewsHit);
 }

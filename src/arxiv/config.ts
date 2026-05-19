@@ -1,7 +1,12 @@
 import { z } from "zod";
 
+import { ARXIV } from "../constants/arxiv.js";
+import { allowedHostErrorMessage, isAllowedHttpUrl } from "../http/url.js";
+
 const ArxivEnvSchema = z.strictObject({
-  ARXIV_QUERY_URL: z.url(),
+  ARXIV_QUERY_URL: z
+    .url()
+    .refine((value) => isAllowedHttpUrl(value, ARXIV.ALLOWED_HOSTS), allowedHostErrorMessage()),
 });
 
 export type ArxivConfig = z.infer<typeof ArxivEnvSchema>;

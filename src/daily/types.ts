@@ -1,4 +1,4 @@
-import { SOURCES } from "../constants.js";
+import { SOURCES } from "../constants/sources.js";
 
 export type CandidateItem = {
   id: string;
@@ -9,8 +9,6 @@ export type CandidateItem = {
   publishedAt: string;
   raw: unknown;
 };
-
-export type ReadingPreferences = string | readonly string[];
 
 export type ItemScore = {
   relevance: number;

@@ -1,9 +1,13 @@
 import { z } from "zod";
 
-import { TIME, TOOLS } from "../constants.js";
+import { TIME } from "../constants/time.js";
+import { TOOLS } from "../constants/tools.js";
 import type { ToolDefinition } from "./types.js";
 
 const GetTimeArgsSchema = z.strictObject({});
+const GetTimeResultSchema = z.strictObject({
+  now: z.string(),
+});
 
 function pad(value: number, length: number = TIME.DEFAULT_PAD_LENGTH): string {
   return String(value).padStart(length, "0");
@@ -24,10 +28,11 @@ export function formatLocalIsoString(date: Date): string {
   ].join("");
 }
 
-export const getTimeTool: ToolDefinition<typeof GetTimeArgsSchema> = {
+export const getTimeTool: ToolDefinition<typeof GetTimeArgsSchema, typeof GetTimeResultSchema> = {
   name: TOOLS.GET_TIME.NAME,
   description: TOOLS.GET_TIME.DESCRIPTION,
   argsSchema: GetTimeArgsSchema,
+  resultSchema: GetTimeResultSchema,
   async run() {
     return {
       now: formatLocalIsoString(new Date()),

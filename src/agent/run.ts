@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 
 import { z } from "zod";
 
-import { AGENT } from "../constants.js";
+import { AGENT } from "../constants/agent.js";
 import { logger } from "../logging/logger.js";
+import { preview } from "../logging/preview.js";
 import { complete } from "../llama/client.js";
 import type { ChatMessage } from "../llama/schema.js";
 import { renderToolsForPrompt } from "../tools/registry.js";
@@ -51,7 +52,7 @@ export async function runAgent(task: string, options: RunAgentOptions = {}): Pro
     {
       event: AGENT.LOG_EVENTS.RUN_START,
       traceId,
-      task,
+      taskPreview: preview(task),
       maxSteps,
     },
     AGENT.LOG_MESSAGES.RUN_START,
@@ -66,12 +67,15 @@ export async function runAgent(task: string, options: RunAgentOptions = {}): Pro
         traceId,
         modelPassId,
         step,
-        messages,
+        messageCount: messages.length,
+        lastMessagePreview: preview(messages.at(-1)?.content ?? ""),
       },
       AGENT.LOG_MESSAGES.HARNESS_TO_MODEL,
     );
 
-    const raw = await complete(messages);
+    const raw = await complete(messages, {
+      max_tokens: AGENT.MODEL_MAX_TOKENS,
+    });
 
     logger.debug(
       {
@@ -79,7 +83,7 @@ export async function runAgent(task: string, options: RunAgentOptions = {}): Pro
         traceId,
         modelPassId,
         step,
-        raw,
+        rawPreview: preview(raw),
       },
       AGENT.LOG_MESSAGES.MODEL_TO_HARNESS,
     );
@@ -96,7 +100,7 @@ export async function runAgent(task: string, options: RunAgentOptions = {}): Pro
             traceId,
             modelPassId,
             step,
-            raw,
+            rawPreview: preview(raw),
             error: message,
           },
           AGENT.LOG_MESSAGES.RESPONSE_PARSE_FAILED,
@@ -121,7 +125,7 @@ export async function runAgent(task: string, options: RunAgentOptions = {}): Pro
         traceId,
         modelPassId,
         step,
-        parsed,
+        parsedType: parsed.type,
       },
       AGENT.LOG_MESSAGES.RESPONSE_PARSED,
     );
@@ -133,7 +137,7 @@ export async function runAgent(task: string, options: RunAgentOptions = {}): Pro
           traceId,
           modelPassId,
           step,
-          answer: parsed.answer,
+          answerPreview: preview(parsed.answer),
         },
         AGENT.LOG_MESSAGES.RUN_FINAL,
       );
@@ -161,7 +165,7 @@ export async function runAgent(task: string, options: RunAgentOptions = {}): Pro
         modelPassId,
         step,
         tool: parsed.tool,
-        args: parsed.args,
+        argsPreview: preview(parsed.args),
       },
       AGENT.LOG_MESSAGES.HARNESS_TO_TOOL,
     );
@@ -179,7 +183,7 @@ export async function runAgent(task: string, options: RunAgentOptions = {}): Pro
         modelPassId,
         step,
         tool: parsed.tool,
-        result,
+        resultPreview: preview(result),
       },
       AGENT.LOG_MESSAGES.TOOL_TO_HARNESS,
     );
@@ -193,7 +197,7 @@ export async function runAgent(task: string, options: RunAgentOptions = {}): Pro
         traceId,
         modelPassId,
         step,
-        message: toolResultMessage,
+        messagePreview: preview(toolResultMessage.content),
       },
       AGENT.LOG_MESSAGES.APPEND_TOOL_RESULT,
     );

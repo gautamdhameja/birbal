@@ -6,15 +6,19 @@ export const CLI = {
 } as const;
 
 export const LOGGING = {
-  DEFAULT_LEVEL: "debug",
+  DEFAULT_LEVEL: "info",
   PRETTY_ENABLED_VALUE: "true",
   PRETTY_DESTINATION_FD: 2,
   PRETTY_IGNORED_FIELDS: "pid,hostname",
   PRETTY_TRANSLATE_TIME: "SYS:standard",
   LOGGER_NAME: "birbal",
+  PREVIEW_MAX_LENGTH: 500,
 } as const;
 
 export const HTTP = {
+  DEFAULT_TIMEOUT_MS: 30_000,
+  MAX_RESPONSE_BYTES: 1_000_000,
+  MAX_ERROR_RESPONSE_BYTES: 20_000,
   USER_AGENT: "birbal/1.0 local-agent-harness",
   JSON_ACCEPT: "application/json",
   XML_ACCEPT: "application/atom+xml, application/xml, text/xml",
@@ -23,6 +27,12 @@ export const HTTP = {
   JSON_CONTENT_TYPE: "application/json",
   POST_METHOD: "POST",
   FAILED_RESPONSE_BODY: "<failed to read response body>",
+  ERRORS: {
+    INVALID_HTTP_URL: "URL must use http or https and must not include credentials.",
+    HOST_NOT_ALLOWED: "URL host is not allowed.",
+    RESPONSE_TOO_LARGE: "HTTP response exceeded maximum allowed size.",
+    TIMEOUT_PREFIX: "HTTP request timed out after",
+  },
 } as const;
 
 export const OUTPUT = {

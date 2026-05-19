@@ -1,6 +1,8 @@
 import { z } from "zod";
 
-import { AGENT, LLAMA } from "../constants.js";
+import { AGENT } from "../constants/agent.js";
+import { LLAMA } from "../constants/llama.js";
+import { httpUrlErrorMessage, isHttpUrlWithoutCredentials } from "../http/url.js";
 
 export const ChatMessageSchema = z.strictObject({
   role: z.enum([AGENT.ROLES.SYSTEM, AGENT.ROLES.USER, AGENT.ROLES.ASSISTANT]),
@@ -10,6 +12,11 @@ export const ChatMessageSchema = z.strictObject({
 export const CompleteOptionsSchema = z.strictObject({
   temperature: z.number().min(LLAMA.TEMPERATURE_MIN).max(LLAMA.TEMPERATURE_MAX).optional(),
   max_tokens: z.number().int().positive().optional(),
+  response_format: z
+    .strictObject({
+      type: z.literal(LLAMA.RESPONSE_FORMATS.JSON_OBJECT),
+    })
+    .optional(),
 });
 
 export const LlamaChatCompletionRequestSchema = z.strictObject({
@@ -17,6 +24,7 @@ export const LlamaChatCompletionRequestSchema = z.strictObject({
   messages: ChatMessageSchema.array().min(1),
   temperature: CompleteOptionsSchema.shape.temperature,
   max_tokens: CompleteOptionsSchema.shape.max_tokens,
+  response_format: CompleteOptionsSchema.shape.response_format,
 });
 
 export const LlamaChatCompletionResponseSchema = z.object({
@@ -32,12 +40,12 @@ export const LlamaChatCompletionResponseSchema = z.object({
 });
 
 export const LlamaEnvSchema = z.strictObject({
-  LLAMA_SERVER_URL: z.url(),
+  LLAMA_SERVER_URL: z.url().refine(isHttpUrlWithoutCredentials, httpUrlErrorMessage()),
   LLAMA_MODEL: z.string().min(1),
 });
 
 export const LlamaConfigSchema = z.strictObject({
-  serverUrl: z.url(),
+  serverUrl: z.url().refine(isHttpUrlWithoutCredentials, httpUrlErrorMessage()),
   model: z.string().min(1),
 });
 

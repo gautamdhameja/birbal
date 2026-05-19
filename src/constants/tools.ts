@@ -13,6 +13,7 @@ export const TOOLS = {
   },
   DEFAULT_MAX_RESULTS: 5,
   MAX_RESULTS_LIMIT: 10,
+  RUN_TIMEOUT_MS: 30_000,
   PROMPT_LABELS: {
     NAME: "name",
     DESCRIPTION: "description",
@@ -35,5 +36,7 @@ export const TOOLS = {
   ERRORS: {
     UNKNOWN_PREFIX: "Unknown tool:",
     INVALID_ARGS_PREFIX: "Invalid args for tool",
+    INVALID_RESULT_PREFIX: "Invalid result from tool",
+    TIMEOUT_PREFIX: "Tool timed out after",
   },
 } as const;

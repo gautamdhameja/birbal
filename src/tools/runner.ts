@@ -1,7 +1,8 @@
 import { z } from "zod";
 
-import { TOOLS } from "../constants.js";
+import { TOOLS } from "../constants/tools.js";
 import { logger } from "../logging/logger.js";
+import { preview } from "../logging/preview.js";
 import { getTool } from "./registry.js";
 import type { ToolError } from "./types.js";
 
@@ -10,6 +11,25 @@ export type ToolRunTraceContext = {
   modelPassId?: string;
   step?: number;
 };
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error(`${TOOLS.ERRORS.TIMEOUT_PREFIX} ${timeoutMs}ms.`));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timeout);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timeout);
+        reject(error);
+      },
+    );
+  });
+}
 
 export async function runTool(
   name: string,
@@ -36,12 +56,14 @@ export async function runTool(
         ...traceContext,
         event: TOOLS.RUNNER_EVENTS.ARGS_INVALID,
         tool: name,
-        args,
+        argsPreview: preview(args),
         validationError: z.prettifyError(parsedArgs.error),
       },
       TOOLS.RUNNER_MESSAGES.ARGS_INVALID,
     );
-    return { error: `${TOOLS.ERRORS.INVALID_ARGS_PREFIX} "${name}": ${z.prettifyError(parsedArgs.error)}` };
+    return {
+      error: `${TOOLS.ERRORS.INVALID_ARGS_PREFIX} "${name}": ${z.prettifyError(parsedArgs.error)}`,
+    };
   }
 
   try {
@@ -50,24 +72,30 @@ export async function runTool(
         ...traceContext,
         event: TOOLS.RUNNER_EVENTS.RUN_START,
         tool: name,
-        args: parsedArgs.data,
+        argsPreview: preview(parsedArgs.data),
       },
       TOOLS.RUNNER_MESSAGES.RUN_START,
     );
 
-    const result = await tool.run(parsedArgs.data);
+    const result = await withTimeout(tool.run(parsedArgs.data), TOOLS.RUN_TIMEOUT_MS);
+    const parsedResult = tool.resultSchema.safeParse(result);
+    if (!parsedResult.success) {
+      return {
+        error: `${TOOLS.ERRORS.INVALID_RESULT_PREFIX} "${name}": ${z.prettifyError(parsedResult.error)}`,
+      };
+    }
 
     logger.debug(
       {
         ...traceContext,
         event: TOOLS.RUNNER_EVENTS.RUN_SUCCESS,
         tool: name,
-        result,
+        resultPreview: preview(parsedResult.data),
       },
       TOOLS.RUNNER_MESSAGES.RUN_SUCCESS,
     );
 
-    return result;
+    return parsedResult.data;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 

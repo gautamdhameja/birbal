@@ -1,4 +1,5 @@
 export const ARXIV = {
+  ALLOWED_HOSTS: ["export.arxiv.org"],
   RETRYABLE_STATUSES: [429, 503],
   RETRY_DELAY_MS: 1_000,
   MAX_ATTEMPTS: 3,
