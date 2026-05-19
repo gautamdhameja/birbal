@@ -8,7 +8,7 @@ import { complete } from "../llama/client.js";
 import type { ChatMessage } from "../llama/schema.js";
 import { renderToolsForPrompt } from "../tools/registry.js";
 import { runTool } from "../tools/runner.js";
-import { parseAgentResponse } from "../utils/json.js";
+import { parseAgentResponse } from "./parse-response.js";
 import { buildSystemPrompt } from "./prompts.js";
 
 const RunAgentOptionsSchema = z.strictObject({

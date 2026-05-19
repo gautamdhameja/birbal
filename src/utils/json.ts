@@ -1,5 +1,3 @@
-import { AgentResponseSchema } from "../agent/protocol.js";
-import type { AgentResponse } from "../agent/protocol.js";
 import { JSON_PARSING } from "../constants.js";
 
 function extractBalancedJsonObject(raw: string, start: number): string | null {
@@ -123,7 +121,7 @@ function parseJsonCandidate(candidate: string): unknown {
   }
 }
 
-function parseJson(raw: string): unknown {
+export function parseJson(raw: string): unknown {
   try {
     return parseJsonCandidate(raw);
   } catch {
@@ -143,9 +141,4 @@ function parseJson(raw: string): unknown {
 
     throw new Error(JSON_PARSING.ERRORS.NO_JSON_OBJECT);
   }
-}
-
-export function parseAgentResponse(raw: string): AgentResponse {
-  const parsed = parseJson(raw);
-  return AgentResponseSchema.parse(parsed);
 }

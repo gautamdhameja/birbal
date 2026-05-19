@@ -9,3 +9,18 @@ export type CandidateItem = {
   publishedAt: string;
   raw: unknown;
 };
+
+export type ReadingPreferences = string | readonly string[];
+
+export type ItemScore = {
+  relevance: number;
+  technical_depth: number;
+  novelty: number;
+  practicality: number;
+  reason: string;
+  finalScore: number;
+};
+
+export type ScoredCandidateItem = CandidateItem & {
+  score: ItemScore;
+};

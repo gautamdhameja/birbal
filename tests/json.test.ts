@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { parseAgentResponse } from "../src/utils/json.js";
+import { parseAgentResponse } from "../src/agent/parse-response.js";
 
 describe("parseAgentResponse", () => {
   it("parses a strict protocol object", () => {
