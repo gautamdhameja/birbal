@@ -19,7 +19,7 @@ import { loadPreferences } from "../memory/preferences.js";
 import type { UserPreferences } from "../memory/types.js";
 import { classifyCandidateCategory, fallbackCategoryFromScore } from "./classification.js";
 import { saveDigest, writeDigest } from "./digest.js";
-import { selectDigestItems } from "./digestSelection.js";
+import { selectDigestItemsWithTrace } from "./digestSelection.js";
 import { collectDailyCandidateResult } from "./pipeline.js";
 import type { DailyCollectionError } from "./pipeline.js";
 import { scoreItem } from "./scoring.js";
@@ -28,6 +28,10 @@ import type { CandidateCategory, CandidateItem, ItemScore, ScoredCandidateItem }
 type CandidateToScore = {
   candidate: CandidateItem;
   itemId: string;
+};
+
+export type DailyRunOptions = {
+  traceSelection?: boolean;
 };
 
 export type DailyRunResult = {
@@ -192,6 +196,7 @@ async function enrichShortlistedItemsWithUrlText(
 
 export async function runDailyReading(
   dependencies: Partial<DailyRunDependencies> = {},
+  options: DailyRunOptions = {},
 ): Promise<DailyRunResult> {
   const deps = {
     ...defaultDependencies,
@@ -274,7 +279,21 @@ export async function runDailyReading(
   for (const item of classifiedDigestItems) {
     deps.upsertItem(item);
   }
-  const selectedDigestItems = selectDigestItems(classifiedDigestItems, preferences);
+  const { selectedItems: selectedDigestItems, trace: selectionTrace } = selectDigestItemsWithTrace(
+    classifiedDigestItems,
+    preferences,
+  );
+
+  if (options.traceSelection) {
+    logger.info(
+      {
+        event: DAILY_READING.LOG_EVENTS.DIGEST_SELECTION,
+        ...selectionTrace,
+      },
+      DAILY_READING.LOG_MESSAGES.DIGEST_SELECTION,
+    );
+  }
+
   const digestPath =
     selectedDigestItems.length > 0
       ? deps.saveDigest(deps.writeDigest(selectedDigestItems, today), today)

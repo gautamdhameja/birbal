@@ -2,6 +2,7 @@ import { pathToFileURL } from "node:url";
 
 import dotenv from "dotenv";
 
+import { DAILY_READING } from "../constants/daily.js";
 import { ENV_FILE_PATHS, OUTPUT } from "../constants/runtime.js";
 import { runDailyReading } from "./job.js";
 
@@ -13,7 +14,12 @@ function isMainModule(): boolean {
 }
 
 if (isMainModule()) {
-  const result = await runDailyReading();
+  const result = await runDailyReading(
+    {},
+    {
+      traceSelection: process.argv.includes(DAILY_READING.TRACE_SELECTION_FLAG),
+    },
+  );
   const { failed, ...output } = result;
 
   if (failed) {

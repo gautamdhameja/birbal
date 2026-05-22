@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { CANDIDATE_CATEGORIES, CONTENT_FETCH_STATUSES, SOURCE_REGISTRY } from "../src/constants.js";
-import { selectDigestItems } from "../src/daily/digestSelection.js";
+import { selectDigestItems, selectDigestItemsWithTrace } from "../src/daily/digestSelection.js";
 import type { CandidateCategory, ItemScore, ScoredCandidateItem } from "../src/daily/types.js";
 import type { UserPreferences } from "../src/memory/types.js";
 
@@ -218,6 +218,93 @@ describe("enterprise digest item selection", () => {
     assert.deepEqual(
       selected.map((selectedItem) => selectedItem.id),
       ["old-evergreen"],
+    );
+  });
+
+  it("explains digest selection counts, selected slots, and constrained skips", () => {
+    const result = selectDigestItemsWithTrace(
+      [
+        item("workflow", CANDIDATE_CATEGORIES.WORKFLOW_REDESIGN, {
+          sourceId: "source-a",
+          score: score({ finalScore: 4.9 }),
+        }),
+        item("workflow-extra", CANDIDATE_CATEGORIES.WORKFLOW_REDESIGN, {
+          sourceId: "source-a",
+          score: score({ finalScore: 4.8 }),
+        }),
+        item("agentic", CANDIDATE_CATEGORIES.AGENTIC_IMPLEMENTATION, {
+          sourceId: "source-b",
+          contentFetchStatus: CONTENT_FETCH_STATUSES.FAILED,
+          score: score({ finalScore: 4.7 }),
+        }),
+        item("governance", CANDIDATE_CATEGORIES.GOVERNANCE_ROI, {
+          sourceId: "source-c",
+          contentFetchStatus: CONTENT_FETCH_STATUSES.PAYWALLED,
+          score: score({ finalScore: 4.6 }),
+        }),
+        item("below", CANDIDATE_CATEGORIES.ENTERPRISE_USE_CASE, {
+          sourceId: "source-d",
+          score: score({ finalScore: 3.3 }),
+        }),
+        item("rejected", CANDIDATE_CATEGORIES.ENTERPRISE_USE_CASE, {
+          sourceId: "source-e",
+          score: score({ rejected: true, finalScore: 0 }),
+        }),
+      ],
+      preferences({ maxItemsPerSource: 1 }),
+    );
+
+    assert.deepEqual(
+      result.selectedItems.map((selectedItem) => selectedItem.id),
+      ["workflow", "agentic", "governance"],
+    );
+    assert.deepEqual(result.trace.counts.candidatesBySource, {
+      "source-a": 2,
+      "source-b": 1,
+      "source-c": 1,
+      "source-d": 1,
+      "source-e": 1,
+    });
+    assert.equal(result.trace.counts.rejected, 1);
+    assert.equal(result.trace.counts.belowScoreThreshold, 2);
+    assert.equal(result.trace.counts.withFetchedContent, 4);
+    assert.equal(result.trace.counts.withFailedOrPaywalledContent, 2);
+    assert.deepEqual(
+      result.trace.selected.map((selectedItem) => ({
+        slot: selectedItem.slot,
+        itemId: selectedItem.itemId,
+        reason: selectedItem.reason,
+      })),
+      [
+        {
+          slot: CANDIDATE_CATEGORIES.WORKFLOW_REDESIGN,
+          itemId: "workflow",
+          reason: "Highest-ranked eligible workflow_redesign item for this slot.",
+        },
+        {
+          slot: CANDIDATE_CATEGORIES.AGENTIC_IMPLEMENTATION,
+          itemId: "agentic",
+          reason: "Highest-ranked eligible agentic_implementation item for this slot.",
+        },
+        {
+          slot: CANDIDATE_CATEGORIES.FDE_CUSTOMER_DEPLOYMENT,
+          itemId: "governance",
+          reason:
+            "governance_roi backfilled fde_customer_deployment because no eligible fde_customer_deployment item remained.",
+        },
+      ],
+    );
+    assert.deepEqual(
+      result.trace.skippedDueConstraints.map((skippedItem) => ({
+        itemId: skippedItem.itemId,
+        reason: skippedItem.reason,
+      })),
+      [
+        {
+          itemId: "workflow-extra",
+          reason: "source limit reached for Source A",
+        },
+      ],
     );
   });
 });
