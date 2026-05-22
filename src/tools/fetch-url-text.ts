@@ -32,10 +32,11 @@ export const fetchUrlTextTool: ToolDefinition<
   description: TOOLS.FETCH_URL_TEXT.DESCRIPTION,
   argsSchema: FetchUrlTextArgsSchema,
   resultSchema: FetchUrlTextResultSchema,
-  async run(args) {
+  async run(args, context) {
     return fetchUrlText({
       url: args.url,
       maxChars: args.max_chars,
+      signal: context.signal,
     });
   },
 };

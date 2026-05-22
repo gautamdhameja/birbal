@@ -8,6 +8,7 @@ import { getHackerNewsConfig } from "./config.js";
 type HackerNewsSearchOptions = {
   query: string;
   maxResults: number;
+  signal?: AbortSignal;
 };
 
 export type HackerNewsStory = {
@@ -62,6 +63,7 @@ export async function searchHackerNews(
   options: HackerNewsSearchOptions,
 ): Promise<HackerNewsStory[]> {
   const response = await fetchWithTimeout(buildHackerNewsSearchUrl(options), {
+    signal: options.signal,
     headers: {
       accept: HTTP.JSON_ACCEPT,
       [HTTP.USER_AGENT_HEADER]: HTTP.USER_AGENT,

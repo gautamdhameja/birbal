@@ -36,6 +36,17 @@ describe("user preferences", () => {
     assert.deepEqual(loadPreferences(configPath), preferences());
   });
 
+  it("allows source registry driven daily mix keys", () => {
+    const customPreferences = preferences({
+      dailyMix: {
+        "openai-blog": 1,
+      },
+    });
+    const configPath = writePreferencesConfig(customPreferences);
+
+    assert.deepEqual(loadPreferences(configPath), customPreferences);
+  });
+
   it("rejects invalid JSON", () => {
     const configPath = join(mkdtempSync(join(tmpdir(), "birbal-preferences-")), "preferences.json");
     writeFileSync(configPath, "{");

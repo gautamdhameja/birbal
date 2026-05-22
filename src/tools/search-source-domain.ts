@@ -44,7 +44,7 @@ export const searchSourceDomainTool: ToolDefinition<
   description: TOOLS.SEARCH_SOURCE_DOMAIN.DESCRIPTION,
   argsSchema: SearchSourceDomainArgsSchema,
   resultSchema: SearchSourceDomainResultSchema,
-  async run(args) {
+  async run(args, context) {
     return {
       sourceId: args.sourceId,
       query: args.query,
@@ -52,6 +52,7 @@ export const searchSourceDomainTool: ToolDefinition<
         sourceId: args.sourceId,
         query: args.query,
         maxResults: args.max_results,
+        signal: context.signal,
       }),
     };
   },

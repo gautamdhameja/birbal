@@ -38,13 +38,14 @@ export const searchWebTool: ToolDefinition<
   description: TOOLS.SEARCH_WEB.DESCRIPTION,
   argsSchema: SearchWebArgsSchema,
   resultSchema: SearchWebResultSchema,
-  async run(args) {
+  async run(args, context) {
     return {
       query: args.query,
       results: await searchWeb({
         query: args.query,
         maxResults: args.max_results,
         freshness: args.freshness,
+        signal: context.signal,
       }),
     };
   },

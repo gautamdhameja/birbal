@@ -8,6 +8,7 @@ import { searchHackerNews } from "../hackernews/client.js";
 import type { HackerNewsStory } from "../hackernews/client.js";
 import { isHttpStatusError } from "../http/client.js";
 import type { UserPreferences } from "../memory/types.js";
+import { searchSourceDomain } from "../source-search/domain.js";
 import { normalizeUrl } from "../utils/url.js";
 import { CONTENT_FETCH_STATUSES } from "./types.js";
 import type { CandidateItem } from "./types.js";
@@ -305,11 +306,11 @@ function isSupportedDailySource(sourceId: string): boolean {
 }
 
 function dailyMixWeight(dailyMix: DailyMix, sourceId: string): number {
-  if (!Object.hasOwn(dailyMix, sourceId)) {
-    return 0;
-  }
+  return dailyMix[sourceId] ?? 0;
+}
 
-  return dailyMix[sourceId as keyof DailyMix];
+function isCollectableDailySource(source: SourceRegistryItem): boolean {
+  return isSupportedDailySource(source.id) || source.domains.length > 0;
 }
 
 type DailySourceRegistryItem = SourceRegistryItem;
@@ -323,8 +324,33 @@ export function listEnabledDailySourceConfigs(
     .filter((source) => source.enabled)
     .filter((source) => enableAcademicFallback || !isAcademicFallbackSource(source))
     .filter((source) => !dailyMix || dailyMixWeight(dailyMix, source.id) > 0)
-    .filter((source): source is DailySourceRegistryItem => isSupportedDailySource(source.id))
+    .filter((source): source is DailySourceRegistryItem => isCollectableDailySource(source))
     .sort(compareRegistrySources);
+}
+
+function getDailySourceCollector(sourceConfig: SourceRegistryItem): SourceCollector {
+  const sourceCollector = SOURCE_COLLECTORS.get(sourceConfig.id);
+  if (sourceCollector) {
+    return sourceCollector;
+  }
+
+  return {
+    sourceId: sourceConfig.id,
+    async collect(topic: string) {
+      return searchSourceDomain(
+        {
+          sourceId: sourceConfig.id,
+          query: topic,
+          maxResults: DAILY_READING.MAX_RESULTS_PER_TOPIC,
+        },
+        {
+          sourceRegistry: {
+            sources: [sourceConfig],
+          },
+        },
+      );
+    },
+  };
 }
 
 export function listDailySources(
@@ -351,8 +377,8 @@ export async function collectDailyCandidateResult(
   const sourcesUsed = sourceConfigs.map((sourceConfig) => sourceConfig.id);
 
   for (const sourceConfig of sourceConfigs) {
-    const sourceCollector = SOURCE_COLLECTORS.get(sourceConfig.id);
-    if (!sourceCollector || disabledSources.has(sourceConfig.id)) {
+    const sourceCollector = getDailySourceCollector(sourceConfig);
+    if (disabledSources.has(sourceConfig.id)) {
       continue;
     }
 

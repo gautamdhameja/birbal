@@ -9,6 +9,7 @@ export type SearchWebOptions = {
   query: string;
   maxResults?: number;
   freshness?: string;
+  signal?: AbortSignal;
 };
 
 export type SearchWebResult = {
@@ -18,6 +19,12 @@ export type SearchWebResult = {
   publishedAt?: string;
   sourceName?: string;
   raw: unknown;
+};
+
+type NormalizedSearchWebOptions = {
+  query: string;
+  maxResults: number;
+  freshness: string;
 };
 
 const BraveWebResultSchema = z.looseObject({
@@ -56,7 +63,7 @@ type BraveWebResult = z.infer<typeof BraveWebResultSchema>;
 
 function buildBraveSearchUrl(
   baseUrl: string,
-  { query, maxResults, freshness }: Required<SearchWebOptions>,
+  { query, maxResults, freshness }: NormalizedSearchWebOptions,
 ): string {
   const url = new URL(baseUrl);
 
@@ -99,6 +106,7 @@ export async function searchWeb(options: SearchWebOptions): Promise<SearchWebRes
   const response = await fetchWithTimeout(
     buildBraveSearchUrl(config.BRAVE_SEARCH_URL, normalizeOptions(options)),
     {
+      signal: options.signal,
       headers: {
         accept: HTTP.JSON_ACCEPT,
         [BRAVE_SEARCH.HEADERS.SUBSCRIPTION_TOKEN]: config.BRAVE_SEARCH_API_KEY,
@@ -115,7 +123,7 @@ export async function searchWeb(options: SearchWebOptions): Promise<SearchWebRes
   return (parsed.web?.results ?? []).map(normalizeBraveWebResult);
 }
 
-function normalizeOptions(options: SearchWebOptions): Required<SearchWebOptions> {
+function normalizeOptions(options: SearchWebOptions): NormalizedSearchWebOptions {
   return {
     query: options.query,
     maxResults: options.maxResults ?? BRAVE_SEARCH.DEFAULT_MAX_RESULTS,

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  collectDailyCandidateResult,
   listEnabledDailySourceConfigs,
   listDailySources,
   normalizeUrl,
@@ -72,6 +73,72 @@ describe("daily reading pipeline", () => {
       }).map((source) => source.id),
       [SOURCES.ARXIV],
     );
+  });
+
+  it("collects registry sources without hardcoded collectors through domain search", async () => {
+    const originalFetch = globalThis.fetch;
+    const originalApiKey = process.env.BRAVE_SEARCH_API_KEY;
+    const requestedQueries: string[] = [];
+
+    process.env.BRAVE_SEARCH_API_KEY = "test-key";
+    globalThis.fetch = ((input) => {
+      const url = new URL(String(input));
+      requestedQueries.push(url.searchParams.get("q") ?? "");
+
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            web: {
+              results: [
+                {
+                  title: "Enterprise deployment report",
+                  url: "https://example.com/report",
+                  description: "Deployment details.",
+                  age: "2026-05-20T00:00:00Z",
+                },
+              ],
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+    }) as typeof fetch;
+
+    try {
+      const result = await collectDailyCandidateResult(
+        {
+          sources: [
+            {
+              id: "example-source",
+              name: "Example Source",
+              domains: ["example.com"],
+              priority: 1,
+              sourceType: SOURCE_REGISTRY.SOURCE_TYPES.COMMUNITY,
+              searchQueries: ["enterprise agents"],
+              enabled: true,
+            },
+          ],
+        },
+        {
+          dailyMix: {
+            "example-source": 1,
+          },
+        },
+      );
+
+      assert.deepEqual(requestedQueries, ["enterprise agents site:example.com"]);
+      assert.deepEqual(result.errors, []);
+      assert.deepEqual(result.sourcesUsed, ["example-source"]);
+      assert.equal(result.candidates[0]?.sourceId, "example-source");
+      assert.equal(result.candidates[0]?.url, "https://example.com/report");
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalApiKey === undefined) {
+        delete process.env.BRAVE_SEARCH_API_KEY;
+      } else {
+        process.env.BRAVE_SEARCH_API_KEY = originalApiKey;
+      }
+    }
   });
 
   it("normalizes candidate URLs before deduplication", () => {

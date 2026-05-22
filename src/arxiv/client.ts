@@ -9,6 +9,7 @@ import { getArxivConfig } from "./config.js";
 type ArxivSearchOptions = {
   query: string;
   maxResults: number;
+  signal?: AbortSignal;
 };
 
 export type ArxivPaper = {
@@ -123,17 +124,27 @@ function buildArxivUrl({ query, maxResults }: ArxivSearchOptions, mode: ArxivSea
   return url.toString();
 }
 
-function delay(ms: number): Promise<void> {
+function delay(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
-    setTimeout(resolve, ms);
+    const complete = () => {
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", complete);
+      resolve();
+    };
+    const timeout = setTimeout(complete, ms);
+
+    signal?.addEventListener("abort", complete, { once: true });
+    if (signal?.aborted) {
+      complete();
+    }
   });
 }
 
-async function waitForArxivRequestSlot(): Promise<void> {
+async function waitForArxivRequestSlot(signal?: AbortSignal): Promise<void> {
   const waitTurn = arxivRequestQueue.then(async () => {
     const waitMs = Math.max(0, nextArxivRequestAt - Date.now());
     if (waitMs > 0) {
-      await delay(waitMs);
+      await delay(waitMs, signal);
     }
 
     nextArxivRequestAt = Date.now() + ARXIV.REQUEST_INTERVAL_MS;
@@ -150,9 +161,10 @@ async function fetchArxivSearch(
   const url = buildArxivUrl(options, mode);
 
   for (let attempt = 1; attempt <= ARXIV.MAX_ATTEMPTS; attempt += 1) {
-    await waitForArxivRequestSlot();
+    await waitForArxivRequestSlot(options.signal);
 
     const response = await fetchWithTimeout(url, {
+      signal: options.signal,
       headers: {
         accept: HTTP.XML_ACCEPT,
         [HTTP.USER_AGENT_HEADER]: HTTP.USER_AGENT,
@@ -169,7 +181,7 @@ async function fetchArxivSearch(
       throw await buildHttpStatusError(ARXIV.ERRORS.HTTP_FAILED_PREFIX, response);
     }
 
-    await delay(ARXIV.RETRY_DELAY_MS * attempt);
+    await delay(ARXIV.RETRY_DELAY_MS * attempt, options.signal);
   }
 
   throw new Error(ARXIV.ERRORS.EXHAUSTED_RETRIES);

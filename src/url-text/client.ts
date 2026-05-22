@@ -13,6 +13,7 @@ import type { ExtractedUrlText } from "./extract.js";
 export type FetchUrlTextOptions = {
   url: string;
   maxChars?: number;
+  signal?: AbortSignal;
 };
 
 export type FetchUrlTextResult = ExtractedUrlText & {
@@ -50,6 +51,7 @@ function resolveCanonicalUrl(
 export async function fetchUrlText({
   url,
   maxChars = URL_TEXT.DEFAULT_MAX_CHARS,
+  signal,
 }: FetchUrlTextOptions): Promise<FetchUrlTextResult> {
   if (!URL.canParse(url)) {
     throw new Error(httpUrlErrorMessage());
@@ -58,7 +60,7 @@ export async function fetchUrlText({
     throw new Error(unsafeHttpUrlErrorMessage());
   }
   assertValidMaxChars(maxChars);
-  const { response, finalUrl } = await fetchSafeUrl(url);
+  const { response, finalUrl } = await fetchSafeUrl(url, signal);
 
   if (!response.ok) {
     throw await buildHttpStatusError(URL_TEXT.ERRORS.HTTP_FAILED_PREFIX, response);
@@ -77,12 +79,17 @@ export async function fetchUrlText({
   };
 }
 
-async function fetchSafeUrl(url: string, redirectCount = 0): Promise<FetchedSafeUrl> {
+async function fetchSafeUrl(
+  url: string,
+  signal?: AbortSignal,
+  redirectCount = 0,
+): Promise<FetchedSafeUrl> {
   if (redirectCount > MAX_REDIRECTS) {
     throw new Error(URL_TEXT.ERRORS.TOO_MANY_REDIRECTS);
   }
 
   const response = await fetchWithTimeout(url, {
+    signal,
     redirect: "manual",
     headers: {
       accept: "text/html, text/plain;q=0.9, */*;q=0.8",
@@ -101,7 +108,7 @@ async function fetchSafeUrl(url: string, redirectCount = 0): Promise<FetchedSafe
       throw new Error(unsafeHttpUrlErrorMessage());
     }
 
-    return fetchSafeUrl(nextUrl, redirectCount + 1);
+    return fetchSafeUrl(nextUrl, signal, redirectCount + 1);
   }
 
   return { response, finalUrl: url };

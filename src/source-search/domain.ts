@@ -26,6 +26,7 @@ export type SearchSourceDomainOptions = {
   sourceId: string;
   query: string;
   maxResults?: number;
+  signal?: AbortSignal;
 };
 
 type SearchSourceDomainDependencies = {
@@ -106,7 +107,7 @@ function dedupeSourceDomainCandidates(
 }
 
 export async function searchSourceDomain(
-  { sourceId, query, maxResults = 10 }: SearchSourceDomainOptions,
+  { sourceId, query, maxResults = 10, signal }: SearchSourceDomainOptions,
   dependencies: SearchSourceDomainDependencies = {},
 ): Promise<SourceDomainCandidate[]> {
   const sourceRegistry = dependencies.sourceRegistry ?? loadSourceRegistry();
@@ -117,6 +118,7 @@ export async function searchSourceDomain(
     const results = await searchWeb({
       query: buildDomainQuery(query, domain),
       maxResults,
+      signal,
     });
 
     for (const result of results) {

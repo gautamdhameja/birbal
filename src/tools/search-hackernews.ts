@@ -36,12 +36,13 @@ export const searchHackerNewsTool: ToolDefinition<
   description: TOOLS.SEARCH_HACKER_NEWS.DESCRIPTION,
   argsSchema: SearchHackerNewsArgsSchema,
   resultSchema: SearchHackerNewsResultSchema,
-  async run(args) {
+  async run(args, context) {
     return {
       query: args.query,
       results: await searchHackerNews({
         query: args.query,
         maxResults: args.max_results,
+        signal: context.signal,
       }),
     };
   },

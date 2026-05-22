@@ -35,12 +35,13 @@ export const searchArxivTool: ToolDefinition<
   description: TOOLS.SEARCH_ARXIV.DESCRIPTION,
   argsSchema: SearchArxivArgsSchema,
   resultSchema: SearchArxivResultSchema,
-  async run(args) {
+  async run(args, context) {
     return {
       query: args.query,
       results: await searchArxiv({
         query: args.query,
         maxResults: args.max_results,
+        signal: context.signal,
       }),
     };
   },

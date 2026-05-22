@@ -12,18 +12,36 @@ export type ToolRunTraceContext = {
   step?: number;
 };
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise((resolve, reject) => {
+    const controller = new AbortController();
+    let settled = false;
     const timeout = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      controller.abort();
       reject(new Error(`${TOOLS.ERRORS.TIMEOUT_PREFIX} ${timeoutMs}ms.`));
     }, timeoutMs);
 
-    promise.then(
+    run(controller.signal).then(
       (value) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
         clearTimeout(timeout);
         resolve(value);
       },
       (error: unknown) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
         clearTimeout(timeout);
         reject(error);
       },
@@ -77,7 +95,10 @@ export async function runTool(
       TOOLS.RUNNER_MESSAGES.RUN_START,
     );
 
-    const result = await withTimeout(tool.run(parsedArgs.data), TOOLS.RUN_TIMEOUT_MS);
+    const result = await withTimeout(
+      (signal) => tool.run(parsedArgs.data, { signal }),
+      TOOLS.RUN_TIMEOUT_MS,
+    );
     const parsedResult = tool.resultSchema.safeParse(result);
     if (!parsedResult.success) {
       return {
