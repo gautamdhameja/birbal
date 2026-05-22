@@ -19,6 +19,7 @@ import { loadPreferences } from "../memory/preferences.js";
 import type { UserPreferences } from "../memory/types.js";
 import { classifyCandidateCategory, fallbackCategoryFromScore } from "./classification.js";
 import { saveDigest, writeDigest } from "./digest.js";
+import { selectDigestItems } from "./digestSelection.js";
 import { collectDailyCandidateResult } from "./pipeline.js";
 import type { DailyCollectionError } from "./pipeline.js";
 import { scoreItem } from "./scoring.js";
@@ -259,23 +260,27 @@ export async function runDailyReading(
 
   const today = deps.now();
   const uniqueCurrentRunItemIds = [...new Set(currentRunItemIds)];
-  const digestItems = deps.listTopScoredItemsByIds(uniqueCurrentRunItemIds, DIGEST.TOP_ITEMS);
+  const digestCandidatePool = deps.listTopScoredItemsByIds(
+    uniqueCurrentRunItemIds,
+    Math.max(DIGEST.TOP_ITEMS, SCORING.TOP_RESULTS),
+  );
   const {
     items: enrichedDigestItems,
     fetched: urlTextFetched,
     errors: urlTextErrors,
-  } = await enrichShortlistedItemsWithUrlText(digestItems, deps.fetchUrlText);
+  } = await enrichShortlistedItemsWithUrlText(digestCandidatePool, deps.fetchUrlText);
   const { items: classifiedDigestItems, errors: classificationErrors } =
     await classifyShortlistedItems(enrichedDigestItems, deps.classifyCandidateCategory);
   for (const item of classifiedDigestItems) {
     deps.upsertItem(item);
   }
+  const selectedDigestItems = selectDigestItems(classifiedDigestItems, preferences);
   const digestPath =
-    classifiedDigestItems.length > 0
-      ? deps.saveDigest(deps.writeDigest(classifiedDigestItems, today), today)
+    selectedDigestItems.length > 0
+      ? deps.saveDigest(deps.writeDigest(selectedDigestItems, today), today)
       : null;
   const topScores = deps.listTopScoredItemsByIds(uniqueCurrentRunItemIds, SCORING.TOP_RESULTS);
-  const failed = shouldFailDailyRun(candidates, candidatesToScore, scored, digestItems);
+  const failed = shouldFailDailyRun(candidates, candidatesToScore, scored, selectedDigestItems);
 
   return {
     collected: candidates.length,

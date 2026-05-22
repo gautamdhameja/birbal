@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx src/main.ts",
     "daily": "tsx src/daily/run.ts",
+    "use-cases": "tsx src/use-cases/run.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "LOG_LEVEL=silent tsx --test tests/**/*.test.ts",

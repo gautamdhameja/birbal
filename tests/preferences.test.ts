@@ -14,6 +14,8 @@ function preferences(overrides: Partial<UserPreferences> = {}): UserPreferences 
     avoid: ["press release"],
     preferredDifficulty: "advanced",
     enableAcademicFallback: false,
+    minFinalScoreForDigest: 3.4,
+    maxItemsPerSource: 2,
     dailyMix: {
       arxiv: 0.6,
       hackernews: 0.4,

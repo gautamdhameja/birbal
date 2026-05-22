@@ -11,6 +11,8 @@
   "avoid": ["funding announcement", "press release", "crypto", "generic AI news", "listicle"],
   "preferredDifficulty": "advanced",
   "enableAcademicFallback": false,
+  "minFinalScoreForDigest": 3.4,
+  "maxItemsPerSource": 2,
   "dailyMix": {
     "arxiv": 0,
     "hackernews": 1

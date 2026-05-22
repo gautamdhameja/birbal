@@ -60,6 +60,8 @@ function preferences(): UserPreferences {
     avoid: [],
     preferredDifficulty: "advanced",
     enableAcademicFallback: false,
+    minFinalScoreForDigest: 3.4,
+    maxItemsPerSource: 2,
     dailyMix: {
       arxiv: 1,
       hackernews: 0,

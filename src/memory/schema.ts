@@ -10,6 +10,8 @@ export const PreferencesSchema = z
     avoid: z.array(PreferenceTextSchema),
     preferredDifficulty: z.enum(PREFERENCES.DIFFICULTIES),
     enableAcademicFallback: z.boolean().default(false),
+    minFinalScoreForDigest: z.number().min(0),
+    maxItemsPerSource: z.number().int().min(1),
     dailyMix: z.record(z.string().trim().min(1), z.number().min(0)),
   })
   .refine((preferences) => Object.values(preferences.dailyMix).some((weight) => weight > 0), {
