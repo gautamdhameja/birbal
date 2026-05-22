@@ -9,13 +9,24 @@ import type { UserPreferences } from "../memory/types.js";
 import { parseJson } from "../utils/json.js";
 import type { CandidateItem, ItemScore, ScoredCandidateItem } from "./types.js";
 
-const ScoreResponseSchema = z.strictObject({
-  [SCORING.RESPONSE_FIELDS.RELEVANCE]: z.number().min(0).max(10),
-  [SCORING.RESPONSE_FIELDS.TECHNICAL_DEPTH]: z.number().min(0).max(10),
-  [SCORING.RESPONSE_FIELDS.NOVELTY]: z.number().min(0).max(10),
-  [SCORING.RESPONSE_FIELDS.PRACTICALITY]: z.number().min(0).max(10),
-  [SCORING.RESPONSE_FIELDS.REASON]: z.string().min(1),
-});
+const ScoreResponseSchema = z
+  .strictObject({
+    [SCORING.RESPONSE_FIELDS.ENTERPRISE_RELEVANCE]: z.number().min(1).max(5),
+    [SCORING.RESPONSE_FIELDS.WORKFLOW_REDESIGN_DEPTH]: z.number().min(1).max(5),
+    [SCORING.RESPONSE_FIELDS.REAL_USE_CASE_SPECIFICITY]: z.number().min(1).max(5),
+    [SCORING.RESPONSE_FIELDS.DEPLOYMENT_FDE_RELEVANCE]: z.number().min(1).max(5),
+    [SCORING.RESPONSE_FIELDS.BUSINESS_OUTCOME_CLARITY]: z.number().min(1).max(5),
+    [SCORING.RESPONSE_FIELDS.TECHNICAL_IMPLEMENTATION_USEFULNESS]: z.number().min(1).max(5),
+    [SCORING.RESPONSE_FIELDS.RECENCY]: z.number().min(1).max(5),
+    [SCORING.RESPONSE_FIELDS.NON_GENERIC_INSIGHT]: z.number().min(1).max(5),
+    [SCORING.RESPONSE_FIELDS.REJECTED]: z.boolean(),
+    [SCORING.RESPONSE_FIELDS.REJECTION_REASON]: z.string().min(1).optional(),
+    [SCORING.RESPONSE_FIELDS.REASON]: z.string().min(1),
+  })
+  .refine((score) => !score.rejected || Boolean(score.rejectionReason), {
+    message: "rejectionReason is required when rejected is true.",
+    path: [SCORING.RESPONSE_FIELDS.REJECTION_REASON],
+  });
 
 type ScoreResponse = z.infer<typeof ScoreResponseSchema>;
 
@@ -41,11 +52,16 @@ function renderPreferencesForScoring(preferences: UserPreferences): string {
 
 function renderCandidateForScoring(candidate: CandidateItem): string {
   return JSON.stringify({
-    source: candidate.source,
+    sourceId: candidate.sourceId,
+    sourceName: candidate.sourceName,
+    sourceType: candidate.sourceType,
     title: candidate.title,
     url: candidate.url,
     summary: candidate.summary,
+    contentText: candidate.contentText,
     publishedAt: candidate.publishedAt,
+    discoveredAt: candidate.discoveredAt,
+    contentFetchStatus: candidate.contentFetchStatus,
   });
 }
 
@@ -58,21 +74,35 @@ function buildScorePrompt(candidate: CandidateItem, preferences: UserPreferences
     "",
     `${SCORING.USER_PROMPT_LABELS.RESPONSE_SHAPE}:`,
     JSON.stringify({
-      [SCORING.RESPONSE_FIELDS.RELEVANCE]: 0,
-      [SCORING.RESPONSE_FIELDS.TECHNICAL_DEPTH]: 0,
-      [SCORING.RESPONSE_FIELDS.NOVELTY]: 0,
-      [SCORING.RESPONSE_FIELDS.PRACTICALITY]: 0,
-      [SCORING.RESPONSE_FIELDS.REASON]: "short explanation",
+      [SCORING.RESPONSE_FIELDS.ENTERPRISE_RELEVANCE]: 1,
+      [SCORING.RESPONSE_FIELDS.WORKFLOW_REDESIGN_DEPTH]: 1,
+      [SCORING.RESPONSE_FIELDS.REAL_USE_CASE_SPECIFICITY]: 1,
+      [SCORING.RESPONSE_FIELDS.DEPLOYMENT_FDE_RELEVANCE]: 1,
+      [SCORING.RESPONSE_FIELDS.BUSINESS_OUTCOME_CLARITY]: 1,
+      [SCORING.RESPONSE_FIELDS.TECHNICAL_IMPLEMENTATION_USEFULNESS]: 1,
+      [SCORING.RESPONSE_FIELDS.RECENCY]: 1,
+      [SCORING.RESPONSE_FIELDS.NON_GENERIC_INSIGHT]: 1,
+      [SCORING.RESPONSE_FIELDS.REJECTED]: false,
+      [SCORING.RESPONSE_FIELDS.REJECTION_REASON]: "only when rejected is true",
+      [SCORING.RESPONSE_FIELDS.REASON]: "short enterprise deployment scoring explanation",
     }),
   ].join("\n");
 }
 
 export function calculateFinalScore(score: ScoreResponse): number {
+  if (score.rejected) {
+    return 0;
+  }
+
   return (
-    SCORING.WEIGHTS.RELEVANCE * score.relevance +
-    SCORING.WEIGHTS.TECHNICAL_DEPTH * score.technical_depth +
-    SCORING.WEIGHTS.PRACTICALITY * score.practicality +
-    SCORING.WEIGHTS.NOVELTY * score.novelty
+    SCORING.WEIGHTS.ENTERPRISE_RELEVANCE * score.enterpriseRelevance +
+    SCORING.WEIGHTS.WORKFLOW_REDESIGN_DEPTH * score.workflowRedesignDepth +
+    SCORING.WEIGHTS.REAL_USE_CASE_SPECIFICITY * score.realUseCaseSpecificity +
+    SCORING.WEIGHTS.DEPLOYMENT_FDE_RELEVANCE * score.deploymentFdeRelevance +
+    SCORING.WEIGHTS.BUSINESS_OUTCOME_CLARITY * score.businessOutcomeClarity +
+    SCORING.WEIGHTS.TECHNICAL_IMPLEMENTATION_USEFULNESS * score.technicalImplementationUsefulness +
+    SCORING.WEIGHTS.RECENCY * score.recency +
+    SCORING.WEIGHTS.NON_GENERIC_INSIGHT * score.nonGenericInsight
   );
 }
 
@@ -85,57 +115,6 @@ export function parseItemScore(raw: string): ItemScore {
   return {
     ...parsed.data,
     finalScore: calculateFinalScore(parsed.data),
-  };
-}
-
-function candidateSearchText(candidate: CandidateItem): string {
-  return [candidate.title, candidate.url, candidate.summary]
-    .join("\n")
-    .replace(/\s+/g, " ")
-    .toLocaleLowerCase();
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function matchesAvoidTerm(searchText: string, avoidTerm: string): boolean {
-  const normalizedTerm = avoidTerm.replace(/\s+/g, " ").trim().toLocaleLowerCase();
-  if (!normalizedTerm) {
-    return false;
-  }
-
-  return new RegExp(
-    `(^|[^\\p{L}\\p{N}])${escapeRegExp(normalizedTerm)}($|[^\\p{L}\\p{N}])`,
-    "u",
-  ).test(searchText);
-}
-
-function findAvoidTerm(candidate: CandidateItem, avoidTerms: readonly string[]): string | null {
-  const searchText = candidateSearchText(candidate);
-
-  return avoidTerms.find((term) => matchesAvoidTerm(searchText, term)) ?? null;
-}
-
-export function applyAvoidPenalty(
-  candidate: CandidateItem,
-  preferences: UserPreferences,
-  score: ItemScore,
-): ItemScore {
-  const avoidTerm = findAvoidTerm(candidate, preferences.avoid);
-  if (!avoidTerm) {
-    return score;
-  }
-
-  const penalizedScore = {
-    ...score,
-    relevance: Math.min(score.relevance, SCORING.AVOID_MATCH_RELEVANCE_CAP),
-    reason: `${score.reason} ${SCORING.AVOID_REASON_PREFIX}: ${avoidTerm}.`,
-  };
-
-  return {
-    ...penalizedScore,
-    finalScore: calculateFinalScore(penalizedScore),
   };
 }
 
@@ -166,7 +145,7 @@ export async function scoreItem(
     });
 
     try {
-      return applyAvoidPenalty(candidate, preferences, parseItemScore(raw));
+      return parseItemScore(raw);
     } catch (error) {
       lastError = error;
       messages.push(

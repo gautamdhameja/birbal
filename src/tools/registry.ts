@@ -1,12 +1,22 @@
 import { z } from "zod";
 
 import { TOOLS } from "../constants/tools.js";
+import { fetchUrlTextTool } from "./fetch-url-text.js";
 import { getTimeTool } from "./get-time.js";
 import { searchArxivTool } from "./search-arxiv.js";
 import { searchHackerNewsTool } from "./search-hackernews.js";
+import { searchSourceDomainTool } from "./search-source-domain.js";
+import { searchWebTool } from "./search-web.js";
 import type { ToolDefinition } from "./types.js";
 
-const tools = [getTimeTool, searchArxivTool, searchHackerNewsTool] satisfies ToolDefinition[];
+const tools = [
+  getTimeTool,
+  searchArxivTool,
+  searchHackerNewsTool,
+  searchWebTool,
+  searchSourceDomainTool,
+  fetchUrlTextTool,
+] satisfies ToolDefinition[];
 const toolsByName = new Map(tools.map((tool) => [tool.name, tool]));
 
 function renderArgsSchema(argsSchema: z.ZodType): string {

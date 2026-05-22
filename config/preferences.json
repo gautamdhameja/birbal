@@ -10,8 +10,9 @@
   ],
   "avoid": ["funding announcement", "press release", "crypto", "generic AI news", "listicle"],
   "preferredDifficulty": "advanced",
+  "enableAcademicFallback": false,
   "dailyMix": {
-    "arxiv": 0.6,
-    "hackernews": 0.4
+    "arxiv": 0,
+    "hackernews": 1
   }
 }

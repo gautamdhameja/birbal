@@ -35,6 +35,9 @@ export async function fetchWithTimeout(
   const timeoutMs = options.timeoutMs ?? HTTP.DEFAULT_TIMEOUT_MS;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const abort = () => controller.abort();
+
+  init.signal?.addEventListener("abort", abort, { once: true });
 
   try {
     return await fetch(input, {
@@ -49,6 +52,7 @@ export async function fetchWithTimeout(
     throw error;
   } finally {
     clearTimeout(timeout);
+    init.signal?.removeEventListener("abort", abort);
   }
 }
 

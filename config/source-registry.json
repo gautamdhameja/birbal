@@ -1,0 +1,30 @@
+{
+  "sources": [
+    {
+      "id": "hackernews",
+      "name": "Hacker News",
+      "domains": ["news.ycombinator.com", "hn.algolia.com"],
+      "priority": 1,
+      "sourceType": "community",
+      "searchQueries": [
+        "LLM agents",
+        "agent evaluation",
+        "RAG systems",
+        "local LLM inference",
+        "llama.cpp",
+        "vLLM",
+        "AI engineering"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "arxiv",
+      "name": "arXiv",
+      "domains": ["arxiv.org", "export.arxiv.org"],
+      "priority": 10,
+      "sourceType": "academic_fallback",
+      "searchQueries": ["LLM agents", "agent evaluation", "RAG systems"],
+      "enabled": false
+    }
+  ]
+}

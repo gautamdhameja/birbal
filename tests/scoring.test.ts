@@ -1,30 +1,34 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import {
-  applyAvoidPenalty,
-  calculateFinalScore,
-  parseItemScore,
-  rankScoredCandidates,
-} from "../src/daily/scoring.js";
+import { calculateFinalScore, parseItemScore, rankScoredCandidates } from "../src/daily/scoring.js";
 import type { CandidateItem, ItemScore, ScoredCandidateItem } from "../src/daily/types.js";
-import { SOURCES } from "../src/constants.js";
+import { CONTENT_FETCH_STATUSES, SOURCE_REGISTRY, SOURCES } from "../src/constants.js";
 import type { UserPreferences } from "../src/memory/types.js";
 
 function scoredItem(title: string, finalScore: number): ScoredCandidateItem {
   return {
     id: `test:${title}`,
-    source: SOURCES.ARXIV,
+    sourceId: SOURCES.ARXIV,
+    sourceName: "arXiv",
+    sourceType: SOURCE_REGISTRY.SOURCE_TYPES.ACADEMIC_FALLBACK,
     title,
     url: `https://example.com/${title}`,
     summary: "",
     publishedAt: "2026-05-16T10:00:00Z",
+    discoveredAt: "2026-05-16T11:00:00Z",
+    contentFetchStatus: CONTENT_FETCH_STATUSES.NOT_FETCHED,
     raw: {},
     score: {
-      relevance: finalScore,
-      technical_depth: finalScore,
-      novelty: finalScore,
-      practicality: finalScore,
+      enterpriseRelevance: finalScore,
+      workflowRedesignDepth: finalScore,
+      realUseCaseSpecificity: finalScore,
+      deploymentFdeRelevance: finalScore,
+      businessOutcomeClarity: finalScore,
+      technicalImplementationUsefulness: finalScore,
+      recency: finalScore,
+      nonGenericInsight: finalScore,
+      rejected: false,
       reason: "reason",
       finalScore,
     },
@@ -34,11 +38,15 @@ function scoredItem(title: string, finalScore: number): ScoredCandidateItem {
 function candidate(overrides: Partial<CandidateItem> = {}): CandidateItem {
   return {
     id: "test:https://example.com/item",
-    source: SOURCES.ARXIV,
+    sourceId: SOURCES.ARXIV,
+    sourceName: "arXiv",
+    sourceType: SOURCE_REGISTRY.SOURCE_TYPES.ACADEMIC_FALLBACK,
     title: "Example Item",
     url: "https://example.com/item",
     summary: "Practical agent evaluation work.",
     publishedAt: "2026-05-16T10:00:00Z",
+    discoveredAt: "2026-05-16T11:00:00Z",
+    contentFetchStatus: CONTENT_FETCH_STATUSES.NOT_FETCHED,
     raw: {},
     ...overrides,
   };
@@ -49,6 +57,7 @@ function preferences(overrides: Partial<UserPreferences> = {}): UserPreferences 
     interests: ["LLM agents"],
     avoid: ["press release"],
     preferredDifficulty: "advanced",
+    enableAcademicFallback: false,
     dailyMix: {
       arxiv: 0.6,
       hackernews: 0.4,
@@ -59,12 +68,17 @@ function preferences(overrides: Partial<UserPreferences> = {}): UserPreferences 
 
 function score(overrides: Partial<ItemScore> = {}): ItemScore {
   return {
-    relevance: 9,
-    technical_depth: 8,
-    novelty: 7,
-    practicality: 8,
-    reason: "Strong match.",
-    finalScore: 8.15,
+    enterpriseRelevance: 5,
+    workflowRedesignDepth: 4,
+    realUseCaseSpecificity: 4,
+    deploymentFdeRelevance: 3,
+    businessOutcomeClarity: 4,
+    technicalImplementationUsefulness: 5,
+    recency: 3,
+    nonGenericInsight: 4,
+    rejected: false,
+    reason: "Strong enterprise deployment match.",
+    finalScore: 4.1,
     ...overrides,
   };
 }
@@ -73,13 +87,18 @@ describe("daily item scoring", () => {
   it("calculates the weighted final score", () => {
     assert.equal(
       calculateFinalScore({
-        relevance: 10,
-        technical_depth: 8,
-        practicality: 6,
-        novelty: 4,
-        reason: "Useful and technical.",
+        enterpriseRelevance: 5,
+        workflowRedesignDepth: 4,
+        realUseCaseSpecificity: 4,
+        deploymentFdeRelevance: 3,
+        businessOutcomeClarity: 4,
+        technicalImplementationUsefulness: 5,
+        recency: 3,
+        nonGenericInsight: 4,
+        rejected: false,
+        reason: "Useful deployment signal.",
       }),
-      7.8,
+      4.1,
     );
   });
 
@@ -87,20 +106,64 @@ describe("daily item scoring", () => {
     assert.deepEqual(
       parseItemScore(`
         {
-          "relevance": 10,
-          "technical_depth": 8,
-          "novelty": 4,
-          "practicality": 6,
-          "reason": "Useful and technical."
+          "enterpriseRelevance": 5,
+          "workflowRedesignDepth": 4,
+          "realUseCaseSpecificity": 4,
+          "deploymentFdeRelevance": 3,
+          "businessOutcomeClarity": 4,
+          "technicalImplementationUsefulness": 5,
+          "recency": 3,
+          "nonGenericInsight": 4,
+          "rejected": false,
+          "reason": "Useful deployment signal."
         }
       `),
       {
-        relevance: 10,
-        technical_depth: 8,
-        novelty: 4,
-        practicality: 6,
-        reason: "Useful and technical.",
-        finalScore: 7.8,
+        enterpriseRelevance: 5,
+        workflowRedesignDepth: 4,
+        realUseCaseSpecificity: 4,
+        deploymentFdeRelevance: 3,
+        businessOutcomeClarity: 4,
+        technicalImplementationUsefulness: 5,
+        recency: 3,
+        nonGenericInsight: 4,
+        rejected: false,
+        reason: "Useful deployment signal.",
+        finalScore: 4.1,
+      },
+    );
+  });
+
+  it("parses rejected model scores", () => {
+    assert.deepEqual(
+      parseItemScore(`
+        {
+          "enterpriseRelevance": 1,
+          "workflowRedesignDepth": 1,
+          "realUseCaseSpecificity": 1,
+          "deploymentFdeRelevance": 1,
+          "businessOutcomeClarity": 1,
+          "technicalImplementationUsefulness": 1,
+          "recency": 1,
+          "nonGenericInsight": 1,
+          "rejected": true,
+          "rejectionReason": "Generic AI news with no enterprise deployment angle.",
+          "reason": "Rejected as generic AI news."
+        }
+      `),
+      {
+        enterpriseRelevance: 1,
+        workflowRedesignDepth: 1,
+        realUseCaseSpecificity: 1,
+        deploymentFdeRelevance: 1,
+        businessOutcomeClarity: 1,
+        technicalImplementationUsefulness: 1,
+        recency: 1,
+        nonGenericInsight: 1,
+        rejected: true,
+        rejectionReason: "Generic AI news with no enterprise deployment angle.",
+        reason: "Rejected as generic AI news.",
+        finalScore: 0,
       },
     );
   });
@@ -109,7 +172,7 @@ describe("daily item scoring", () => {
     assert.throws(
       () =>
         parseItemScore(
-          '{"relevance":11,"technical_depth":8,"novelty":4,"practicality":6,"reason":"bad"}',
+          '{"enterpriseRelevance":6,"workflowRedesignDepth":4,"realUseCaseSpecificity":4,"deploymentFdeRelevance":3,"businessOutcomeClarity":4,"technicalImplementationUsefulness":5,"recency":3,"nonGenericInsight":4,"rejected":false,"reason":"bad"}',
         ),
       /invalid item score/i,
     );
@@ -122,33 +185,6 @@ describe("daily item scoring", () => {
         2,
       ).map((item) => item.title),
       ["high", "middle"],
-    );
-  });
-
-  it("penalizes items matching avoid terms", () => {
-    const penalized = applyAvoidPenalty(
-      candidate({ title: "Vendor press release about agents" }),
-      preferences(),
-      score(),
-    );
-
-    assert.equal(penalized.relevance, 3);
-    assert.equal(Number(penalized.finalScore.toFixed(2)), 5.85);
-    assert.match(penalized.reason, /press release/);
-  });
-
-  it("does not penalize items without avoid terms", () => {
-    assert.deepEqual(applyAvoidPenalty(candidate(), preferences(), score()), score());
-  });
-
-  it("does not penalize partial word avoid matches", () => {
-    assert.deepEqual(
-      applyAvoidPenalty(
-        candidate({ title: "Cryptography for private inference" }),
-        preferences({ avoid: ["crypto"] }),
-        score(),
-      ),
-      score(),
     );
   });
 });

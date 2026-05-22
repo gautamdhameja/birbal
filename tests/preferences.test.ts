@@ -13,6 +13,7 @@ function preferences(overrides: Partial<UserPreferences> = {}): UserPreferences 
     interests: ["LLM agents", "agent evaluation"],
     avoid: ["press release"],
     preferredDifficulty: "advanced",
+    enableAcademicFallback: false,
     dailyMix: {
       arxiv: 0.6,
       hackernews: 0.4,

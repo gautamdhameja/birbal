@@ -4,7 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { SOURCES } from "../src/constants.js";
+import Database from "better-sqlite3";
+
+import { CONTENT_FETCH_STATUSES, SOURCE_REGISTRY, SOURCES } from "../src/constants.js";
 import {
   closeDb,
   getItemByUrl,
@@ -22,11 +24,15 @@ import type { CandidateItem, ItemScore } from "../src/daily/types.js";
 function item(overrides: Partial<CandidateItem>): CandidateItem {
   return {
     id: "test:https://example.com/item",
-    source: SOURCES.ARXIV,
+    sourceId: SOURCES.ARXIV,
+    sourceName: "arXiv",
+    sourceType: SOURCE_REGISTRY.SOURCE_TYPES.ACADEMIC_FALLBACK,
     title: "Example Item",
     url: "https://example.com/item",
     summary: "summary",
     publishedAt: "2026-05-16T10:00:00Z",
+    discoveredAt: "2026-05-16T11:00:00Z",
+    contentFetchStatus: CONTENT_FETCH_STATUSES.NOT_FETCHED,
     raw: { source: "test" },
     ...overrides,
   };
@@ -34,10 +40,15 @@ function item(overrides: Partial<CandidateItem>): CandidateItem {
 
 function score(overrides: Partial<ItemScore> = {}): ItemScore {
   return {
-    relevance: 8,
-    technical_depth: 7,
-    novelty: 6,
-    practicality: 9,
+    enterpriseRelevance: 5,
+    workflowRedesignDepth: 4,
+    realUseCaseSpecificity: 4,
+    deploymentFdeRelevance: 3,
+    businessOutcomeClarity: 4,
+    technicalImplementationUsefulness: 5,
+    recency: 3,
+    nonGenericInsight: 4,
+    rejected: false,
     reason: "Useful technical item.",
     finalScore: 7.75,
     ...overrides,
@@ -61,11 +72,15 @@ describe("SQLite item persistence", () => {
     const recentItems = listRecentItems(10);
     assert.deepEqual(recentItems[0], {
       id: "test:https://example.com/item",
-      source: SOURCES.ARXIV,
+      sourceId: SOURCES.ARXIV,
+      sourceName: "arXiv",
+      sourceType: SOURCE_REGISTRY.SOURCE_TYPES.ACADEMIC_FALLBACK,
       title: "Updated",
       url: "https://example.com/item",
       summary: "updated summary",
       publishedAt: "2026-05-16T10:00:00Z",
+      discoveredAt: "2026-05-16T11:00:00Z",
+      contentFetchStatus: CONTENT_FETCH_STATUSES.NOT_FETCHED,
       raw: { source: "test" },
     });
   });
@@ -128,6 +143,154 @@ describe("SQLite item persistence", () => {
 
     initDb(secondDbPath);
     assert.equal(itemExistsByUrl("https://example.com/first"), false);
+  });
+
+  it("migrates existing items to the enterprise candidate shape", () => {
+    const dbPath = join(mkdtempSync(join(tmpdir(), "birbal-db-")), "agent.db");
+    const legacyDb = new Database(dbPath);
+    legacyDb.exec(`
+      CREATE TABLE items (
+        id TEXT PRIMARY KEY,
+        source TEXT NOT NULL,
+        title TEXT NOT NULL,
+        url TEXT NOT NULL UNIQUE,
+        summary TEXT NOT NULL,
+        published_at TEXT NOT NULL,
+        raw_json TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    legacyDb
+      .prepare(
+        `
+          INSERT INTO items (
+            id,
+            source,
+            title,
+            url,
+            summary,
+            published_at,
+            raw_json,
+            created_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+      )
+      .run(
+        "arxiv:https://example.com/legacy",
+        SOURCES.ARXIV,
+        "Legacy Item",
+        "https://example.com/legacy",
+        "legacy summary",
+        "2026-05-16T10:00:00Z",
+        JSON.stringify({ legacy: true }),
+        "2026-05-16T12:00:00Z",
+      );
+    legacyDb.close();
+
+    initDb(dbPath);
+
+    assert.deepEqual(getItemByUrl("https://example.com/legacy"), {
+      id: "arxiv:https://example.com/legacy",
+      sourceId: SOURCES.ARXIV,
+      sourceName: "arXiv",
+      sourceType: SOURCE_REGISTRY.SOURCE_TYPES.ACADEMIC_FALLBACK,
+      title: "Legacy Item",
+      url: "https://example.com/legacy",
+      summary: "legacy summary",
+      publishedAt: "2026-05-16T10:00:00Z",
+      discoveredAt: "2026-05-16T12:00:00Z",
+      contentFetchStatus: CONTENT_FETCH_STATUSES.NOT_FETCHED,
+      raw: { legacy: true },
+    });
+  });
+
+  it("migrates existing scores to the enterprise score shape", () => {
+    const dbPath = join(mkdtempSync(join(tmpdir(), "birbal-db-")), "agent.db");
+    const legacyDb = new Database(dbPath);
+    legacyDb.exec(`
+      CREATE TABLE items (
+        id TEXT PRIMARY KEY,
+        source TEXT NOT NULL,
+        title TEXT NOT NULL,
+        url TEXT NOT NULL UNIQUE,
+        summary TEXT NOT NULL,
+        published_at TEXT NOT NULL,
+        raw_json TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE scores (
+        item_id TEXT PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+        relevance REAL NOT NULL,
+        technical_depth REAL NOT NULL,
+        novelty REAL NOT NULL,
+        practicality REAL NOT NULL,
+        reason TEXT NOT NULL,
+        final_score REAL NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    legacyDb
+      .prepare(
+        `
+          INSERT INTO items (
+            id,
+            source,
+            title,
+            url,
+            summary,
+            published_at,
+            raw_json
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `,
+      )
+      .run(
+        "arxiv:https://example.com/scored",
+        SOURCES.ARXIV,
+        "Legacy Scored Item",
+        "https://example.com/scored",
+        "legacy summary",
+        "2026-05-16T10:00:00Z",
+        "{}",
+      );
+    legacyDb
+      .prepare(
+        `
+          INSERT INTO scores (
+            item_id,
+            relevance,
+            technical_depth,
+            novelty,
+            practicality,
+            reason,
+            final_score
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `,
+      )
+      .run("arxiv:https://example.com/scored", 8, 7, 6, 9, "legacy score", 7.75);
+    legacyDb.close();
+
+    initDb(dbPath);
+
+    assert.deepEqual(getScore("arxiv:https://example.com/scored"), {
+      enterpriseRelevance: 8,
+      workflowRedesignDepth: 7,
+      realUseCaseSpecificity: 8,
+      deploymentFdeRelevance: 8,
+      businessOutcomeClarity: 9,
+      technicalImplementationUsefulness: 9,
+      recency: 1,
+      nonGenericInsight: 6,
+      rejected: false,
+      reason: "legacy score",
+      finalScore: 7.75,
+    });
   });
 
   it("closes and reopens the active database", () => {

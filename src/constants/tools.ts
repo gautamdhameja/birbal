@@ -11,6 +11,18 @@ export const TOOLS = {
     NAME: "search_hackernews",
     DESCRIPTION: "Search recent Hacker News stories by query.",
   },
+  SEARCH_WEB: {
+    NAME: "search_web",
+    DESCRIPTION: "Search the web with Brave Search by query.",
+  },
+  SEARCH_SOURCE_DOMAIN: {
+    NAME: "search_source_domain",
+    DESCRIPTION: "Search a configured source domain with Brave Search.",
+  },
+  FETCH_URL_TEXT: {
+    NAME: "fetch_url_text",
+    DESCRIPTION: "Fetch a URL and extract readable article or report text.",
+  },
   DEFAULT_MAX_RESULTS: 5,
   MAX_RESULTS_LIMIT: 10,
   RUN_TIMEOUT_MS: 30_000,

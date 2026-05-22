@@ -4,8 +4,18 @@ import { dirname, join } from "node:path";
 import Database from "better-sqlite3";
 import type { Database as DatabaseConnection } from "better-sqlite3";
 
+import { CONTENT_FETCH_STATUSES } from "../constants/candidates.js";
 import { DATABASE } from "../constants/database.js";
-import type { CandidateItem, ItemScore, ScoredCandidateItem } from "../daily/types.js";
+import { SOURCE_REGISTRY } from "../constants/source-registry.js";
+import { SOURCES } from "../constants/sources.js";
+import type {
+  CandidateCategory,
+  CandidateItem,
+  CandidateSourceType,
+  ContentFetchStatus,
+  ItemScore,
+  ScoredCandidateItem,
+} from "../daily/types.js";
 
 let db: DatabaseConnection | null = null;
 let activeDbPath: string | null = null;
@@ -36,9 +46,234 @@ export function initDb(dbPath = getDefaultDbPath()): DatabaseConnection {
   activeDbPath = dbPath;
   db.pragma(DATABASE.FOREIGN_KEYS);
   db.pragma(DATABASE.JOURNAL_MODE);
-  db.exec(DATABASE.SQL.INIT_SCHEMA);
+  const connection = db;
 
-  return db;
+  connection.transaction(() => {
+    connection.exec(DATABASE.SQL.INIT_SCHEMA);
+    migrateItemsTable(connection);
+    migrateScoresTable(connection);
+  })();
+
+  return connection;
+}
+
+type TableInfoRow = {
+  name: string;
+};
+
+function listTableColumns(connection: DatabaseConnection, tableName: string): Set<string> {
+  const rows = connection.prepare(`PRAGMA table_info(${tableName})`).all() as TableInfoRow[];
+  return new Set(rows.map((row) => row.name));
+}
+
+function addColumnIfMissing(
+  connection: DatabaseConnection,
+  tableName: string,
+  columns: Set<string>,
+  columnName: string,
+  definition: string,
+): void {
+  if (columns.has(columnName)) {
+    return;
+  }
+
+  connection.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+  columns.add(columnName);
+}
+
+function migrateItemsTable(connection: DatabaseConnection): void {
+  const columns = listTableColumns(connection, "items");
+  const hadSourceType = columns.has(DATABASE.ITEM_COLUMNS.SOURCE_TYPE);
+
+  addColumnIfMissing(
+    connection,
+    "items",
+    columns,
+    DATABASE.ITEM_COLUMNS.SOURCE_ID,
+    "TEXT NOT NULL DEFAULT ''",
+  );
+  addColumnIfMissing(
+    connection,
+    "items",
+    columns,
+    DATABASE.ITEM_COLUMNS.SOURCE_NAME,
+    "TEXT NOT NULL DEFAULT ''",
+  );
+  addColumnIfMissing(
+    connection,
+    "items",
+    columns,
+    DATABASE.ITEM_COLUMNS.SOURCE_TYPE,
+    `TEXT NOT NULL DEFAULT '${SOURCE_REGISTRY.SOURCE_TYPES.COMMUNITY}'`,
+  );
+  addColumnIfMissing(
+    connection,
+    "items",
+    columns,
+    DATABASE.ITEM_COLUMNS.DISCOVERED_AT,
+    "TEXT NOT NULL DEFAULT ''",
+  );
+  addColumnIfMissing(connection, "items", columns, DATABASE.ITEM_COLUMNS.CONTENT_TEXT, "TEXT");
+  addColumnIfMissing(
+    connection,
+    "items",
+    columns,
+    DATABASE.ITEM_COLUMNS.CONTENT_FETCH_STATUS,
+    `TEXT NOT NULL DEFAULT '${CONTENT_FETCH_STATUSES.NOT_FETCHED}'`,
+  );
+  addColumnIfMissing(connection, "items", columns, DATABASE.ITEM_COLUMNS.CATEGORY, "TEXT");
+
+  connection
+    .prepare(
+      `
+        UPDATE items
+        SET
+          source_id = CASE
+            WHEN source_id = '' THEN source
+            ELSE source_id
+          END,
+          source_name = CASE
+            WHEN source_name != '' THEN source_name
+            WHEN source = @arxiv THEN 'arXiv'
+            WHEN source = @hackerNews THEN 'Hacker News'
+            ELSE source
+          END,
+          source_type = CASE
+            WHEN @hadSourceType = 0 AND source = @arxiv THEN @academicFallback
+            WHEN @hadSourceType = 0 THEN @community
+            WHEN source_type != '' AND source_type IS NOT NULL THEN source_type
+            WHEN source = @arxiv THEN @academicFallback
+            ELSE @community
+          END,
+          discovered_at = CASE
+            WHEN discovered_at != '' THEN discovered_at
+            ELSE created_at
+          END,
+          content_fetch_status = CASE
+            WHEN content_fetch_status != '' THEN content_fetch_status
+            ELSE @notFetched
+          END
+        WHERE source_id = ''
+          OR source_name = ''
+          OR source_type = ''
+          OR discovered_at = ''
+          OR content_fetch_status = ''
+      `,
+    )
+    .run({
+      arxiv: SOURCES.ARXIV,
+      hackerNews: SOURCES.HACKER_NEWS,
+      academicFallback: SOURCE_REGISTRY.SOURCE_TYPES.ACADEMIC_FALLBACK,
+      community: SOURCE_REGISTRY.SOURCE_TYPES.COMMUNITY,
+      hadSourceType: hadSourceType ? 1 : 0,
+      notFetched: CONTENT_FETCH_STATUSES.NOT_FETCHED,
+    });
+
+  connection.exec(`
+    CREATE INDEX IF NOT EXISTS idx_items_source_id ON items (source_id);
+    CREATE INDEX IF NOT EXISTS idx_items_discovered_at ON items (discovered_at DESC);
+  `);
+}
+
+function migrateScoresTable(connection: DatabaseConnection): void {
+  const columns = listTableColumns(connection, "scores");
+
+  addColumnIfMissing(
+    connection,
+    "scores",
+    columns,
+    DATABASE.SCORE_COLUMNS.ENTERPRISE_RELEVANCE,
+    "REAL NOT NULL DEFAULT 1",
+  );
+  addColumnIfMissing(
+    connection,
+    "scores",
+    columns,
+    DATABASE.SCORE_COLUMNS.WORKFLOW_REDESIGN_DEPTH,
+    "REAL NOT NULL DEFAULT 1",
+  );
+  addColumnIfMissing(
+    connection,
+    "scores",
+    columns,
+    DATABASE.SCORE_COLUMNS.REAL_USE_CASE_SPECIFICITY,
+    "REAL NOT NULL DEFAULT 1",
+  );
+  addColumnIfMissing(
+    connection,
+    "scores",
+    columns,
+    DATABASE.SCORE_COLUMNS.DEPLOYMENT_FDE_RELEVANCE,
+    "REAL NOT NULL DEFAULT 1",
+  );
+  addColumnIfMissing(
+    connection,
+    "scores",
+    columns,
+    DATABASE.SCORE_COLUMNS.BUSINESS_OUTCOME_CLARITY,
+    "REAL NOT NULL DEFAULT 1",
+  );
+  addColumnIfMissing(
+    connection,
+    "scores",
+    columns,
+    DATABASE.SCORE_COLUMNS.TECHNICAL_IMPLEMENTATION_USEFULNESS,
+    "REAL NOT NULL DEFAULT 1",
+  );
+  addColumnIfMissing(
+    connection,
+    "scores",
+    columns,
+    DATABASE.SCORE_COLUMNS.RECENCY,
+    "REAL NOT NULL DEFAULT 1",
+  );
+  addColumnIfMissing(
+    connection,
+    "scores",
+    columns,
+    DATABASE.SCORE_COLUMNS.NON_GENERIC_INSIGHT,
+    "REAL NOT NULL DEFAULT 1",
+  );
+  addColumnIfMissing(
+    connection,
+    "scores",
+    columns,
+    DATABASE.SCORE_COLUMNS.REJECTED,
+    "INTEGER NOT NULL DEFAULT 0",
+  );
+  addColumnIfMissing(
+    connection,
+    "scores",
+    columns,
+    DATABASE.SCORE_COLUMNS.REJECTION_REASON,
+    "TEXT",
+  );
+
+  connection
+    .prepare(
+      `
+        UPDATE scores
+        SET
+          enterprise_relevance = relevance,
+          workflow_redesign_depth = technical_depth,
+          real_use_case_specificity = relevance,
+          deployment_fde_relevance = relevance,
+          business_outcome_clarity = practicality,
+          technical_implementation_usefulness = practicality,
+          recency = 1,
+          non_generic_insight = novelty
+        WHERE enterprise_relevance = 1
+          AND workflow_redesign_depth = 1
+          AND real_use_case_specificity = 1
+          AND deployment_fde_relevance = 1
+          AND business_outcome_clarity = 1
+          AND technical_implementation_usefulness = 1
+          AND recency = 1
+          AND non_generic_insight = 1
+          AND (relevance != 1 OR technical_depth != 1 OR novelty != 1 OR practicality != 1)
+      `,
+    )
+    .run();
 }
 
 export function itemExistsByUrl(url: string): boolean {
@@ -58,30 +293,48 @@ export function upsertItem(candidate: CandidateItem): void {
     .prepare(DATABASE.SQL.UPSERT_ITEM)
     .run({
       id: candidate.id,
-      source: candidate.source,
+      sourceId: candidate.sourceId,
+      sourceName: candidate.sourceName,
+      sourceType: candidate.sourceType,
       title: candidate.title,
       url: candidate.url,
       summary: candidate.summary,
       publishedAt: candidate.publishedAt,
+      discoveredAt: candidate.discoveredAt,
+      contentText: candidate.contentText ?? null,
+      contentFetchStatus: candidate.contentFetchStatus,
+      category: candidate.category ?? null,
       rawJson: JSON.stringify(candidate.raw),
     });
 }
 
 type ItemRow = {
   id: string;
-  source: CandidateItem["source"];
+  source_id: string;
+  source_name: string;
+  source_type: CandidateSourceType;
   title: string;
   url: string;
   summary: string;
   published_at: string;
+  discovered_at: string;
+  content_text: string | null;
+  content_fetch_status: ContentFetchStatus;
+  category: CandidateCategory | null;
   raw_json: string;
 };
 
 type ScoreRow = {
-  relevance: number;
-  technical_depth: number;
-  novelty: number;
-  practicality: number;
+  enterprise_relevance: number;
+  workflow_redesign_depth: number;
+  real_use_case_specificity: number;
+  deployment_fde_relevance: number;
+  business_outcome_clarity: number;
+  technical_implementation_usefulness: number;
+  recency: number;
+  non_generic_insight: number;
+  rejected: number;
+  rejection_reason: string | null;
   reason: string;
   final_score: number;
 };
@@ -97,26 +350,50 @@ function parseRawJson(rawJson: string): unknown {
 }
 
 function itemFromRow(row: ItemRow): CandidateItem {
-  return {
+  const item: CandidateItem = {
     id: row.id,
-    source: row.source,
+    sourceId: row.source_id,
+    sourceName: row.source_name,
+    sourceType: row.source_type,
     title: row.title,
     url: row.url,
     summary: row.summary,
     publishedAt: row.published_at,
+    discoveredAt: row.discovered_at,
+    contentFetchStatus: row.content_fetch_status,
     raw: parseRawJson(row.raw_json),
   };
+
+  if (row.content_text !== null) {
+    item.contentText = row.content_text;
+  }
+  if (row.category !== null) {
+    item.category = row.category;
+  }
+
+  return item;
 }
 
 function scoreFromRow(row: ScoreRow): ItemScore {
-  return {
-    relevance: row.relevance,
-    technical_depth: row.technical_depth,
-    novelty: row.novelty,
-    practicality: row.practicality,
+  const score: ItemScore = {
+    enterpriseRelevance: row.enterprise_relevance,
+    workflowRedesignDepth: row.workflow_redesign_depth,
+    realUseCaseSpecificity: row.real_use_case_specificity,
+    deploymentFdeRelevance: row.deployment_fde_relevance,
+    businessOutcomeClarity: row.business_outcome_clarity,
+    technicalImplementationUsefulness: row.technical_implementation_usefulness,
+    recency: row.recency,
+    nonGenericInsight: row.non_generic_insight,
+    rejected: Boolean(row.rejected),
     reason: row.reason,
     finalScore: row.final_score,
   };
+
+  if (row.rejection_reason !== null) {
+    score.rejectionReason = row.rejection_reason;
+  }
+
+  return score;
 }
 
 function assertValidLimit(limit: number): void {
@@ -134,15 +411,27 @@ export function listRecentItems(limit: number): CandidateItem[] {
 }
 
 export function upsertScore(itemId: string, score: ItemScore): void {
-  getDb().prepare(DATABASE.SQL.UPSERT_SCORE).run({
-    itemId,
-    relevance: score.relevance,
-    technicalDepth: score.technical_depth,
-    novelty: score.novelty,
-    practicality: score.practicality,
-    reason: score.reason,
-    finalScore: score.finalScore,
-  });
+  getDb()
+    .prepare(DATABASE.SQL.UPSERT_SCORE)
+    .run({
+      itemId,
+      relevance: score.enterpriseRelevance,
+      technicalDepth: score.workflowRedesignDepth,
+      novelty: score.nonGenericInsight,
+      practicality: score.technicalImplementationUsefulness,
+      enterpriseRelevance: score.enterpriseRelevance,
+      workflowRedesignDepth: score.workflowRedesignDepth,
+      realUseCaseSpecificity: score.realUseCaseSpecificity,
+      deploymentFdeRelevance: score.deploymentFdeRelevance,
+      businessOutcomeClarity: score.businessOutcomeClarity,
+      technicalImplementationUsefulness: score.technicalImplementationUsefulness,
+      recency: score.recency,
+      nonGenericInsight: score.nonGenericInsight,
+      rejected: score.rejected ? 1 : 0,
+      rejectionReason: score.rejectionReason ?? null,
+      reason: score.reason,
+      finalScore: score.finalScore,
+    });
 }
 
 export function getScore(itemId: string): ItemScore | null {

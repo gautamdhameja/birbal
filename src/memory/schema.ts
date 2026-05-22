@@ -10,6 +10,7 @@ export const PreferencesSchema = z
     interests: z.array(PreferenceTextSchema).min(1),
     avoid: z.array(PreferenceTextSchema),
     preferredDifficulty: z.enum(PREFERENCES.DIFFICULTIES),
+    enableAcademicFallback: z.boolean().default(false),
     dailyMix: z.strictObject({
       [SOURCES.ARXIV]: z.number().min(0),
       [SOURCES.HACKER_NEWS]: z.number().min(0),

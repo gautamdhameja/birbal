@@ -1,15 +1,19 @@
 import { searchArxiv } from "../arxiv/client.js";
 import type { ArxivPaper } from "../arxiv/client.js";
+import type { SourceRegistry, SourceRegistryItem } from "../config/sourceRegistry.js";
 import { DAILY_READING } from "../constants/daily.js";
 import { SOURCES } from "../constants/sources.js";
+import { SOURCE_REGISTRY } from "../constants/source-registry.js";
 import { searchHackerNews } from "../hackernews/client.js";
 import type { HackerNewsStory } from "../hackernews/client.js";
 import { isHttpStatusError } from "../http/client.js";
 import type { UserPreferences } from "../memory/types.js";
+import { normalizeUrl } from "../utils/url.js";
+import { CONTENT_FETCH_STATUSES } from "./types.js";
 import type { CandidateItem } from "./types.js";
 
 export type DailyCollectionError = {
-  source: CandidateItem["source"];
+  source: string;
   topic: string;
   error: string;
   status?: number;
@@ -18,6 +22,7 @@ export type DailyCollectionError = {
 export type DailyCollectionResult = {
   candidates: CandidateItem[];
   errors: DailyCollectionError[];
+  sourcesUsed: string[];
 };
 
 type SourceCollectionResult = {
@@ -26,46 +31,82 @@ type SourceCollectionResult = {
 };
 
 type SourceCollector = {
-  source: CandidateItem["source"];
-  collect(topic: string): Promise<CandidateItem[]>;
+  sourceId: string;
+  collect(topic: string, sourceConfig: SourceRegistryItem): Promise<CandidateItem[]>;
 };
 
 type DailyMix = UserPreferences["dailyMix"];
 
-export function normalizeUrl(url: string): string {
-  const trimmed = url.trim();
+type DailyCollectionOptions = {
+  dailyMix?: DailyMix;
+  enableAcademicFallback?: boolean;
+};
 
-  try {
-    const parsed = new URL(trimmed);
-    parsed.hash = "";
-    return parsed.toString();
-  } catch {
-    return trimmed;
-  }
+export { normalizeUrl };
+
+function defaultDiscoveredAt(): string {
+  return new Date().toISOString();
 }
 
-export function toArxivCandidate(paper: ArxivPaper): CandidateItem {
+function createBaseCandidate(
+  sourceConfig: SourceRegistryItem,
+  url: string,
+): Pick<
+  CandidateItem,
+  "sourceId" | "sourceName" | "sourceType" | "url" | "discoveredAt" | "contentFetchStatus"
+> {
+  return {
+    sourceId: sourceConfig.id,
+    sourceName: sourceConfig.name,
+    sourceType: sourceConfig.sourceType,
+    url,
+    discoveredAt: defaultDiscoveredAt(),
+    contentFetchStatus: CONTENT_FETCH_STATUSES.NOT_FETCHED,
+  };
+}
+
+export function toArxivCandidate(
+  paper: ArxivPaper,
+  sourceConfig: SourceRegistryItem = {
+    id: SOURCES.ARXIV,
+    name: "arXiv",
+    domains: ["arxiv.org"],
+    priority: 1,
+    sourceType: SOURCE_REGISTRY.SOURCE_TYPES.ACADEMIC_FALLBACK,
+    searchQueries: ["LLM agents"],
+    enabled: true,
+  },
+): CandidateItem {
   const url = normalizeUrl(paper.url);
 
   return {
     id: `${SOURCES.ARXIV}:${url}`,
-    source: SOURCES.ARXIV,
+    ...createBaseCandidate(sourceConfig, url),
     title: paper.title,
-    url,
     summary: paper.summary,
     publishedAt: paper.published,
     raw: paper,
   };
 }
 
-export function toHackerNewsCandidate(story: HackerNewsStory): CandidateItem {
+export function toHackerNewsCandidate(
+  story: HackerNewsStory,
+  sourceConfig: SourceRegistryItem = {
+    id: SOURCES.HACKER_NEWS,
+    name: "Hacker News",
+    domains: ["news.ycombinator.com"],
+    priority: 1,
+    sourceType: SOURCE_REGISTRY.SOURCE_TYPES.COMMUNITY,
+    searchQueries: ["LLM agents"],
+    enabled: true,
+  },
+): CandidateItem {
   const url = normalizeUrl(story.url);
 
   return {
     id: `${SOURCES.HACKER_NEWS}:${url}`,
-    source: SOURCES.HACKER_NEWS,
+    ...createBaseCandidate(sourceConfig, url),
     title: story.title,
-    url,
     summary: "",
     publishedAt: story.created_at,
     raw: story,
@@ -99,7 +140,7 @@ function compareCandidates(left: CandidateItem, right: CandidateItem): number {
     return publishedOrder;
   }
 
-  const sourceOrder = left.source.localeCompare(right.source);
+  const sourceOrder = left.sourceId.localeCompare(right.sourceId);
   if (sourceOrder !== 0) {
     return sourceOrder;
   }
@@ -120,13 +161,10 @@ export function rankDailyCandidates(
   return applyDailyMix(rankedCandidates, maxCandidates, dailyMix);
 }
 
-function calculateSourceQuotas(
-  maxCandidates: number,
-  dailyMix: DailyMix,
-): Map<CandidateItem["source"], number> {
+function calculateSourceQuotas(maxCandidates: number, dailyMix: DailyMix): Map<string, number> {
   const weightedSources = Object.entries(dailyMix)
     .map(([source, weight]) => ({
-      source: source as CandidateItem["source"],
+      source,
       weight,
     }))
     .filter(({ weight }) => weight > 0);
@@ -136,7 +174,7 @@ function calculateSourceQuotas(
     return new Map();
   }
 
-  const quotas = new Map<CandidateItem["source"], number>();
+  const quotas = new Map<string, number>();
   const quotaParts = weightedSources.map(({ source, weight }) => {
     const exactQuota = (weight / totalWeight) * maxCandidates;
     const baseQuota = Math.floor(exactQuota);
@@ -175,7 +213,7 @@ function applyDailyMix(
   const selectedCandidates: CandidateItem[] = [];
 
   for (const [source, quota] of quotas) {
-    const sourceCandidates = rankedCandidates.filter((candidate) => candidate.source === source);
+    const sourceCandidates = rankedCandidates.filter((candidate) => candidate.sourceId === source);
     for (const candidate of sourceCandidates.slice(0, quota)) {
       selectedIds.add(candidate.id);
       selectedCandidates.push(candidate);
@@ -187,7 +225,7 @@ function applyDailyMix(
       break;
     }
 
-    if (!allowedSources.has(candidate.source) || selectedIds.has(candidate.id)) {
+    if (!allowedSources.has(candidate.sourceId) || selectedIds.has(candidate.id)) {
       continue;
     }
 
@@ -205,14 +243,15 @@ function isRateLimitError(error: DailyCollectionError): boolean {
 async function collectFromSource(
   sourceCollector: SourceCollector,
   topic: string,
+  sourceConfig: SourceRegistryItem,
 ): Promise<SourceCollectionResult> {
   try {
-    return { candidates: await sourceCollector.collect(topic) };
+    return { candidates: await sourceCollector.collect(topic, sourceConfig) };
   } catch (error) {
     return {
       candidates: [],
       error: {
-        source: sourceCollector.source,
+        source: sourceCollector.sourceId,
         topic,
         error: error instanceof Error ? error.message : String(error),
         status: isHttpStatusError(error) ? error.status : undefined,
@@ -221,48 +260,108 @@ async function collectFromSource(
   }
 }
 
-const SOURCE_COLLECTORS = [
-  {
-    source: SOURCES.ARXIV,
-    async collect(topic: string) {
-      const results = await searchArxiv({
-        query: topic,
-        maxResults: DAILY_READING.MAX_RESULTS_PER_TOPIC,
-      });
-      return results.map(toArxivCandidate);
-    },
+const ACADEMIC_FALLBACK_COLLECTOR = {
+  sourceId: SOURCES.ARXIV,
+  async collect(topic: string, sourceConfig: SourceRegistryItem) {
+    const results = await searchArxiv({
+      query: topic,
+      maxResults: DAILY_READING.MAX_RESULTS_PER_TOPIC,
+    });
+    return results.map((paper) => toArxivCandidate(paper, sourceConfig));
   },
+} satisfies SourceCollector;
+
+const DEFAULT_SOURCE_COLLECTORS = [
   {
-    source: SOURCES.HACKER_NEWS,
-    async collect(topic: string) {
+    sourceId: SOURCES.HACKER_NEWS,
+    async collect(topic: string, sourceConfig: SourceRegistryItem) {
       const results = await searchHackerNews({
         query: topic,
         maxResults: DAILY_READING.MAX_RESULTS_PER_TOPIC,
       });
-      return results.map(toHackerNewsCandidate);
+      return results.map((story) => toHackerNewsCandidate(story, sourceConfig));
     },
   },
 ] satisfies SourceCollector[];
 
-export async function collectDailyCandidateResult(
-  topics: readonly string[] = DAILY_READING.TOPICS,
+const SOURCE_COLLECTORS = new Map<string, SourceCollector>(
+  [...DEFAULT_SOURCE_COLLECTORS, ACADEMIC_FALLBACK_COLLECTOR].map((sourceCollector) => [
+    sourceCollector.sourceId,
+    sourceCollector,
+  ]),
+);
+
+function isAcademicFallbackSource(source: SourceRegistryItem): boolean {
+  return source.sourceType === SOURCE_REGISTRY.SOURCE_TYPES.ACADEMIC_FALLBACK;
+}
+
+function compareRegistrySources(left: SourceRegistryItem, right: SourceRegistryItem): number {
+  const priorityOrder = left.priority - right.priority;
+  return priorityOrder !== 0 ? priorityOrder : left.id.localeCompare(right.id);
+}
+
+function isSupportedDailySource(sourceId: string): boolean {
+  return SOURCE_COLLECTORS.has(sourceId);
+}
+
+function dailyMixWeight(dailyMix: DailyMix, sourceId: string): number {
+  if (!Object.hasOwn(dailyMix, sourceId)) {
+    return 0;
+  }
+
+  return dailyMix[sourceId as keyof DailyMix];
+}
+
+type DailySourceRegistryItem = SourceRegistryItem;
+
+export function listEnabledDailySourceConfigs(
+  sourceRegistry: SourceRegistry,
+  enableAcademicFallback = false,
   dailyMix?: DailyMix,
+): DailySourceRegistryItem[] {
+  return sourceRegistry.sources
+    .filter((source) => source.enabled)
+    .filter((source) => enableAcademicFallback || !isAcademicFallbackSource(source))
+    .filter((source) => !dailyMix || dailyMixWeight(dailyMix, source.id) > 0)
+    .filter((source): source is DailySourceRegistryItem => isSupportedDailySource(source.id))
+    .sort(compareRegistrySources);
+}
+
+export function listDailySources(
+  sourceRegistry: SourceRegistry,
+  enableAcademicFallback = false,
+): string[] {
+  return listEnabledDailySourceConfigs(sourceRegistry, enableAcademicFallback).map(
+    (sourceConfig) => sourceConfig.id,
+  );
+}
+
+export async function collectDailyCandidateResult(
+  sourceRegistry: SourceRegistry,
+  options: DailyCollectionOptions = {},
 ): Promise<DailyCollectionResult> {
   const candidates: CandidateItem[] = [];
   const errors: DailyCollectionError[] = [];
-  const disabledSources = new Set<CandidateItem["source"]>();
+  const disabledSources = new Set<string>();
+  const sourceConfigs = listEnabledDailySourceConfigs(
+    sourceRegistry,
+    options.enableAcademicFallback,
+    options.dailyMix,
+  );
+  const sourcesUsed = sourceConfigs.map((sourceConfig) => sourceConfig.id);
 
-  for (const topic of topics) {
-    const skippedSourceResult: SourceCollectionResult = { candidates: [] };
-    const sourceResults = await Promise.all(
-      SOURCE_COLLECTORS.map((sourceCollector) =>
-        disabledSources.has(sourceCollector.source)
-          ? skippedSourceResult
-          : collectFromSource(sourceCollector, topic),
-      ),
-    );
+  for (const sourceConfig of sourceConfigs) {
+    const sourceCollector = SOURCE_COLLECTORS.get(sourceConfig.id);
+    if (!sourceCollector || disabledSources.has(sourceConfig.id)) {
+      continue;
+    }
 
-    for (const result of sourceResults) {
+    for (const query of sourceConfig.searchQueries) {
+      if (disabledSources.has(sourceConfig.id)) {
+        break;
+      }
+
+      const result = await collectFromSource(sourceCollector, query, sourceConfig);
       candidates.push(...result.candidates);
       if (result.error) {
         errors.push(result.error);
@@ -274,14 +373,15 @@ export async function collectDailyCandidateResult(
   }
 
   return {
-    candidates: rankDailyCandidates(candidates, DAILY_READING.MAX_CANDIDATES, dailyMix),
+    candidates: rankDailyCandidates(candidates, DAILY_READING.MAX_CANDIDATES, options.dailyMix),
     errors,
+    sourcesUsed,
   };
 }
 
 export async function collectDailyCandidates(
-  topics: readonly string[] = DAILY_READING.TOPICS,
-  dailyMix?: DailyMix,
+  sourceRegistry: SourceRegistry,
+  options: DailyCollectionOptions = {},
 ): Promise<CandidateItem[]> {
-  return (await collectDailyCandidateResult(topics, dailyMix)).candidates;
+  return (await collectDailyCandidateResult(sourceRegistry, options)).candidates;
 }

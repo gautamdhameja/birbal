@@ -29,6 +29,7 @@ export const HTTP = {
   FAILED_RESPONSE_BODY: "<failed to read response body>",
   ERRORS: {
     INVALID_HTTP_URL: "URL must use http or https and must not include credentials.",
+    UNSAFE_HTTP_URL: "URL host is not safe for outbound fetching.",
     HOST_NOT_ALLOWED: "URL host is not allowed.",
     RESPONSE_TOO_LARGE: "HTTP response exceeded maximum allowed size.",
     TIMEOUT_PREFIX: "HTTP request timed out after",
