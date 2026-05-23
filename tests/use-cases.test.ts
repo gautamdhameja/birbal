@@ -283,7 +283,7 @@ describe("production use case scout", () => {
           productionEvidence: "Rolled out to agents.",
           businessMetric: "20% faster handle time.",
           sourceLink: "https://example.com/story",
-          publishDate: "2026-05-20",
+          publishDate: "May 20, 2026, 10:30 AM UTC",
           whyThisMattersForEnterpriseAiWorkflowRedesign: "It changes support triage.",
         },
       ],
@@ -293,6 +293,7 @@ describe("production use case scout", () => {
     assert.match(markdown, /# Production Enterprise AI Use Cases - 2026-05-22/);
     assert.match(markdown, /## 1\. Acme/);
     assert.match(markdown, /Workflow: Customer support/);
+    assert.match(markdown, /Publish date: 2026-05-20/);
   });
 
   it("saves Markdown reports under the use case report directory", () => {

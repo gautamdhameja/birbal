@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { CANDIDATE_CATEGORIES } from "../constants/candidates.js";
 import { DIGEST } from "../constants/digest.js";
 import { TIME } from "../constants/time.js";
+import { formatDateOnly } from "../utils/date.js";
 import type { ScoredCandidateItem } from "./types.js";
 
 type DigestDate = Date | string;
@@ -174,7 +175,7 @@ function renderDigestItem(item: ScoredCandidateItem, index: number): string {
     "",
     `- Source: ${escapeMarkdownText(item.sourceName)}`,
     `- Link: ${renderDigestUrl(item.url)}`,
-    `- Publish date: ${escapeMarkdownText(item.publishedAt || DIGEST.UNKNOWN_FIELD)}`,
+    `- Publish date: ${escapeMarkdownText(formatDateOnly(item.publishedAt, DIGEST.UNKNOWN_FIELD))}`,
     `- Category: ${escapeMarkdownText(categoryLabel(item.category))}`,
     `- Score: ${item.score.finalScore.toFixed(DIGEST.SCORE_DECIMAL_PLACES)}`,
     "- 5-line summary:",

@@ -60,7 +60,7 @@ describe("Markdown digest writer", () => {
     assert.match(markdown, /## 1\. Example Item/);
     assert.match(markdown, /- Source: arXiv/);
     assert.match(markdown, /- Link: https:\/\/example\.com\/item/);
-    assert.match(markdown, /- Publish date: 2026-05-16T10:00:00Z/);
+    assert.match(markdown, /- Publish date: 2026-05-16/);
     assert.match(markdown, /- Category: workflow redesign/);
     assert.match(markdown, /- Score: 4\.00/);
     assert.match(markdown, /- 5-line summary:/);

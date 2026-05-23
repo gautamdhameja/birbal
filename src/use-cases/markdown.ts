@@ -2,10 +2,11 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { USE_CASES } from "../constants/use-cases.js";
+import { formatDateOnly } from "../utils/date.js";
 import type { ProductionUseCase } from "./types.js";
 
 function formatDate(date: Date): string {
-  return date.toISOString().slice(0, USE_CASES.DATE_LENGTH);
+  return formatDateOnly(date, "");
 }
 
 function assertValidDate(date: string): void {
@@ -36,7 +37,7 @@ function renderUseCase(useCase: ProductionUseCase, index: number): string {
     `- Production evidence: ${normalizeWhitespace(useCase.productionEvidence)}`,
     `- Business metric: ${normalizeWhitespace(useCase.businessMetric)}`,
     `- Source link: ${renderUseCaseUrl(useCase.sourceLink)}`,
-    `- Publish date: ${normalizeWhitespace(useCase.publishDate)}`,
+    `- Publish date: ${formatDateOnly(useCase.publishDate, "Unknown")}`,
     `- Why this matters: ${normalizeWhitespace(useCase.whyThisMattersForEnterpriseAiWorkflowRedesign)}`,
   ].join("\n");
 }
