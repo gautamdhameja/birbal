@@ -1,6 +1,7 @@
 import { searchWeb } from "../brave-search/client.js";
 import type { SearchWebResult } from "../brave-search/client.js";
 import { USE_CASES } from "../constants.js";
+import { mapLimit } from "../framework/pipeline/concurrency.js";
 import { fetchUrlText } from "../url-text/client.js";
 import type { FetchUrlTextResult } from "../url-text/client.js";
 import { normalizeUrl } from "../utils/url.js";
@@ -25,7 +26,7 @@ type ProductionUseCasePipelineDependencies = {
   ): Promise<ProductionUseCaseExtraction>;
 };
 
-type CandidateCollectionResult = {
+export type CandidateCollectionResult = {
   candidates: UseCaseSearchCandidate[];
   searchErrors: Array<{ query: string; error: string }>;
 };
@@ -36,6 +37,7 @@ const defaultDependencies: ProductionUseCasePipelineDependencies = {
   fetchUrlText: (url) => fetchUrlText({ url }),
   extractUseCase: extractProductionUseCase,
 };
+const SEARCH_CONCURRENCY = 3;
 
 function allQueries(config: ProductionUseCaseScoutConfig): string[] {
   return [...config.sourceSpecificQueries, ...config.dailyQueries];
@@ -129,29 +131,37 @@ function dedupeCandidates(candidates: UseCaseSearchCandidate[]): UseCaseSearchCa
   return deduped;
 }
 
-async function collectCandidates(
+export async function collectProductionUseCaseCandidates(
   config: ProductionUseCaseScoutConfig,
   search: ProductionUseCasePipelineDependencies["searchWeb"],
+  queries: readonly string[] = allQueries(config),
 ): Promise<CandidateCollectionResult> {
-  const candidates: UseCaseSearchCandidate[] = [];
-  const searchErrors: Array<{ query: string; error: string }> = [];
-
-  for (const query of allQueries(config)) {
+  const searchResults = await mapLimit(queries, SEARCH_CONCURRENCY, async (query) => {
     try {
       const results = await search(query, config.maxSearchResultsPerQuery, config.freshness);
+      const candidates: UseCaseSearchCandidate[] = [];
       for (const result of results) {
         const candidate = toCandidate(query, result);
         if (candidate) {
           candidates.push(candidate);
         }
       }
+
+      return { candidates, error: null };
     } catch (error) {
-      searchErrors.push({
-        query,
-        error: formatError(error),
-      });
+      return {
+        candidates: [],
+        error: {
+          query,
+          error: formatError(error),
+        },
+      };
     }
-  }
+  });
+  const candidates = searchResults.flatMap((result) => result.candidates);
+  const searchErrors = searchResults
+    .map((result) => result.error)
+    .filter((error): error is { query: string; error: string } => error !== null);
 
   return {
     candidates: dedupeCandidates(candidates)
@@ -171,7 +181,10 @@ export async function runProductionUseCaseScout(
   };
   const config = deps.loadConfig();
   const maxResults = options.maxResults ?? config.maxResults;
-  const { candidates, searchErrors } = await collectCandidates(config, deps.searchWeb);
+  const { candidates, searchErrors } = await collectProductionUseCaseCandidates(
+    config,
+    deps.searchWeb,
+  );
   const results: ProductionUseCase[] = [];
   const fetchErrors: Array<{ url: string; error: string }> = [];
   const extractionErrors: Array<{ url: string; error: string }> = [];

@@ -5,7 +5,10 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { USE_CASES } from "../src/constants.js";
-import { parseProductionUseCaseExtraction } from "../src/use-cases/extraction.js";
+import {
+  extractProductionUseCase,
+  parseProductionUseCaseExtraction,
+} from "../src/use-cases/extraction.js";
 import { loadProductionUseCaseScoutConfig } from "../src/use-cases/config.js";
 import { saveUseCaseReport, writeUseCaseReport } from "../src/use-cases/markdown.js";
 import { runProductionUseCaseScout } from "../src/use-cases/pipeline.js";
@@ -92,6 +95,81 @@ describe("production use case scout", () => {
         rejectionReason: "pilot",
       },
     );
+  });
+
+  it("rejects extraction after repeated model responses without JSON", async () => {
+    const originalFetch = globalThis.fetch;
+    const originalServerUrl = process.env.LLAMA_SERVER_URL;
+    const originalModel = process.env.LLAMA_MODEL;
+    const requestBodies: unknown[] = [];
+
+    process.env.LLAMA_SERVER_URL = "http://localhost:8080/v1/chat/completions";
+    process.env.LLAMA_MODEL = "local";
+    globalThis.fetch = (async (_input, init) => {
+      requestBodies.push(JSON.parse(String(init?.body)));
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: "No matching production use case.",
+              },
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        },
+      );
+    }) as typeof fetch;
+
+    try {
+      assert.deepEqual(
+        await extractProductionUseCase(
+          {
+            id: "use-case:https://example.com/story",
+            query: "enterprise AI customer story",
+            title: "Example story",
+            url: "https://example.com/story",
+            description: "Named company production deployment.",
+            publishedAt: "2026-05-20",
+            raw: {},
+          },
+          {
+            url: "https://example.com/story",
+            title: "Example story",
+            plainText: "A".repeat(USE_CASES.MAX_FETCHED_CONTENT_PROMPT_CHARS + 100),
+            detectedPaywall: false,
+            contentLength: USE_CASES.MAX_FETCHED_CONTENT_PROMPT_CHARS + 100,
+          },
+        ),
+        {
+          accepted: false,
+          rejectionReason: USE_CASES.EXTRACTION_PARSE_FAILURE_REJECTION_REASON,
+        },
+      );
+
+      assert.equal(requestBodies.length, USE_CASES.MAX_ATTEMPTS);
+      const firstRequest = requestBodies[0] as { messages: Array<{ content: string }> };
+      assert.match(firstRequest.messages[1]?.content ?? "", /\[truncated 100 characters\]/);
+      const repairRequest = requestBodies[1] as { messages: Array<{ content: string }> };
+      assert.match(repairRequest.messages.at(-1)?.content ?? "", /rejected shape/);
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalServerUrl === undefined) {
+        delete process.env.LLAMA_SERVER_URL;
+      } else {
+        process.env.LLAMA_SERVER_URL = originalServerUrl;
+      }
+      if (originalModel === undefined) {
+        delete process.env.LLAMA_MODEL;
+      } else {
+        process.env.LLAMA_MODEL = originalModel;
+      }
+    }
   });
 
   it("collects, prioritizes, fetches, extracts, and returns accepted production use cases", async () => {

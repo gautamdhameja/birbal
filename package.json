@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx src/main.ts",
-    "daily": "tsx src/daily/run.ts",
-    "use-cases": "tsx src/use-cases/run.ts",
+    "run-pipeline": "tsx src/runPipeline.ts",
+    "daily": "tsx src/runPipeline.ts daily",
+    "use-cases": "tsx src/runPipeline.ts use_cases",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "LOG_LEVEL=silent tsx --test tests/**/*.test.ts",

@@ -10,12 +10,15 @@ export const USE_CASES = {
   DEFAULT_MAX_CANDIDATES_FOR_EXTRACTION: 30,
   DEFAULT_MAX_RESULTS: 10,
   MAX_ERROR_MESSAGE_LENGTH: 500,
+  MAX_SEARCH_RESULT_DESCRIPTION_PROMPT_CHARS: 1_000,
+  MAX_FETCHED_CONTENT_PROMPT_CHARS: 4_500,
   MODEL_TEMPERATURE: 0,
-  MAX_TOKENS: 900,
+  MAX_TOKENS: 1_500,
   MAX_ATTEMPTS: 2,
   SYSTEM_PROMPT: [
     "You extract real, in-production enterprise AI use cases from source material.",
     "Return exactly one valid JSON object and no prose outside JSON.",
+    "Keep every string field concise, ideally one sentence.",
     "Accept only if the source gives a named company, a real enterprise workflow, live deployment or rollout evidence, a concrete business metric or operational outcome, a reference link, and a publish date.",
     "Reject generic articles, trend pieces, vendor launches without named customers, pilots without production evidence, and consulting frameworks without concrete company examples.",
   ].join("\n"),
@@ -36,8 +39,10 @@ export const USE_CASES = {
     PUBLISH_DATE: "publishDate",
     WHY_THIS_MATTERS: "whyThisMattersForEnterpriseAiWorkflowRedesign",
   },
-  REPAIR_PROMPT:
-    "Your previous response was not valid JSON. Return only one valid JSON object matching the requested fields.",
+  REPAIR_PROMPT_INTRO:
+    "Your previous response was not valid JSON matching the requested schema. Return only one JSON object. If the evidence is unclear, return the rejected shape.",
+  EXTRACTION_PARSE_FAILURE_REJECTION_REASON:
+    "The extractor could not produce valid structured JSON for this source after retrying.",
   ERRORS: {
     INVALID_JSON: "Production use case scout config is not valid JSON.",
     INVALID_CONFIG: "Production use case scout config is invalid.",

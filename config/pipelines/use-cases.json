@@ -1,0 +1,53 @@
+{
+  "pipelineId": "use_cases",
+  "enabled": true,
+  "description": "Production enterprise AI use-case scout pipeline.",
+  "sourceIds": [
+    "openai",
+    "microsoft_customers",
+    "google_cloud_customers",
+    "anthropic",
+    "aws_case_studies",
+    "consulting_and_business_press"
+  ],
+  "collectionMethods": [
+    {
+      "id": "source_specific_search",
+      "collectorId": "source_domain_collector",
+      "enabled": true
+    },
+    {
+      "id": "open_web_search",
+      "collectorId": "brave_web_search_collector",
+      "enabled": true
+    }
+  ],
+  "contentFetchPolicy": {
+    "enabled": true,
+    "fetcherId": "url_text_fetcher",
+    "maxItems": 30,
+    "requireFetchedContent": true
+  },
+  "scorerId": "production_use_case_filter",
+  "structuredExtractorId": "production_use_case_extractor",
+  "selectorId": "production_use_case_selector",
+  "rendererId": "production_use_case_markdown_renderer",
+  "output": {
+    "format": "markdown",
+    "directory": "use-case-reports",
+    "filenameTemplate": "{date}.md",
+    "artifactWriterId": "filesystem_artifact_writer"
+  },
+  "limits": {
+    "maxCandidates": 30,
+    "maxSearchResultsPerQuery": 5,
+    "maxCandidatesForExtraction": 30,
+    "maxResults": 10
+  },
+  "execution": {
+    "collectionConcurrency": 2,
+    "contentFetchConcurrency": 5,
+    "scoringConcurrency": 1,
+    "structuredExtractionConcurrency": 1
+  }
+}

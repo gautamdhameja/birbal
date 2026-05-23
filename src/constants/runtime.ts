@@ -19,6 +19,7 @@ export const HTTP = {
   DEFAULT_TIMEOUT_MS: 30_000,
   MAX_RESPONSE_BYTES: 1_000_000,
   MAX_ERROR_RESPONSE_BYTES: 20_000,
+  MAX_ERROR_BODY_MESSAGE_LENGTH: 500,
   USER_AGENT: "birbal/1.0 local-agent-harness",
   JSON_ACCEPT: "application/json",
   XML_ACCEPT: "application/atom+xml, application/xml, text/xml",

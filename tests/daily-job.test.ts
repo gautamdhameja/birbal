@@ -11,6 +11,7 @@ import {
   SOURCES,
 } from "../src/constants.js";
 import { getItemByUrl, getScore, initDb, upsertItem, upsertScore } from "../src/db/items.js";
+import { getRecentRuns } from "../src/framework/pipeline/runs.js";
 import { runDailyReading } from "../src/daily/job.js";
 import type { CandidateItem, ItemScore } from "../src/daily/types.js";
 import type { SourceRegistry } from "../src/config/sourceRegistry.js";
@@ -129,6 +130,7 @@ describe("daily reading job", () => {
     assert.deepEqual(result.scoreErrors, []);
     assert.notEqual(getScore(existingItem.id), null);
     assert.equal(result.topScores[0]?.id, existingItem.id);
+    assert.equal(getRecentRuns("daily", 1)[0]?.status, "success");
   });
 
   it("ranks the digest from current run items instead of all historical scores", async () => {
@@ -185,6 +187,7 @@ describe("daily reading job", () => {
 
     assert.equal(result.failed, true);
     assert.equal(result.digestPath, null);
+    assert.equal(getRecentRuns("daily", 1)[0]?.status, "failed");
   });
 
   it("uses a fallback category when digest classification fails", async () => {

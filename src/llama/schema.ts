@@ -17,6 +17,8 @@ export const CompleteOptionsSchema = z.strictObject({
       type: z.literal(LLAMA.RESPONSE_FORMATS.JSON_OBJECT),
     })
     .optional(),
+  traceId: z.string().trim().min(1).optional(),
+  traceLabel: z.string().trim().min(1).optional(),
 });
 
 export const LlamaChatCompletionRequestSchema = z.strictObject({

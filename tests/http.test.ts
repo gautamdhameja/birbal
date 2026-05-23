@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { fetchWithTimeout, HttpTimeoutError, readResponseText } from "../src/http/client.js";
+import {
+  buildHttpStatusError,
+  fetchWithTimeout,
+  HttpTimeoutError,
+  readResponseText,
+} from "../src/http/client.js";
 
 describe("HTTP client helpers", () => {
   it("rejects responses larger than the configured read cap", async () => {
@@ -9,6 +14,18 @@ describe("HTTP client helpers", () => {
       readResponseText(new Response("too large"), 3),
       /exceeded maximum allowed size/,
     );
+  });
+
+  it("summarizes blocked-page HTTP error bodies", async () => {
+    const error = await buildHttpStatusError(
+      "URL text request failed with HTTP",
+      new Response("<html><title>Just a moment...</title>Cloudflare challenge-platform</html>", {
+        status: 403,
+      }),
+    );
+
+    assert.match(error.message, /blocked by bot protection/);
+    assert.doesNotMatch(error.message, /challenge-platform/);
   });
 
   it("times out stalled fetch calls", async () => {

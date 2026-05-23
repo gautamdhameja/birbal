@@ -5,7 +5,7 @@ import { CANDIDATE_CATEGORIES } from "../constants/candidates.js";
 import { CLASSIFICATION } from "../constants/classification.js";
 import { LLAMA } from "../constants/llama.js";
 import { complete } from "../llama/client.js";
-import type { ChatMessage } from "../llama/schema.js";
+import type { ChatMessage, CompleteOptions } from "../llama/schema.js";
 import { logger } from "../logging/logger.js";
 import { parseJson } from "../utils/json.js";
 import type { CandidateCategory, CandidateItem, ItemScore } from "./types.js";
@@ -22,6 +22,7 @@ type ClassificationInput = {
   candidate: CandidateItem;
   score: ItemScore;
 };
+type ModelTraceOptions = Pick<CompleteOptions, "traceId" | "traceLabel">;
 
 function normalizeSearchText(value: string): string {
   return value.replace(/\s+/g, " ").toLocaleLowerCase();
@@ -160,6 +161,7 @@ export function parseCategoryClassification(
 export async function classifyCandidateCategory(
   candidate: CandidateItem,
   score: ItemScore,
+  traceOptions: ModelTraceOptions = {},
 ): Promise<CandidateCategory> {
   const deterministic = deterministicCategory({ candidate, score });
   if (deterministic) {
@@ -182,6 +184,8 @@ export async function classifyCandidateCategory(
     const raw = await complete(messages, {
       temperature: CLASSIFICATION.MODEL_TEMPERATURE,
       max_tokens: CLASSIFICATION.MAX_TOKENS,
+      ...traceOptions,
+      traceLabel: traceOptions.traceLabel ?? "daily.classify_category",
       response_format: {
         type: LLAMA.RESPONSE_FORMATS.JSON_OBJECT,
       },

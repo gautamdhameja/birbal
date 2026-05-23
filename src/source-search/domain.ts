@@ -4,9 +4,11 @@ import { searchWeb } from "../brave-search/client.js";
 import type { SearchWebResult } from "../brave-search/client.js";
 import { CONTENT_FETCH_STATUSES } from "../daily/types.js";
 import type { CandidateSourceType, ContentFetchStatus } from "../daily/types.js";
+import { mapLimit } from "../framework/pipeline/concurrency.js";
 import { normalizeUrl } from "../utils/url.js";
 
 const SITE_QUERY_PREFIX = "site:";
+const DOMAIN_SEARCH_CONCURRENCY = 3;
 
 export type SourceDomainCandidate = {
   id: string;
@@ -112,22 +114,27 @@ export async function searchSourceDomain(
 ): Promise<SourceDomainCandidate[]> {
   const sourceRegistry = dependencies.sourceRegistry ?? loadSourceRegistry();
   const source = findSource(sourceId, sourceRegistry.sources);
-  const candidates: SourceDomainCandidate[] = [];
+  const candidateGroups = await mapLimit(
+    source.domains,
+    DOMAIN_SEARCH_CONCURRENCY,
+    async (domain) => {
+      const results = await searchWeb({
+        query: buildDomainQuery(query, domain),
+        maxResults,
+        signal,
+      });
 
-  for (const domain of source.domains) {
-    const results = await searchWeb({
-      query: buildDomainQuery(query, domain),
-      maxResults,
-      signal,
-    });
-
-    for (const result of results) {
-      const candidate = toSourceDomainCandidate(source, result);
-      if (candidate) {
-        candidates.push(candidate);
+      const candidates: SourceDomainCandidate[] = [];
+      for (const result of results) {
+        const candidate = toSourceDomainCandidate(source, result);
+        if (candidate) {
+          candidates.push(candidate);
+        }
       }
-    }
-  }
 
-  return dedupeSourceDomainCandidates(candidates).slice(0, maxResults);
+      return candidates;
+    },
+  );
+
+  return dedupeSourceDomainCandidates(candidateGroups.flat()).slice(0, maxResults);
 }

@@ -6,6 +6,7 @@ import { SOURCES } from "../constants/sources.js";
 import { SOURCE_REGISTRY } from "../constants/source-registry.js";
 import { searchHackerNews } from "../hackernews/client.js";
 import type { HackerNewsStory } from "../hackernews/client.js";
+import { mapLimit } from "../framework/pipeline/concurrency.js";
 import { isHttpStatusError } from "../http/client.js";
 import type { UserPreferences } from "../memory/types.js";
 import { searchSourceDomain } from "../source-search/domain.js";
@@ -44,6 +45,7 @@ type DailyCollectionOptions = {
 };
 
 export { normalizeUrl };
+const SOURCE_COLLECTION_CONCURRENCY = 3;
 
 function defaultDiscoveredAt(): string {
   return new Date().toISOString();
@@ -366,37 +368,36 @@ export async function collectDailyCandidateResult(
   sourceRegistry: SourceRegistry,
   options: DailyCollectionOptions = {},
 ): Promise<DailyCollectionResult> {
-  const candidates: CandidateItem[] = [];
-  const errors: DailyCollectionError[] = [];
-  const disabledSources = new Set<string>();
   const sourceConfigs = listEnabledDailySourceConfigs(
     sourceRegistry,
     options.enableAcademicFallback,
     options.dailyMix,
   );
   const sourcesUsed = sourceConfigs.map((sourceConfig) => sourceConfig.id);
+  const sourceResults = await mapLimit(
+    sourceConfigs,
+    SOURCE_COLLECTION_CONCURRENCY,
+    async (sourceConfig) => {
+      const candidates: CandidateItem[] = [];
+      const errors: DailyCollectionError[] = [];
+      const sourceCollector = getDailySourceCollector(sourceConfig);
 
-  for (const sourceConfig of sourceConfigs) {
-    const sourceCollector = getDailySourceCollector(sourceConfig);
-    if (disabledSources.has(sourceConfig.id)) {
-      continue;
-    }
-
-    for (const query of sourceConfig.searchQueries) {
-      if (disabledSources.has(sourceConfig.id)) {
-        break;
-      }
-
-      const result = await collectFromSource(sourceCollector, query, sourceConfig);
-      candidates.push(...result.candidates);
-      if (result.error) {
-        errors.push(result.error);
-        if (isRateLimitError(result.error)) {
-          disabledSources.add(result.error.source);
+      for (const query of sourceConfig.searchQueries) {
+        const result = await collectFromSource(sourceCollector, query, sourceConfig);
+        candidates.push(...result.candidates);
+        if (result.error) {
+          errors.push(result.error);
+          if (isRateLimitError(result.error)) {
+            break;
+          }
         }
       }
-    }
-  }
+
+      return { candidates, errors };
+    },
+  );
+  const candidates = sourceResults.flatMap((result) => result.candidates);
+  const errors = sourceResults.flatMap((result) => result.errors);
 
   return {
     candidates: rankDailyCandidates(candidates, DAILY_READING.MAX_CANDIDATES, options.dailyMix),

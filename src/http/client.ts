@@ -101,6 +101,30 @@ export async function readErrorBody(response: Response): Promise<string> {
   );
 }
 
+function errorBodyPreview(body: string): string {
+  if (body.length <= HTTP.MAX_ERROR_BODY_MESSAGE_LENGTH) {
+    return body;
+  }
+
+  return `${body.slice(0, HTTP.MAX_ERROR_BODY_MESSAGE_LENGTH)}...`;
+}
+
+export function summarizeHttpErrorBody(body: string): string {
+  const normalizedBody = body.toLowerCase();
+  if (
+    normalizedBody.includes("cloudflare") ||
+    normalizedBody.includes("challenge-platform") ||
+    normalizedBody.includes("just a moment") ||
+    normalizedBody.includes("enable js") ||
+    normalizedBody.includes("enable javascript") ||
+    normalizedBody.includes("disable any ad blocker")
+  ) {
+    return "blocked by bot protection or a JavaScript challenge";
+  }
+
+  return errorBodyPreview(body);
+}
+
 export async function buildHttpStatusError(
   prefix: string,
   response: Response,
@@ -108,7 +132,7 @@ export async function buildHttpStatusError(
   const body = await readErrorBody(response);
 
   return new HttpStatusError(
-    `${prefix} ${response.status} ${response.statusText}: ${body}`,
+    `${prefix} ${response.status} ${response.statusText}: ${summarizeHttpErrorBody(body)}`,
     response.status,
     response.statusText,
     body,

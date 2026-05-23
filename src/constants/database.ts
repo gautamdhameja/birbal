@@ -6,6 +6,14 @@ export const DATABASE = {
   ERRORS: {
     INVALID_LIMIT: "limit must be a positive integer.",
   },
+  RUN_STATUSES: {
+    SUCCESS: "success",
+    PARTIAL_SUCCESS: "partial_success",
+    FAILED: "failed",
+  },
+  RUN_TYPES: {
+    MANUAL: "manual",
+  },
   ITEM_COLUMNS: {
     SOURCE: "source",
     SOURCE_ID: "source_id",
@@ -74,6 +82,95 @@ export const DATABASE = {
       );
 
       CREATE INDEX IF NOT EXISTS idx_scores_final_score ON scores (final_score DESC);
+
+      CREATE TABLE IF NOT EXISTS runs (
+        id TEXT PRIMARY KEY,
+        pipeline_id TEXT NOT NULL,
+        run_type TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        finished_at TEXT,
+        status TEXT NOT NULL,
+        sources_attempted INTEGER NOT NULL DEFAULT 0,
+        sources_succeeded INTEGER NOT NULL DEFAULT 0,
+        sources_failed INTEGER NOT NULL DEFAULT 0,
+        items_collected INTEGER NOT NULL DEFAULT 0,
+        items_stored INTEGER NOT NULL DEFAULT 0,
+        items_scored INTEGER NOT NULL DEFAULT 0,
+        items_rejected INTEGER NOT NULL DEFAULT 0,
+        items_selected INTEGER NOT NULL DEFAULT 0,
+        artifacts_json TEXT NOT NULL DEFAULT '[]',
+        error_summary TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}'
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_runs_pipeline_started_at
+        ON runs (pipeline_id, started_at DESC);
+    `,
+    START_RUN: `
+      INSERT INTO runs (
+        id,
+        pipeline_id,
+        run_type,
+        started_at,
+        status
+      )
+      VALUES (
+        @id,
+        @pipelineId,
+        @runType,
+        @startedAt,
+        @status
+      )
+    `,
+    FINISH_RUN: `
+      UPDATE runs
+      SET
+        finished_at = @finishedAt,
+        status = @status,
+        sources_attempted = @sourcesAttempted,
+        sources_succeeded = @sourcesSucceeded,
+        sources_failed = @sourcesFailed,
+        items_collected = @itemsCollected,
+        items_stored = @itemsStored,
+        items_scored = @itemsScored,
+        items_rejected = @itemsRejected,
+        items_selected = @itemsSelected,
+        artifacts_json = @artifactsJson,
+        error_summary = @errorSummary,
+        metadata_json = @metadataJson
+      WHERE id = @id
+    `,
+    FAIL_RUN: `
+      UPDATE runs
+      SET
+        finished_at = @finishedAt,
+        status = @status,
+        error_summary = @errorSummary
+      WHERE id = @id
+    `,
+    LIST_RECENT_RUNS: `
+      SELECT
+        id,
+        pipeline_id,
+        run_type,
+        started_at,
+        finished_at,
+        status,
+        sources_attempted,
+        sources_succeeded,
+        sources_failed,
+        items_collected,
+        items_stored,
+        items_scored,
+        items_rejected,
+        items_selected,
+        artifacts_json,
+        error_summary,
+        metadata_json
+      FROM runs
+      WHERE pipeline_id = ?
+      ORDER BY started_at DESC
+      LIMIT ?
     `,
     ITEM_EXISTS_BY_URL: "SELECT 1 FROM items WHERE url = ? LIMIT 1",
     GET_ITEM_BY_URL: `

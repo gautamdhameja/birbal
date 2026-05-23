@@ -14,6 +14,8 @@ import {
   upsertItem,
   upsertScore,
 } from "../db/items.js";
+import { failRun, finishRun, startRun } from "../framework/pipeline/runs.js";
+import type { RunSummary } from "../framework/pipeline/runs.js";
 import { logger } from "../logging/logger.js";
 import { loadPreferences } from "../memory/preferences.js";
 import type { UserPreferences } from "../memory/types.js";
@@ -70,6 +72,9 @@ type DailyRunDependencies = {
   now(): Date;
   saveDigest(markdown: string, date: Date): string;
   scoreItem(candidate: CandidateItem, preferences: UserPreferences): Promise<ItemScore>;
+  startRun(pipelineId: string): string;
+  finishRun(runId: string, result: RunSummary): void;
+  failRun(runId: string, errorSummary: string): void;
   fetchUrlText(url: string): Promise<FetchUrlTextResult>;
   classifyCandidateCategory(candidate: CandidateItem, score: ItemScore): Promise<CandidateCategory>;
   upsertItem(candidate: CandidateItem): void;
@@ -92,6 +97,9 @@ const defaultDependencies: DailyRunDependencies = {
   now: () => new Date(),
   saveDigest,
   scoreItem,
+  startRun,
+  finishRun,
+  failRun,
   fetchUrlText: (url) => fetchUrlText({ url }),
   classifyCandidateCategory,
   upsertItem,
@@ -110,6 +118,63 @@ function shouldFailDailyRun(
     digestItems.length === 0 ||
     (candidatesToScore.length > 0 && scored === 0)
   );
+}
+
+function dailyRunStatus(result: DailyRunResult): RunSummary["status"] {
+  if (result.failed) {
+    return "failed";
+  }
+
+  return result.sourceErrors.length > 0 ||
+    result.scoreErrors.length > 0 ||
+    result.classificationErrors.length > 0 ||
+    result.urlTextErrors.length > 0
+    ? "partial_success"
+    : "success";
+}
+
+function uniqueCount(values: readonly string[]): number {
+  return new Set(values).size;
+}
+
+function dailyRunSummary(
+  result: DailyRunResult,
+  selectedCount: number,
+  rejectedCount: number,
+): RunSummary {
+  const failedSources = result.sourceErrors.map((error) => error.source);
+
+  return {
+    status: dailyRunStatus(result),
+    sourcesAttempted: uniqueCount([...result.sourcesUsed, ...failedSources]),
+    sourcesSucceeded: uniqueCount(result.sourcesUsed),
+    sourcesFailed: uniqueCount(failedSources),
+    itemsCollected: result.collected,
+    itemsStored: result.new,
+    itemsScored: result.scored,
+    itemsRejected: rejectedCount,
+    itemsSelected: selectedCount,
+    artifacts: result.digestPath
+      ? [
+          {
+            id: "daily_digest",
+            type: "markdown",
+            path: result.digestPath,
+          },
+        ]
+      : [],
+    errors: [
+      ...result.sourceErrors.map((error) => ({ message: error.error })),
+      ...result.scoreErrors.map((error) => ({ message: error.error })),
+      ...result.classificationErrors.map((error) => ({ message: error.error })),
+      ...result.urlTextErrors.map((error) => ({ message: error.error })),
+    ],
+    metadata: {
+      alreadyExisted: result.alreadyExisted,
+      alreadyScored: result.alreadyScored,
+      urlTextFetched: result.urlTextFetched,
+    },
+  };
 }
 
 async function classifyShortlistedItems(
@@ -204,117 +269,131 @@ export async function runDailyReading(
   };
 
   deps.initDb();
+  const runId = deps.startRun("daily");
 
-  const preferences = deps.loadPreferences();
-  const sourceRegistry = deps.loadSourceRegistry();
-  const { candidates, errors, sourcesUsed } = await deps.collectCandidates(
-    sourceRegistry,
-    preferences.dailyMix,
-    preferences.enableAcademicFallback,
-  );
+  try {
+    const preferences = deps.loadPreferences();
+    const sourceRegistry = deps.loadSourceRegistry();
+    const { candidates, errors, sourcesUsed } = await deps.collectCandidates(
+      sourceRegistry,
+      preferences.dailyMix,
+      preferences.enableAcademicFallback,
+    );
 
-  logger.info(
-    {
-      event: DAILY_READING.LOG_EVENTS.SOURCES_USED,
-      sourcesUsed,
-      enableAcademicFallback: preferences.enableAcademicFallback,
-    },
-    DAILY_READING.LOG_MESSAGES.SOURCES_USED,
-  );
-  const newCandidates: CandidateItem[] = [];
-  const candidatesToScore: CandidateToScore[] = [];
-  const currentRunItemIds: string[] = [];
-  const scoreErrors: Array<{ url: string; error: string }> = [];
-  let alreadyExisted = 0;
-  let alreadyScored = 0;
-  let scored = 0;
-
-  for (const candidate of candidates) {
-    const existingItem = deps.getItemByUrl(candidate.url);
-    if (existingItem) {
-      alreadyExisted += 1;
-    } else {
-      newCandidates.push(candidate);
-    }
-
-    deps.upsertItem(candidate);
-    const persistedItem = deps.getItemByUrl(candidate.url) ?? candidate;
-    currentRunItemIds.push(persistedItem.id);
-
-    if (deps.getScore(persistedItem.id)) {
-      alreadyScored += 1;
-    } else {
-      candidatesToScore.push({
-        candidate,
-        itemId: persistedItem.id,
-      });
-    }
-  }
-
-  for (const { candidate, itemId } of candidatesToScore) {
-    try {
-      deps.upsertScore(itemId, await deps.scoreItem(candidate, preferences));
-      scored += 1;
-    } catch (error) {
-      scoreErrors.push({
-        url: candidate.url,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-
-  const today = deps.now();
-  const uniqueCurrentRunItemIds = [...new Set(currentRunItemIds)];
-  const digestCandidatePool = deps.listTopScoredItemsByIds(
-    uniqueCurrentRunItemIds,
-    Math.max(DIGEST.TOP_ITEMS, SCORING.TOP_RESULTS),
-  );
-  const {
-    items: enrichedDigestItems,
-    fetched: urlTextFetched,
-    errors: urlTextErrors,
-  } = await enrichShortlistedItemsWithUrlText(digestCandidatePool, deps.fetchUrlText);
-  const { items: classifiedDigestItems, errors: classificationErrors } =
-    await classifyShortlistedItems(enrichedDigestItems, deps.classifyCandidateCategory);
-  for (const item of classifiedDigestItems) {
-    deps.upsertItem(item);
-  }
-  const { selectedItems: selectedDigestItems, trace: selectionTrace } = selectDigestItemsWithTrace(
-    classifiedDigestItems,
-    preferences,
-  );
-
-  if (options.traceSelection) {
     logger.info(
       {
-        event: DAILY_READING.LOG_EVENTS.DIGEST_SELECTION,
-        ...selectionTrace,
+        event: DAILY_READING.LOG_EVENTS.SOURCES_USED,
+        sourcesUsed,
+        enableAcademicFallback: preferences.enableAcademicFallback,
       },
-      DAILY_READING.LOG_MESSAGES.DIGEST_SELECTION,
+      DAILY_READING.LOG_MESSAGES.SOURCES_USED,
     );
+    const newCandidates: CandidateItem[] = [];
+    const candidatesToScore: CandidateToScore[] = [];
+    const currentRunItemIds: string[] = [];
+    const scoreErrors: Array<{ url: string; error: string }> = [];
+    let alreadyExisted = 0;
+    let alreadyScored = 0;
+    let scored = 0;
+
+    for (const candidate of candidates) {
+      const existingItem = deps.getItemByUrl(candidate.url);
+      if (existingItem) {
+        alreadyExisted += 1;
+      } else {
+        newCandidates.push(candidate);
+      }
+
+      deps.upsertItem(candidate);
+      const persistedItem = deps.getItemByUrl(candidate.url) ?? candidate;
+      currentRunItemIds.push(persistedItem.id);
+
+      if (deps.getScore(persistedItem.id)) {
+        alreadyScored += 1;
+      } else {
+        candidatesToScore.push({
+          candidate,
+          itemId: persistedItem.id,
+        });
+      }
+    }
+
+    for (const { candidate, itemId } of candidatesToScore) {
+      try {
+        deps.upsertScore(itemId, await deps.scoreItem(candidate, preferences));
+        scored += 1;
+      } catch (error) {
+        scoreErrors.push({
+          url: candidate.url,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    const today = deps.now();
+    const uniqueCurrentRunItemIds = [...new Set(currentRunItemIds)];
+    const digestCandidatePool = deps.listTopScoredItemsByIds(
+      uniqueCurrentRunItemIds,
+      Math.max(DIGEST.TOP_ITEMS, SCORING.TOP_RESULTS),
+    );
+    const {
+      items: enrichedDigestItems,
+      fetched: urlTextFetched,
+      errors: urlTextErrors,
+    } = await enrichShortlistedItemsWithUrlText(digestCandidatePool, deps.fetchUrlText);
+    const { items: classifiedDigestItems, errors: classificationErrors } =
+      await classifyShortlistedItems(enrichedDigestItems, deps.classifyCandidateCategory);
+    for (const item of classifiedDigestItems) {
+      deps.upsertItem(item);
+    }
+    const { selectedItems: selectedDigestItems, trace: selectionTrace } =
+      selectDigestItemsWithTrace(classifiedDigestItems, preferences);
+
+    if (options.traceSelection) {
+      logger.info(
+        {
+          event: DAILY_READING.LOG_EVENTS.DIGEST_SELECTION,
+          ...selectionTrace,
+        },
+        DAILY_READING.LOG_MESSAGES.DIGEST_SELECTION,
+      );
+    }
+
+    const digestPath =
+      selectedDigestItems.length > 0
+        ? deps.saveDigest(deps.writeDigest(selectedDigestItems, today), today)
+        : null;
+    const topScores = deps.listTopScoredItemsByIds(uniqueCurrentRunItemIds, SCORING.TOP_RESULTS);
+    const failed = shouldFailDailyRun(candidates, candidatesToScore, scored, selectedDigestItems);
+
+    const result = {
+      collected: candidates.length,
+      new: newCandidates.length,
+      alreadyExisted,
+      sourcesUsed,
+      scored,
+      alreadyScored,
+      sourceErrors: errors,
+      scoreErrors,
+      classificationErrors,
+      urlTextFetched,
+      urlTextErrors,
+      digestPath,
+      topScores,
+      failed,
+    };
+    deps.finishRun(
+      runId,
+      dailyRunSummary(
+        result,
+        selectedDigestItems.length,
+        classifiedDigestItems.filter((item) => item.score.rejected).length,
+      ),
+    );
+
+    return result;
+  } catch (error) {
+    deps.failRun(runId, error instanceof Error ? error.message : String(error));
+    throw error;
   }
-
-  const digestPath =
-    selectedDigestItems.length > 0
-      ? deps.saveDigest(deps.writeDigest(selectedDigestItems, today), today)
-      : null;
-  const topScores = deps.listTopScoredItemsByIds(uniqueCurrentRunItemIds, SCORING.TOP_RESULTS);
-  const failed = shouldFailDailyRun(candidates, candidatesToScore, scored, selectedDigestItems);
-
-  return {
-    collected: candidates.length,
-    new: newCandidates.length,
-    alreadyExisted,
-    sourcesUsed,
-    scored,
-    alreadyScored,
-    sourceErrors: errors,
-    scoreErrors,
-    classificationErrors,
-    urlTextFetched,
-    urlTextErrors,
-    digestPath,
-    topScores,
-    failed,
-  };
 }

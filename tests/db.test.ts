@@ -19,6 +19,7 @@ import {
   upsertItem,
   upsertScore,
 } from "../src/db/items.js";
+import { failRun, finishRun, getRecentRuns, startRun } from "../src/framework/pipeline/runs.js";
 import type { CandidateItem, ItemScore } from "../src/daily/types.js";
 
 function item(overrides: Partial<CandidateItem>): CandidateItem {
@@ -302,5 +303,61 @@ describe("SQLite item persistence", () => {
 
     initDb(dbPath);
     assert.equal(itemExistsByUrl("https://example.com/reopen"), true);
+  });
+
+  it("stores shared pipeline run metadata", () => {
+    const dbPath = join(mkdtempSync(join(tmpdir(), "birbal-db-")), "agent.db");
+    initDb(dbPath);
+
+    const runId = startRun("daily");
+    finishRun(runId, {
+      status: "partial_success",
+      sourcesAttempted: 2,
+      sourcesSucceeded: 1,
+      sourcesFailed: 1,
+      itemsCollected: 10,
+      itemsStored: 3,
+      itemsScored: 2,
+      itemsRejected: 1,
+      itemsSelected: 5,
+      artifacts: [{ id: "digest", type: "markdown", path: "digests/today.md" }],
+      errors: [{ message: "one source failed" }],
+      metadata: { trace: true },
+    });
+
+    const recentRun = getRecentRuns("daily", 1)[0];
+
+    assert.deepEqual(recentRun, {
+      id: runId,
+      pipelineId: "daily",
+      runType: "manual",
+      startedAt: recentRun?.startedAt,
+      finishedAt: recentRun?.finishedAt,
+      status: "partial_success",
+      sourcesAttempted: 2,
+      sourcesSucceeded: 1,
+      sourcesFailed: 1,
+      itemsCollected: 10,
+      itemsStored: 3,
+      itemsScored: 2,
+      itemsRejected: 1,
+      itemsSelected: 5,
+      artifacts: [{ id: "digest", type: "markdown", path: "digests/today.md" }],
+      errorSummary: "one source failed",
+      metadata: { trace: true },
+    });
+  });
+
+  it("marks shared pipeline runs as failed", () => {
+    const dbPath = join(mkdtempSync(join(tmpdir(), "birbal-db-")), "agent.db");
+    initDb(dbPath);
+
+    const runId = startRun("use_cases");
+    failRun(runId, "model unavailable");
+
+    const recentRuns = getRecentRuns("use_cases", 1);
+    assert.equal(recentRuns[0]?.status, "failed");
+    assert.equal(recentRuns[0]?.errorSummary, "model unavailable");
+    assert.throws(() => getRecentRuns("use_cases", 0), /positive integer/);
   });
 });

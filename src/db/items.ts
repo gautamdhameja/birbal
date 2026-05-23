@@ -24,7 +24,7 @@ function getDefaultDbPath(): string {
   return join(process.cwd(), DATABASE.DIRECTORY, DATABASE.FILE_NAME);
 }
 
-function getDb(): DatabaseConnection {
+export function getDb(): DatabaseConnection {
   return db ?? initDb();
 }
 

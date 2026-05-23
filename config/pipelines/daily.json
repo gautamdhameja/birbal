@@ -1,0 +1,49 @@
+{
+  "pipelineId": "daily",
+  "enabled": true,
+  "description": "Daily enterprise AI reading digest pipeline.",
+  "sourceIds": ["hackernews"],
+  "collectionMethods": [
+    {
+      "id": "source_domain_search",
+      "collectorId": "source_domain_collector",
+      "sourceIds": ["hackernews"],
+      "enabled": true
+    }
+  ],
+  "contentFetchPolicy": {
+    "enabled": true,
+    "fetcherId": "url_text_fetcher",
+    "maxItems": 10,
+    "requireFetchedContent": false
+  },
+  "scorerId": "enterprise_deployment_scorer",
+  "classifierId": "enterprise_digest_classifier",
+  "selectorId": "daily_enterprise_mix_selector",
+  "rendererId": "daily_markdown_renderer",
+  "output": {
+    "format": "markdown",
+    "directory": "digests",
+    "filenameTemplate": "{date}.md",
+    "artifactWriterId": "filesystem_artifact_writer"
+  },
+  "limits": {
+    "maxCandidates": 20,
+    "topScores": 10,
+    "digestItems": 5
+  },
+  "execution": {
+    "collectionConcurrency": 3,
+    "contentFetchConcurrency": 5,
+    "scoringConcurrency": 1,
+    "classificationConcurrency": 2,
+    "batchSize": {
+      "scoring": 5
+    }
+  },
+  "schedule": {
+    "enabled": true,
+    "timezone": "Europe/Berlin",
+    "rrule": "FREQ=DAILY"
+  }
+}
