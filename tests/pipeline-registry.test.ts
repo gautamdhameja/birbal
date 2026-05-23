@@ -27,6 +27,13 @@ function pipelineConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig
     },
     limits: {},
     ...overrides,
+    failurePolicy: overrides.failurePolicy ?? {
+      failFast: false,
+      continueOnSourceFailure: true,
+      continueOnContentFetchFailure: true,
+      continueOnScoringFailure: true,
+      minItemsRequiredForSuccess: 1,
+    },
   };
 }
 

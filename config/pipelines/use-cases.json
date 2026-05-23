@@ -49,5 +49,12 @@
     "contentFetchConcurrency": 5,
     "scoringConcurrency": 1,
     "structuredExtractionConcurrency": 1
+  },
+  "failurePolicy": {
+    "failFast": false,
+    "continueOnSourceFailure": true,
+    "continueOnContentFetchFailure": true,
+    "continueOnScoringFailure": true,
+    "minItemsRequiredForSuccess": 1
   }
 }

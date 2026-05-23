@@ -2,7 +2,8 @@ import { z } from "zod";
 
 import { HACKER_NEWS } from "../constants/hacker-news.js";
 import { HTTP } from "../constants/runtime.js";
-import { buildHttpStatusError, fetchWithTimeout, readResponseJson } from "../http/client.js";
+import { fetchWithRetry } from "../framework/network/fetch.js";
+import { buildHttpStatusError, readResponseJson } from "../http/client.js";
 import { getHackerNewsConfig } from "./config.js";
 
 type HackerNewsSearchOptions = {
@@ -62,7 +63,7 @@ export function normalizeHackerNewsHit(hit: HackerNewsHit): HackerNewsStory {
 export async function searchHackerNews(
   options: HackerNewsSearchOptions,
 ): Promise<HackerNewsStory[]> {
-  const response = await fetchWithTimeout(buildHackerNewsSearchUrl(options), {
+  const response = await fetchWithRetry(buildHackerNewsSearchUrl(options), {
     signal: options.signal,
     headers: {
       accept: HTTP.JSON_ACCEPT,

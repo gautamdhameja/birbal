@@ -1,6 +1,7 @@
 import { URL_TEXT } from "../constants/url-text.js";
 import { HTTP } from "../constants/runtime.js";
-import { buildHttpStatusError, fetchWithTimeout, readResponseText } from "../http/client.js";
+import { fetchWithRetry } from "../framework/network/fetch.js";
+import { buildHttpStatusError, readResponseText } from "../http/client.js";
 import {
   httpUrlErrorMessage,
   isSafePublicHttpUrl,
@@ -88,7 +89,7 @@ async function fetchSafeUrl(
     throw new Error(URL_TEXT.ERRORS.TOO_MANY_REDIRECTS);
   }
 
-  const response = await fetchWithTimeout(url, {
+  const response = await fetchWithRetry(url, {
     signal,
     redirect: "manual",
     headers: {

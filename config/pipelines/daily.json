@@ -41,6 +41,13 @@
       "scoring": 5
     }
   },
+  "failurePolicy": {
+    "failFast": false,
+    "continueOnSourceFailure": true,
+    "continueOnContentFetchFailure": true,
+    "continueOnScoringFailure": true,
+    "minItemsRequiredForSuccess": 5
+  },
   "schedule": {
     "enabled": true,
     "timezone": "Europe/Berlin",

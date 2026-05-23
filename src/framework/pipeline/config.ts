@@ -16,6 +16,15 @@ const NonEmptyStringSchema = z.string().trim().min(1);
 const MetadataSchema = z.record(z.string(), z.unknown());
 const LimitsSchema = z.record(z.string(), z.number().finite().nonnegative());
 const PositiveIntegerSchema = z.number().int().positive();
+const NonNegativeIntegerSchema = z.number().int().nonnegative();
+
+const DefaultFailurePolicy = {
+  failFast: false,
+  continueOnSourceFailure: true,
+  continueOnContentFetchFailure: true,
+  continueOnScoringFailure: true,
+  minItemsRequiredForSuccess: 1,
+} as const;
 
 const PipelineCollectionMethodSchema = z.strictObject({
   id: NonEmptyStringSchema,
@@ -58,6 +67,20 @@ const PipelineExecutionConfigSchema = z.strictObject({
     .optional(),
 });
 
+const PipelineFailurePolicySchema = z
+  .strictObject({
+    failFast: z.boolean().optional(),
+    continueOnSourceFailure: z.boolean().optional(),
+    continueOnContentFetchFailure: z.boolean().optional(),
+    continueOnScoringFailure: z.boolean().optional(),
+    minItemsRequiredForSuccess: NonNegativeIntegerSchema.optional(),
+  })
+  .optional()
+  .transform((policy) => ({
+    ...DefaultFailurePolicy,
+    ...(policy ?? {}),
+  }));
+
 const PipelineScheduleConfigSchema = z
   .strictObject({
     enabled: z.boolean().optional(),
@@ -85,6 +108,7 @@ const PipelineConfigFileSchema = z.strictObject({
   output: PipelineOutputConfigSchema,
   limits: LimitsSchema,
   execution: PipelineExecutionConfigSchema.optional(),
+  failurePolicy: PipelineFailurePolicySchema,
   schedule: PipelineScheduleConfigSchema.optional(),
   settings: MetadataSchema.optional(),
   metadata: MetadataSchema.optional(),

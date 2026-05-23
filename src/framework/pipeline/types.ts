@@ -4,7 +4,7 @@ export type PipelineMetadata = Record<string, unknown>;
 
 export type PipelineCounts = Record<string, number>;
 
-export type PipelineStatus = "success" | "partial" | "failed";
+export type PipelineStatus = "success" | "partial_success" | "failed";
 
 export type PipelineComponentConfig = {
   collectors?: string[];
@@ -58,6 +58,14 @@ export type PipelineExecutionConfig = {
   classificationConcurrency?: number;
   structuredExtractionConcurrency?: number;
   batchSize?: PipelineBatchConfig;
+};
+
+export type PipelineFailurePolicy = {
+  failFast: boolean;
+  continueOnSourceFailure: boolean;
+  continueOnContentFetchFailure: boolean;
+  continueOnScoringFailure: boolean;
+  minItemsRequiredForSuccess: number;
 };
 
 export type PipelineOutputConfig = {
@@ -116,6 +124,7 @@ export interface PipelineConfig<TSettings = PipelineMetadata> {
   output: PipelineOutputConfig;
   limits: PipelineCounts;
   execution?: PipelineExecutionConfig;
+  failurePolicy: PipelineFailurePolicy;
   schedule?: PipelineScheduleConfig;
   components?: PipelineComponentConfig;
   settings?: TSettings;

@@ -3,7 +3,8 @@ import { XMLParser } from "fast-xml-parser";
 import { ARXIV } from "../constants/arxiv.js";
 import type { ArxivSearchMode } from "../constants/arxiv.js";
 import { HTTP } from "../constants/runtime.js";
-import { buildHttpStatusError, fetchWithTimeout, readResponseText } from "../http/client.js";
+import { fetchWithRetry } from "../framework/network/fetch.js";
+import { buildHttpStatusError, readResponseText } from "../http/client.js";
 import { getArxivConfig } from "./config.js";
 
 type ArxivSearchOptions = {
@@ -21,7 +22,6 @@ export type ArxivPaper = {
 };
 
 type ParsedXmlRecord = Record<string, unknown>;
-const RETRYABLE_ARXIV_STATUSES = new Set<number>(ARXIV.RETRYABLE_STATUSES);
 
 let nextArxivRequestAt = 0;
 let arxivRequestQueue = Promise.resolve();
@@ -160,31 +160,28 @@ async function fetchArxivSearch(
 ): Promise<ArxivPaper[]> {
   const url = buildArxivUrl(options, mode);
 
-  for (let attempt = 1; attempt <= ARXIV.MAX_ATTEMPTS; attempt += 1) {
-    await waitForArxivRequestSlot(options.signal);
-
-    const response = await fetchWithTimeout(url, {
+  const response = await fetchWithRetry(
+    url,
+    {
       signal: options.signal,
       headers: {
         accept: HTTP.XML_ACCEPT,
         [HTTP.USER_AGENT_HEADER]: HTTP.USER_AGENT,
       },
-    });
+    },
+    {
+      retries: ARXIV.MAX_ATTEMPTS - 1,
+      minTimeoutMs: ARXIV.RETRY_DELAY_MS,
+      retryStatusCodes: ARXIV.RETRYABLE_STATUSES,
+      beforeAttempt: () => waitForArxivRequestSlot(options.signal),
+    },
+  );
 
-    if (response.ok) {
-      return parseArxivAtomFeed(await readResponseText(response));
-    }
-
-    const shouldRetry =
-      RETRYABLE_ARXIV_STATUSES.has(response.status) && attempt < ARXIV.MAX_ATTEMPTS;
-    if (!shouldRetry) {
-      throw await buildHttpStatusError(ARXIV.ERRORS.HTTP_FAILED_PREFIX, response);
-    }
-
-    await delay(ARXIV.RETRY_DELAY_MS * attempt, options.signal);
+  if (response.ok) {
+    return parseArxivAtomFeed(await readResponseText(response));
   }
 
-  throw new Error(ARXIV.ERRORS.EXHAUSTED_RETRIES);
+  throw await buildHttpStatusError(ARXIV.ERRORS.HTTP_FAILED_PREFIX, response);
 }
 
 export async function searchArxiv(options: ArxivSearchOptions): Promise<ArxivPaper[]> {

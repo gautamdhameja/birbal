@@ -17,6 +17,11 @@ export const LOGGING = {
 
 export const HTTP = {
   DEFAULT_TIMEOUT_MS: 30_000,
+  DEFAULT_RETRIES: 2,
+  RETRY_FACTOR: 2,
+  RETRY_MIN_TIMEOUT_MS: 1_000,
+  RETRY_MAX_TIMEOUT_MS: 10_000,
+  RETRYABLE_STATUS_CODES: [429, 500, 502, 503, 504],
   MAX_RESPONSE_BYTES: 1_000_000,
   MAX_ERROR_RESPONSE_BYTES: 20_000,
   MAX_ERROR_BODY_MESSAGE_LENGTH: 500,
@@ -34,6 +39,7 @@ export const HTTP = {
     HOST_NOT_ALLOWED: "URL host is not allowed.",
     RESPONSE_TOO_LARGE: "HTTP response exceeded maximum allowed size.",
     TIMEOUT_PREFIX: "HTTP request timed out after",
+    ABORTED: "HTTP request was aborted by the caller.",
   },
 } as const;
 

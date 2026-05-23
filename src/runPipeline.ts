@@ -1,5 +1,6 @@
 import { pathToFileURL } from "node:url";
 
+import { Command, InvalidArgumentError } from "commander";
 import dotenv from "dotenv";
 
 import { ENV_FILE_PATHS, OUTPUT } from "./constants/runtime.js";
@@ -13,13 +14,6 @@ type CliOptions = {
   trace: boolean;
 };
 
-const CLI_FLAGS = {
-  CONFIG: "--config",
-  DRY_RUN: "--dry-run",
-  LIMIT: "--limit",
-  TRACE: "--trace",
-} as const;
-
 dotenv.config({ path: ENV_FILE_PATHS, quiet: true });
 
 function isMainModule(): boolean {
@@ -27,64 +21,40 @@ function isMainModule(): boolean {
   return entryPoint ? import.meta.url === pathToFileURL(entryPoint).href : false;
 }
 
-function parsePositiveInteger(value: string | undefined, flag: string): number {
+function parsePositiveInteger(value: string): number {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 1) {
-    throw new Error(`${flag} must be a positive integer.`);
+    throw new InvalidArgumentError("must be a positive integer.");
   }
 
   return parsed;
 }
 
 function parseCliArgs(args: readonly string[]): CliOptions {
+  const program = new Command()
+    .name("run-pipeline")
+    .argument("[pipelineId]", "pipeline ID to run")
+    .option("--trace", "enable debug tracing")
+    .option("--dry-run", "print resolved config without running")
+    .option("--limit <number>", "limit candidate and output counts", parsePositiveInteger)
+    .option("--config <path>", "load pipeline config from a file path")
+    .showHelpAfterError();
+
+  program.parse(args, { from: "user" });
+  const parsedOptions = program.opts<{
+    config?: string;
+    dryRun?: boolean;
+    limit?: number;
+    trace?: boolean;
+  }>();
+  const pipelineId = program.args[0];
   const options: CliOptions = {
-    dryRun: false,
-    trace: false,
+    configPath: parsedOptions.config,
+    dryRun: Boolean(parsedOptions.dryRun),
+    limit: parsedOptions.limit,
+    pipelineId,
+    trace: Boolean(parsedOptions.trace),
   };
-
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
-    if (!arg) {
-      continue;
-    }
-
-    if (arg === CLI_FLAGS.TRACE) {
-      options.trace = true;
-      continue;
-    }
-
-    if (arg === CLI_FLAGS.DRY_RUN) {
-      options.dryRun = true;
-      continue;
-    }
-
-    if (arg === CLI_FLAGS.LIMIT) {
-      options.limit = parsePositiveInteger(args[index + 1], CLI_FLAGS.LIMIT);
-      index += 1;
-      continue;
-    }
-
-    if (arg === CLI_FLAGS.CONFIG) {
-      const value = args[index + 1];
-      if (!value) {
-        throw new Error(`${CLI_FLAGS.CONFIG} requires a path.`);
-      }
-
-      options.configPath = value;
-      index += 1;
-      continue;
-    }
-
-    if (arg.startsWith("--")) {
-      throw new Error(`Unknown flag: ${arg}`);
-    }
-
-    if (options.pipelineId) {
-      throw new Error(`Unexpected extra argument: ${arg}`);
-    }
-
-    options.pipelineId = arg;
-  }
 
   if (!options.pipelineId && !options.configPath) {
     throw new Error("Usage: npm run run-pipeline -- <pipelineId> [--config path] [--limit n]");

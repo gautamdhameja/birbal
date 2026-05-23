@@ -1,3 +1,5 @@
+import pLimit from "p-limit";
+
 export type IndexedResult<TValue> = {
   index: number;
   value: TValue;
@@ -31,21 +33,8 @@ export async function mapLimit<TItem, TResult>(
     return [];
   }
 
-  const results = new Array<TResult>(items.length);
-  let nextIndex = 0;
-
-  async function worker(): Promise<void> {
-    while (nextIndex < items.length) {
-      const currentIndex = nextIndex;
-      nextIndex += 1;
-      results[currentIndex] = await mapper(items[currentIndex] as TItem, currentIndex);
-    }
-  }
-
-  const workerCount = Math.min(concurrency, items.length);
-  await Promise.all(Array.from({ length: workerCount }, () => worker()));
-
-  return results;
+  const limit = pLimit(concurrency);
+  return Promise.all(items.map((item, index) => limit(() => mapper(item, index))));
 }
 
 export async function mapBatches<TItem, TResult>(

@@ -2,7 +2,8 @@ import { z } from "zod";
 
 import { BRAVE_SEARCH } from "../constants/brave-search.js";
 import { HTTP } from "../constants/runtime.js";
-import { buildHttpStatusError, fetchWithTimeout, readResponseJson } from "../http/client.js";
+import { fetchWithRetry } from "../framework/network/fetch.js";
+import { buildHttpStatusError, readResponseJson } from "../http/client.js";
 import { getBraveSearchConfig } from "./config.js";
 
 export type SearchWebOptions = {
@@ -103,7 +104,7 @@ export function normalizeBraveWebResult(result: BraveWebResult): SearchWebResult
 
 export async function searchWeb(options: SearchWebOptions): Promise<SearchWebResult[]> {
   const config = getBraveSearchConfig();
-  const response = await fetchWithTimeout(
+  const response = await fetchWithRetry(
     buildBraveSearchUrl(config.BRAVE_SEARCH_URL, normalizeOptions(options)),
     {
       signal: options.signal,

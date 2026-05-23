@@ -74,6 +74,13 @@ const PIPELINE_LOG_MESSAGES = {
   STAGE_FAILED: "pipeline stage failed",
 } as const;
 
+class PipelinePolicyAbortError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PipelinePolicyAbortError";
+  }
+}
+
 const defaultDependencies: PipelineRunnerDependencies = {
   db: null,
   failRun,
@@ -126,12 +133,17 @@ function toPipelineError(error: unknown, metadata: Omit<PipelineError, "message"
 function statusFrom(
   errors: readonly PipelineError[],
   artifacts: readonly PipelineArtifact[],
+  selectedItemCount: number,
+  config: PipelineConfig,
 ): PipelineStatus {
-  if (artifacts.length === 0) {
+  if (
+    artifacts.length === 0 ||
+    selectedItemCount < config.failurePolicy.minItemsRequiredForSuccess
+  ) {
     return "failed";
   }
 
-  return errors.length > 0 ? "partial" : "success";
+  return errors.length > 0 ? "partial_success" : "success";
 }
 
 function assertComponent<TComponent>(
@@ -192,6 +204,37 @@ function fetchLimit(config: PipelineConfig, itemCount: number): number {
 function collectedItemLimit(config: PipelineConfig, itemCount: number): number {
   const value = config.limits.maxCandidates;
   return typeof value === "number" && value > 0 ? Math.min(value, itemCount) : itemCount;
+}
+
+function shouldContinueAfterSourceFailure(config: PipelineConfig): boolean {
+  return config.failurePolicy.continueOnSourceFailure && !config.failurePolicy.failFast;
+}
+
+function shouldContinueAfterContentFetchFailure(config: PipelineConfig): boolean {
+  return config.failurePolicy.continueOnContentFetchFailure && !config.failurePolicy.failFast;
+}
+
+function shouldContinueAfterScoringFailure(config: PipelineConfig): boolean {
+  return config.failurePolicy.continueOnScoringFailure && !config.failurePolicy.failFast;
+}
+
+function shouldContinueAfterNonPolicyFailure(config: PipelineConfig): boolean {
+  return !config.failurePolicy.failFast;
+}
+
+function assertMinimumViableItemCount(
+  config: PipelineConfig,
+  availableItemCount: number,
+  stageId: string,
+): void {
+  const minimum = config.failurePolicy.minItemsRequiredForSuccess;
+  if (availableItemCount >= minimum) {
+    return;
+  }
+
+  throw new PipelinePolicyAbortError(
+    `Pipeline cannot produce the minimum viable output after ${stageId}: ${availableItemCount} item(s) available, ${minimum} required.`,
+  );
 }
 
 function finishMetadata(metadata: PipelineMetadata, finishedAt: Date): PipelineMetadata {
@@ -340,7 +383,8 @@ function finishSharedRun(
 ): void {
   deps.finishRun(runId, {
     status: result.status,
-    sourcesAttempted: result.counts.collectionMethodsRun ?? 0,
+    sourcesAttempted:
+      (result.counts.collectionMethodsRun ?? 0) + (result.counts.collectionErrors ?? 0),
     sourcesSucceeded: result.counts.collectionMethodsRun ?? 0,
     sourcesFailed: result.counts.collectionErrors ?? 0,
     itemsCollected: result.counts.collected ?? 0,
@@ -431,6 +475,13 @@ async function collectItems(
     if (result.error) {
       incrementCount(counts, "collectionErrors");
       errors.push(result.error);
+
+      if (!shouldContinueAfterSourceFailure(context.config)) {
+        throw new PipelinePolicyAbortError(
+          `Pipeline stopped after source collection failure in ${result.error.stepId ?? "unknown source"}.`,
+        );
+      }
+
       continue;
     }
 
@@ -472,6 +523,13 @@ async function fetchAndExtractContent(
       message: "Content fetch policy is enabled but no content fetcher is configured.",
       code: "content_fetcher_missing",
     });
+
+    if (!shouldContinueAfterContentFetchFailure(config)) {
+      throw new PipelinePolicyAbortError(
+        "Pipeline stopped because content fetching is enabled but no fetcher is configured.",
+      );
+    }
+
     return config.contentFetchPolicy.requireFetchedContent ? [] : items;
   }
 
@@ -494,6 +552,12 @@ async function fetchAndExtractContent(
           code: "content_fetch_failed",
         }),
       );
+
+      if (!shouldContinueAfterContentFetchFailure(config)) {
+        throw new PipelinePolicyAbortError(
+          `Pipeline stopped after content fetch failure for ${item.id}.`,
+        );
+      }
 
       if (!config.contentFetchPolicy.requireFetchedContent) {
         return {
@@ -521,6 +585,12 @@ async function fetchAndExtractContent(
             code: "content_extraction_failed",
           }),
         );
+
+        if (!shouldContinueAfterNonPolicyFailure(config)) {
+          throw new PipelinePolicyAbortError(
+            `Pipeline stopped after content extraction failure for ${item.id}.`,
+          );
+        }
       }
     }
 
@@ -570,6 +640,13 @@ async function scoreItems(
           code: "score_failed",
         }),
       );
+
+      if (!shouldContinueAfterScoringFailure(context.config)) {
+        throw new PipelinePolicyAbortError(
+          `Pipeline stopped after scoring failure for ${item.id}.`,
+        );
+      }
+
       return item;
     }
   }
@@ -601,6 +678,11 @@ async function scoreItems(
             }),
           );
         }
+
+        if (!shouldContinueAfterScoringFailure(context.config)) {
+          throw new PipelinePolicyAbortError("Pipeline stopped after batch scoring failure.");
+        }
+
         return batch;
       }
     },
@@ -632,6 +714,13 @@ async function classifyAndExtractStructured(
             code: "classification_failed",
           }),
         );
+
+        if (!shouldContinueAfterNonPolicyFailure(context.config)) {
+          throw new PipelinePolicyAbortError(
+            `Pipeline stopped after classification failure for ${item.id}.`,
+          );
+        }
+
         return item;
       }
     }
@@ -680,6 +769,13 @@ async function classifyAndExtractStructured(
                     }),
                   );
                 }
+
+                if (!shouldContinueAfterNonPolicyFailure(context.config)) {
+                  throw new PipelinePolicyAbortError(
+                    "Pipeline stopped after batch classification failure.",
+                  );
+                }
+
                 return batch;
               }
             },
@@ -707,6 +803,13 @@ async function classifyAndExtractStructured(
             code: "structured_extraction_failed",
           }),
         );
+
+        if (!shouldContinueAfterNonPolicyFailure(context.config)) {
+          throw new PipelinePolicyAbortError(
+            `Pipeline stopped after structured extraction failure for ${item.id}.`,
+          );
+        }
+
         return item;
       }
     }
@@ -765,6 +868,13 @@ async function classifyAndExtractStructured(
                     }),
                   );
                 }
+
+                if (!shouldContinueAfterNonPolicyFailure(context.config)) {
+                  throw new PipelinePolicyAbortError(
+                    "Pipeline stopped after batch structured extraction failure.",
+                  );
+                }
+
                 return batch;
               }
             },
@@ -892,65 +1002,77 @@ export async function runPipeline(
     ]),
   );
 
-  const collectionMethods = enabledCollectionMethods(config);
-  let items = await runTimedStage(
-    context,
-    "collection",
-    collectionMethods.length,
-    () => collectItems(collectionMethods, collectorsById, context, counts, errors),
-    {
-      concurrency: executionLimit(config, "collectionConcurrency"),
-    },
-  );
-  const collectedLimit = collectedItemLimit(config, items.length);
-  if (items.length > collectedLimit) {
-    incrementCount(counts, "collectionLimited", items.length - collectedLimit);
-    items = items.slice(0, collectedLimit);
-  }
-  items = await runTimedStage(
-    context,
-    "content_fetch",
-    items.length,
-    () =>
-      fetchAndExtractContent(
-        items,
-        config,
-        components.contentFetchers[0],
-        components.contentExtractors,
-        context,
-        counts,
-        errors,
-      ),
-    {
-      concurrency: executionLimit(config, "contentFetchConcurrency"),
-      maxItems: config.contentFetchPolicy.maxItems,
-      requireFetchedContent: config.contentFetchPolicy.requireFetchedContent,
-    },
-  );
-  items = await runTimedStage(
-    context,
-    "scoring",
-    items.length,
-    () =>
-      scoreItems(items, assertComponent(components.scorers[0], "scorer"), context, counts, errors),
-    {
-      concurrency: executionLimit(config, "scoringConcurrency"),
-      batchSize: batchSize(config, "scoring"),
-    },
-  );
-  items = await classifyAndExtractStructured(
-    items,
-    components.classifiers[0],
-    components.structuredExtractors[0],
-    context,
-    counts,
-    errors,
-  );
-
   try {
+    const collectionMethods = enabledCollectionMethods(config);
+    let items = await runTimedStage(
+      context,
+      "collection",
+      collectionMethods.length,
+      () => collectItems(collectionMethods, collectorsById, context, counts, errors),
+      {
+        concurrency: executionLimit(config, "collectionConcurrency"),
+      },
+    );
+    const collectedLimit = collectedItemLimit(config, items.length);
+    if (items.length > collectedLimit) {
+      incrementCount(counts, "collectionLimited", items.length - collectedLimit);
+      items = items.slice(0, collectedLimit);
+    }
+    assertMinimumViableItemCount(config, items.length, "collection");
+
+    items = await runTimedStage(
+      context,
+      "content_fetch",
+      items.length,
+      () =>
+        fetchAndExtractContent(
+          items,
+          config,
+          components.contentFetchers[0],
+          components.contentExtractors,
+          context,
+          counts,
+          errors,
+        ),
+      {
+        concurrency: executionLimit(config, "contentFetchConcurrency"),
+        maxItems: config.contentFetchPolicy.maxItems,
+        requireFetchedContent: config.contentFetchPolicy.requireFetchedContent,
+      },
+    );
+    assertMinimumViableItemCount(config, items.length, "content_fetch");
+
+    items = await runTimedStage(
+      context,
+      "scoring",
+      items.length,
+      () =>
+        scoreItems(
+          items,
+          assertComponent(components.scorers[0], "scorer"),
+          context,
+          counts,
+          errors,
+        ),
+      {
+        concurrency: executionLimit(config, "scoringConcurrency"),
+        batchSize: batchSize(config, "scoring"),
+      },
+    );
+    items = await classifyAndExtractStructured(
+      items,
+      components.classifiers[0],
+      components.structuredExtractors[0],
+      context,
+      counts,
+      errors,
+    );
+
     const selectedItems = await runTimedStage(context, "selection", items.length, () =>
       selectItems(items, assertComponent(components.selectors[0], "selector"), context, counts),
     );
+    assertMinimumViableItemCount(config, selectedItems.length, "selection");
+
     const artifact = await runTimedStage(context, "render_and_write", selectedItems.length, () =>
       renderAndWriteArtifact(
         selectedItems,
@@ -966,7 +1088,7 @@ export async function runPipeline(
     const result: PipelineResult = {
       pipelineId: config.pipelineId,
       runId,
-      status: statusFrom(errors, artifacts),
+      status: statusFrom(errors, artifacts, selectedItems.length, config),
       artifacts,
       counts,
       errors,
@@ -974,7 +1096,12 @@ export async function runPipeline(
     };
     return finishPipelineRun(deps, runId, result, startedAt);
   } catch (error) {
-    errors.push(toPipelineError(error, { code: "artifact_stage_failed" }));
+    errors.push(
+      toPipelineError(error, {
+        code:
+          error instanceof PipelinePolicyAbortError ? "failure_policy_abort" : "pipeline_failed",
+      }),
+    );
     return failPipelineRun(
       deps,
       config,

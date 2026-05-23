@@ -3,9 +3,12 @@ import { describe, it } from "node:test";
 
 import {
   buildHttpStatusError,
+  fetchWithRetry,
   fetchWithTimeout,
+  HttpAbortError,
   HttpTimeoutError,
   readResponseText,
+  RetryableFetchStatusError,
 } from "../src/http/client.js";
 
 describe("HTTP client helpers", () => {
@@ -74,9 +77,79 @@ describe("HTTP client helpers", () => {
 
       assert.notEqual(receivedSignal, controller.signal);
       assert.equal(receivedSignal?.aborted, true);
-      await assert.rejects(request, HttpTimeoutError);
+      await assert.rejects(request, HttpAbortError);
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+
+  it("retries only retryable HTTP statuses", async () => {
+    const originalFetch = globalThis.fetch;
+    let calls = 0;
+
+    globalThis.fetch = (() => {
+      calls += 1;
+      return Promise.resolve(
+        new Response(calls === 1 ? "retry" : "ok", { status: calls === 1 ? 500 : 200 }),
+      );
+    }) as typeof fetch;
+
+    try {
+      const response = await fetchWithRetry(
+        "https://example.com",
+        {},
+        {
+          retries: 1,
+          minTimeoutMs: 1,
+          maxTimeoutMs: 1,
+          jitter: false,
+        },
+      );
+
+      assert.equal(response.status, 200);
+      assert.equal(calls, 2);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("does not retry normal 4xx HTTP statuses", async () => {
+    const originalFetch = globalThis.fetch;
+    let calls = 0;
+
+    globalThis.fetch = (() => {
+      calls += 1;
+      return Promise.resolve(new Response("missing", { status: 404 }));
+    }) as typeof fetch;
+
+    try {
+      const response = await fetchWithRetry(
+        "https://example.com",
+        {},
+        {
+          retries: 3,
+          minTimeoutMs: 1,
+          maxTimeoutMs: 1,
+          jitter: false,
+        },
+      );
+
+      assert.equal(response.status, 404);
+      assert.equal(calls, 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("returns structured fetch retry errors", () => {
+    const error = new RetryableFetchStatusError(503, "Service Unavailable", 2);
+
+    assert.deepEqual(error.toJSON(), {
+      error: "Fetch attempt 2 returned retryable HTTP 503 Service Unavailable.",
+      kind: "retryable_status",
+      status: 503,
+      statusText: "Service Unavailable",
+      attemptNumber: 2,
+    });
   });
 });

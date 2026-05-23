@@ -52,6 +52,13 @@ function config(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
       maxCandidates: 10,
     },
     ...overrides,
+    failurePolicy: overrides.failurePolicy ?? {
+      failFast: false,
+      continueOnSourceFailure: true,
+      continueOnContentFetchFailure: true,
+      continueOnScoringFailure: true,
+      minItemsRequiredForSuccess: 1,
+    },
   };
 }
 
@@ -312,12 +319,120 @@ describe("pipeline runner", () => {
       },
     );
 
-    assert.equal(result.status, "partial");
+    assert.equal(result.status, "partial_success");
     assert.equal(result.counts.contentFetched, 1);
     assert.equal(result.counts.contentFetchErrors, 1);
     assert.equal(result.counts.artifactsWritten, 1);
     assert.equal(result.errors[0]?.code, "content_fetch_failed");
     assert.equal(finishedRuns.length, 1);
+  });
+
+  it("fails when a source fails and source failures are not continuable", async () => {
+    const registry = new PipelineComponentRegistry();
+
+    registry.registerCollector("collector", {
+      collect: async () => {
+        throw new Error("source down");
+      },
+    });
+    registry.registerScorer("scorer", {
+      score: async () => ({ finalScore: 1 }),
+    });
+    registry.registerSelector("selector", {
+      select: async (items) => items,
+    });
+    registry.registerRenderer("renderer", {
+      render: async () => "rendered",
+    });
+    registry.registerArtifactWriter("writer", {
+      write: async () => ({ id: "artifact", type: "markdown" }),
+    });
+
+    const result = await runPipeline(
+      writeConfig(
+        config({
+          contentFetchPolicy: {
+            enabled: false,
+          },
+          classifierId: undefined,
+          structuredExtractorId: undefined,
+          failurePolicy: {
+            failFast: false,
+            continueOnSourceFailure: false,
+            continueOnContentFetchFailure: true,
+            continueOnScoringFailure: true,
+            minItemsRequiredForSuccess: 1,
+          },
+        }),
+      ),
+      {
+        startRun: () => "run-source-failure",
+        finishRun: () => undefined,
+        failRun: () => undefined,
+        loadSourceRegistry: () => ({ sources: [] }),
+        logger: silentLogger(),
+        now: () => new Date("2026-05-23T08:00:00.000Z"),
+        registry,
+      },
+    );
+
+    assert.equal(result.status, "failed");
+    assert.equal(result.counts.collectionErrors, 1);
+    assert.equal(result.errors[0]?.code, "collection_failed");
+    assert.equal(result.errors.at(-1)?.code, "failure_policy_abort");
+  });
+
+  it("fails when selected output is below the configured minimum", async () => {
+    const registry = new PipelineComponentRegistry();
+
+    registry.registerCollector("collector", {
+      collect: async () => [{ id: "first" }, { id: "second" }],
+    });
+    registry.registerScorer("scorer", {
+      score: async () => ({ finalScore: 1 }),
+    });
+    registry.registerSelector("selector", {
+      select: async () => [],
+    });
+    registry.registerRenderer("renderer", {
+      render: async () => "rendered",
+    });
+    registry.registerArtifactWriter("writer", {
+      write: async () => ({ id: "artifact", type: "markdown" }),
+    });
+
+    const result = await runPipeline(
+      writeConfig(
+        config({
+          contentFetchPolicy: {
+            enabled: false,
+          },
+          classifierId: undefined,
+          structuredExtractorId: undefined,
+          failurePolicy: {
+            failFast: false,
+            continueOnSourceFailure: true,
+            continueOnContentFetchFailure: true,
+            continueOnScoringFailure: true,
+            minItemsRequiredForSuccess: 1,
+          },
+        }),
+      ),
+      {
+        startRun: () => "run-minimum-output",
+        finishRun: () => undefined,
+        failRun: () => undefined,
+        loadSourceRegistry: () => ({ sources: [] }),
+        logger: silentLogger(),
+        now: () => new Date("2026-05-23T08:00:00.000Z"),
+        registry,
+      },
+    );
+
+    assert.equal(result.status, "failed");
+    assert.equal(result.counts.selected, 0);
+    assert.equal(result.counts.artifactsWritten, undefined);
+    assert.equal(result.errors.at(-1)?.code, "failure_policy_abort");
   });
 
   it("sanitizes large error causes before returning pipeline errors", async () => {

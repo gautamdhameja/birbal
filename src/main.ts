@@ -1,16 +1,21 @@
+import { Command } from "commander";
 import dotenv from "dotenv";
 
 import { CLI, ENV_FILE_PATHS, LOGGING } from "./constants/runtime.js";
 
 dotenv.config({ path: ENV_FILE_PATHS, quiet: true });
 
-const args = process.argv.slice(2);
-const traceEnabled = args.includes(CLI.TRACE_FLAG);
-const task =
-  args
-    .filter((arg) => arg !== CLI.TRACE_FLAG)
-    .join(" ")
-    .trim() || CLI.DEFAULT_TASK;
+const program = new Command()
+  .name("birbal")
+  .argument("[task...]", "task for the agent")
+  .option(CLI.TRACE_FLAG, "enable debug tracing")
+  .showHelpAfterError();
+
+program.parse(process.argv);
+
+const options = program.opts<{ trace?: boolean }>();
+const traceEnabled = Boolean(options.trace);
+const task = program.args.join(" ").trim() || CLI.DEFAULT_TASK;
 
 if (traceEnabled) {
   process.env.LOG_LEVEL = process.env.LOG_LEVEL?.trim() || LOGGING.DEFAULT_LEVEL;

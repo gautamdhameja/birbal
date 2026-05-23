@@ -1,15 +1,12 @@
 import { HTTP } from "../constants/runtime.js";
-
-type FetchOptions = {
-  timeoutMs?: number;
-};
-
-export class HttpTimeoutError extends Error {
-  constructor(timeoutMs: number) {
-    super(`${HTTP.ERRORS.TIMEOUT_PREFIX} ${timeoutMs}ms.`);
-    this.name = "HttpTimeoutError";
-  }
-}
+export {
+  FetchAbortError as HttpAbortError,
+  FetchStructuredError,
+  FetchTimeoutError as HttpTimeoutError,
+  fetchWithRetry,
+  fetchWithTimeout,
+  RetryableFetchStatusError,
+} from "../framework/network/fetch.js";
 
 export class HttpStatusError extends Error {
   constructor(
@@ -25,35 +22,6 @@ export class HttpStatusError extends Error {
 
 export function isHttpStatusError(error: unknown): error is HttpStatusError {
   return error instanceof HttpStatusError;
-}
-
-export async function fetchWithTimeout(
-  input: string | URL,
-  init: RequestInit = {},
-  options: FetchOptions = {},
-): Promise<Response> {
-  const timeoutMs = options.timeoutMs ?? HTTP.DEFAULT_TIMEOUT_MS;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  const abort = () => controller.abort();
-
-  init.signal?.addEventListener("abort", abort, { once: true });
-
-  try {
-    return await fetch(input, {
-      ...init,
-      signal: controller.signal,
-    });
-  } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
-      throw new HttpTimeoutError(timeoutMs);
-    }
-
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-    init.signal?.removeEventListener("abort", abort);
-  }
 }
 
 export async function readResponseText(

@@ -28,6 +28,13 @@ describe("pipeline config", () => {
         scoring: 5,
       },
     });
+    assert.deepEqual(config.failurePolicy, {
+      failFast: false,
+      continueOnSourceFailure: true,
+      continueOnContentFetchFailure: true,
+      continueOnScoringFailure: true,
+      minItemsRequiredForSuccess: 5,
+    });
     assert.deepEqual(config.components, {
       collectors: ["source_domain_collector"],
       contentFetcher: "url_text_fetcher",
@@ -47,6 +54,13 @@ describe("pipeline config", () => {
     assert.equal(config.pipelineId, "use_cases");
     assert.equal(config.scorerId, "production_use_case_filter");
     assert.equal(config.structuredExtractorId, "production_use_case_extractor");
+    assert.deepEqual(config.failurePolicy, {
+      failFast: false,
+      continueOnSourceFailure: true,
+      continueOnContentFetchFailure: true,
+      continueOnScoringFailure: true,
+      minItemsRequiredForSuccess: 1,
+    });
     assert.deepEqual(config.components?.collectors, [
       "source_domain_collector",
       "brave_web_search_collector",

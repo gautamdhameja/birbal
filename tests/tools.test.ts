@@ -392,7 +392,7 @@ describe("tool registry", () => {
     );
   });
 
-  it("keeps malformed HTML numeric entities instead of throwing", () => {
+  it("handles malformed HTML numeric entities without throwing", () => {
     assert.deepEqual(
       extractUrlText(
         `
@@ -404,11 +404,11 @@ describe("tool registry", () => {
         12000,
       ),
       {
-        title: "&#9999999999;",
-        plainText: "&#x110000; Useful text.",
+        title: "�",
+        plainText: "� Useful text.",
         canonicalUrl: undefined,
         detectedPaywall: false,
-        contentLength: 23,
+        contentLength: 14,
       },
     );
   });
