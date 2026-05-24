@@ -6,6 +6,7 @@ import { describe, it } from "node:test";
 
 import { PipelineComponentRegistry } from "../src/framework/pipeline/registry.js";
 import { runPipeline } from "../src/framework/pipeline/runner.js";
+import { ModelParseError } from "../src/framework/llm/repair.js";
 import { HttpStatusError } from "../src/http/client.js";
 import type { PipelineRunItem } from "../src/framework/pipeline/runner.js";
 import type {
@@ -327,6 +328,75 @@ describe("pipeline runner", () => {
     assert.equal(finishedRuns.length, 1);
   });
 
+  it("drops unscored items when scoring failures are continuable", async () => {
+    const registry = new PipelineComponentRegistry();
+
+    registry.registerCollector("collector", {
+      collect: async () => [{ id: "first" }, { id: "second" }],
+    });
+    registry.registerScorer("scorer", {
+      score: async (item) => {
+        const runItem = item as PipelineRunItem;
+        if (runItem.id === "second") {
+          throw new Error("score unavailable");
+        }
+
+        return { finalScore: 1 };
+      },
+    });
+    registry.registerSelector("selector", {
+      select: async (items) => {
+        const runItems = items as PipelineRunItem[];
+        assert.deepEqual(
+          runItems.map((item) => item.id),
+          ["first"],
+        );
+        assert.deepEqual(runItems[0]?.score, { finalScore: 1 });
+        return runItems;
+      },
+    });
+    registry.registerRenderer("renderer", {
+      render: async () => "rendered",
+    });
+    registry.registerArtifactWriter("writer", {
+      write: async () => ({ id: "artifact", type: "markdown" }),
+    });
+
+    const result = await runPipeline(
+      writeConfig(
+        config({
+          contentFetchPolicy: {
+            enabled: false,
+          },
+          classifierId: undefined,
+          structuredExtractorId: undefined,
+          failurePolicy: {
+            failFast: false,
+            continueOnSourceFailure: true,
+            continueOnContentFetchFailure: true,
+            continueOnScoringFailure: true,
+            minItemsRequiredForSuccess: 1,
+          },
+        }),
+      ),
+      {
+        startRun: () => "run-scoring-partial",
+        finishRun: () => undefined,
+        failRun: () => undefined,
+        loadSourceRegistry: () => ({ sources: [] }),
+        logger: silentLogger(),
+        now: () => new Date("2026-05-23T08:00:00.000Z"),
+        registry,
+      },
+    );
+
+    assert.equal(result.status, "partial_success");
+    assert.equal(result.counts.scored, 1);
+    assert.equal(result.counts.scoreErrors, 1);
+    assert.equal(result.counts.selected, 1);
+    assert.equal(result.errors[0]?.code, "score_failed");
+  });
+
   it("fails when a source fails and source failures are not continuable", async () => {
     const registry = new PipelineComponentRegistry();
 
@@ -491,6 +561,83 @@ describe("pipeline runner", () => {
       status: 403,
       statusText: "Forbidden",
       bodyPreview: `${largeBody.slice(0, 500)}...`,
+    });
+  });
+
+  it("preserves structured model parse details in pipeline errors", async () => {
+    const registry = new PipelineComponentRegistry();
+
+    registry.registerCollector("collector", {
+      collect: async () => [{ id: "bad-model-output" }],
+    });
+    registry.registerScorer("scorer", {
+      score: async () => {
+        throw new ModelParseError({
+          type: "model_parse_error",
+          message: "Model output failed JSON parsing or schema validation after repair.",
+          invalidOutput: "not json",
+          schemaDescription: '{"type":"object"}',
+          validationError: "No JSON object found.",
+          repairAttempted: true,
+          repairedOutput: '{"score":99}',
+          repairValidationError: "score must be <= 5",
+        });
+      },
+    });
+    registry.registerSelector("selector", {
+      select: async (items) => items,
+    });
+    registry.registerRenderer("renderer", {
+      render: async () => "rendered",
+    });
+    registry.registerArtifactWriter("writer", {
+      write: async () => ({ id: "artifact", type: "markdown" }),
+    });
+
+    const result = await runPipeline(
+      writeConfig(
+        config({
+          contentFetchPolicy: {
+            enabled: false,
+          },
+          classifierId: undefined,
+          structuredExtractorId: undefined,
+          failurePolicy: {
+            failFast: false,
+            continueOnSourceFailure: true,
+            continueOnContentFetchFailure: true,
+            continueOnScoringFailure: true,
+            minItemsRequiredForSuccess: 1,
+          },
+        }),
+      ),
+      {
+        startRun: () => "run-model-parse-error",
+        finishRun: () => undefined,
+        failRun: () => undefined,
+        loadSourceRegistry: () => ({ sources: [] }),
+        logger: silentLogger(),
+        now: () => new Date("2026-05-23T08:00:00.000Z"),
+        registry,
+      },
+    );
+
+    assert.equal(result.status, "failed");
+    assert.equal(result.errors[0]?.code, "score_failed");
+    assert.deepEqual(result.errors[0]?.cause, {
+      name: "ModelParseError",
+      type: "model_parse_error",
+      message: "Model output failed JSON parsing or schema validation after repair.",
+      details: {
+        type: "model_parse_error",
+        message: "Model output failed JSON parsing or schema validation after repair.",
+        invalidOutput: "not json",
+        schemaDescription: '{"type":"object"}',
+        validationError: "No JSON object found.",
+        repairAttempted: true,
+        repairedOutput: '{"score":99}',
+        repairValidationError: "score must be <= 5",
+      },
     });
   });
 

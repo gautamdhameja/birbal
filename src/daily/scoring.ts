@@ -3,7 +3,7 @@ import { z } from "zod";
 import { AGENT } from "../constants/agent.js";
 import { LLAMA } from "../constants/llama.js";
 import { SCORING } from "../constants/scoring.js";
-import { complete } from "../llama/client.js";
+import { completeStructuredWithRepair, ModelParseError } from "../framework/llm/repair.js";
 import type { ChatMessage, CompleteOptions } from "../llama/schema.js";
 import type { UserPreferences } from "../memory/types.js";
 import { parseJson } from "../utils/json.js";
@@ -39,6 +39,51 @@ const ScoreBatchResponseSchema = z.strictObject({
 });
 
 type ScoreBatchResponse = z.infer<typeof ScoreBatchResponseSchema>;
+
+function scoreBatchResponseSchema(expectedIds: readonly string[]): z.ZodType<ScoreBatchResponse> {
+  const expectedIdSet = new Set(expectedIds);
+
+  return ScoreBatchResponseSchema.superRefine((response, context) => {
+    if (response.scores.length !== expectedIds.length) {
+      context.addIssue({
+        code: "custom",
+        message: `Expected exactly ${expectedIds.length} score(s), received ${response.scores.length}.`,
+        path: ["scores"],
+      });
+    }
+
+    const ids = new Set<string>();
+    for (const [index, score] of response.scores.entries()) {
+      if (!expectedIdSet.has(score.id)) {
+        context.addIssue({
+          code: "custom",
+          message: `Unexpected score for candidate ${score.id}.`,
+          path: ["scores", index, "id"],
+        });
+      }
+
+      if (ids.has(score.id)) {
+        context.addIssue({
+          code: "custom",
+          message: `Duplicate score for candidate ${score.id}.`,
+          path: ["scores", index, "id"],
+        });
+      }
+
+      ids.add(score.id);
+    }
+
+    for (const id of expectedIds) {
+      if (!ids.has(id)) {
+        context.addIssue({
+          code: "custom",
+          message: `Missing score for candidate ${id}.`,
+          path: ["scores"],
+        });
+      }
+    }
+  });
+}
 
 function renderList(items: readonly string[]): string {
   return items.length > 0 ? items.map((item) => `- ${item}`).join("\n") : "- None";
@@ -188,13 +233,17 @@ function toItemScore(score: ScoreResponse): ItemScore {
 }
 
 export function parseItemScores(raw: string, expectedIds: readonly string[]): ItemScore[] {
-  const parsed = ScoreBatchResponseSchema.safeParse(parseJson(raw));
+  const parsed = scoreBatchResponseSchema(expectedIds).safeParse(parseJson(raw));
   if (!parsed.success) {
     throw new Error(`${SCORING.ERRORS.INVALID_SCORE} ${parsed.error.message}`);
   }
 
+  return toItemScores(parsed.data, expectedIds);
+}
+
+function toItemScores(scoreBatch: ScoreBatchResponse, expectedIds: readonly string[]): ItemScore[] {
   const scoresById = new Map<string, ScoreBatchResponse["scores"][number]>();
-  for (const score of parsed.data.scores) {
+  for (const score of scoreBatch.scores) {
     scoresById.set(score.id, score);
   }
 
@@ -225,10 +274,11 @@ export async function scoreItem(
     },
   ];
 
-  let lastError: unknown;
-
-  for (let attempt = 1; attempt <= SCORING.MAX_ATTEMPTS; attempt += 1) {
-    const raw = await complete(messages, {
+  const result = await completeStructuredWithRepair({
+    messages,
+    schema: ScoreResponseSchema,
+    repairInstructions: SCORING.REPAIR_PROMPT,
+    completeOptions: {
       temperature: SCORING.MODEL_TEMPERATURE,
       max_tokens: SCORING.MAX_TOKENS,
       ...traceOptions,
@@ -236,26 +286,13 @@ export async function scoreItem(
       response_format: {
         type: LLAMA.RESPONSE_FORMATS.JSON_OBJECT,
       },
-    });
-
-    try {
-      return parseItemScore(raw);
-    } catch (error) {
-      lastError = error;
-      messages.push(
-        {
-          role: AGENT.ROLES.ASSISTANT,
-          content: raw,
-        },
-        {
-          role: AGENT.ROLES.USER,
-          content: SCORING.REPAIR_PROMPT,
-        },
-      );
-    }
+    },
+  });
+  if (!result.ok) {
+    throw new ModelParseError(result.error);
   }
 
-  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  return toItemScore(result.value);
 }
 
 export async function scoreItems(
@@ -279,10 +316,11 @@ export async function scoreItems(
     },
   ];
 
-  let lastError: unknown;
-
-  for (let attempt = 1; attempt <= SCORING.MAX_ATTEMPTS; attempt += 1) {
-    const raw = await complete(messages, {
+  const result = await completeStructuredWithRepair({
+    messages,
+    schema: scoreBatchResponseSchema(expectedIds),
+    repairInstructions: SCORING.REPAIR_PROMPT,
+    completeOptions: {
       temperature: SCORING.MODEL_TEMPERATURE,
       max_tokens: SCORING.BATCH_MAX_TOKENS,
       ...traceOptions,
@@ -290,26 +328,13 @@ export async function scoreItems(
       response_format: {
         type: LLAMA.RESPONSE_FORMATS.JSON_OBJECT,
       },
-    });
-
-    try {
-      return parseItemScores(raw, expectedIds);
-    } catch (error) {
-      lastError = error;
-      messages.push(
-        {
-          role: AGENT.ROLES.ASSISTANT,
-          content: raw,
-        },
-        {
-          role: AGENT.ROLES.USER,
-          content: SCORING.REPAIR_PROMPT,
-        },
-      );
-    }
+    },
+  });
+  if (!result.ok) {
+    throw new ModelParseError(result.error);
   }
 
-  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  return toItemScores(result.value, expectedIds);
 }
 
 function compareScoredCandidates(left: ScoredCandidateItem, right: ScoredCandidateItem): number {

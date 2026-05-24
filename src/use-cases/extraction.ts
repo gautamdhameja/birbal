@@ -3,10 +3,9 @@ import { z } from "zod";
 import { AGENT } from "../constants/agent.js";
 import { LLAMA } from "../constants/llama.js";
 import { USE_CASES } from "../constants/use-cases.js";
-import { complete } from "../llama/client.js";
+import { completeStructuredWithRepair } from "../framework/llm/repair.js";
 import type { ChatMessage, CompleteOptions } from "../llama/schema.js";
 import { logger } from "../logging/logger.js";
-import { preview } from "../logging/preview.js";
 import type { FetchUrlTextResult } from "../url-text/client.js";
 import { parseJson } from "../utils/json.js";
 import type { ProductionUseCase, UseCaseSearchCandidate } from "./types.js";
@@ -140,30 +139,6 @@ function buildRepairPrompt(candidate: UseCaseSearchCandidate): string {
   ].join("\n");
 }
 
-function logExtractionParseFailure(
-  candidate: UseCaseSearchCandidate,
-  attempt: number,
-  error: unknown,
-  raw: string,
-  traceOptions: ModelTraceOptions,
-): void {
-  logger.warn(
-    {
-      event: "use_cases.extraction.parse_failed",
-      traceId: traceOptions.traceId,
-      traceLabel: traceOptions.traceLabel,
-      candidateUrl: candidate.url,
-      candidateTitle: candidate.title,
-      attempt,
-      maxAttempts: USE_CASES.MAX_ATTEMPTS,
-      error: error instanceof Error ? error.message : String(error),
-      outputChars: raw.length,
-      outputPreview: preview(raw),
-    },
-    "production use case extraction parse failed",
-  );
-}
-
 export async function extractProductionUseCase(
   candidate: UseCaseSearchCandidate,
   fetched: FetchUrlTextResult,
@@ -179,10 +154,11 @@ export async function extractProductionUseCase(
       content: buildExtractionPrompt(candidate, fetched),
     },
   ];
-  let lastError: unknown;
-
-  for (let attempt = 1; attempt <= USE_CASES.MAX_ATTEMPTS; attempt += 1) {
-    const raw = await complete(messages, {
+  const result = await completeStructuredWithRepair({
+    messages,
+    schema: ExtractionResponseSchema,
+    repairInstructions: buildRepairPrompt(candidate),
+    completeOptions: {
       temperature: USE_CASES.MODEL_TEMPERATURE,
       max_tokens: USE_CASES.MAX_TOKENS,
       ...traceOptions,
@@ -190,24 +166,10 @@ export async function extractProductionUseCase(
       response_format: {
         type: LLAMA.RESPONSE_FORMATS.JSON_OBJECT,
       },
-    });
-
-    try {
-      return parseProductionUseCaseExtraction(raw);
-    } catch (error) {
-      lastError = error;
-      logExtractionParseFailure(candidate, attempt, error, raw, traceOptions);
-      messages.push(
-        {
-          role: AGENT.ROLES.ASSISTANT,
-          content: raw,
-        },
-        {
-          role: AGENT.ROLES.USER,
-          content: buildRepairPrompt(candidate),
-        },
-      );
-    }
+    },
+  });
+  if (result.ok) {
+    return result.value;
   }
 
   logger.warn(
@@ -217,7 +179,8 @@ export async function extractProductionUseCase(
       traceLabel: traceOptions.traceLabel,
       candidateUrl: candidate.url,
       candidateTitle: candidate.title,
-      error: lastError instanceof Error ? lastError.message : String(lastError),
+      error: result.error.message,
+      modelParseError: result.error,
     },
     "rejecting production use case after repeated invalid model JSON",
   );

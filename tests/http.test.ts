@@ -10,8 +10,40 @@ import {
   readResponseText,
   RetryableFetchStatusError,
 } from "../src/http/client.js";
+import {
+  assertSafePublicHttpUrl,
+  type HostResolver,
+  isSafePublicHttpUrl,
+} from "../src/http/url.js";
 
 describe("HTTP client helpers", () => {
+  it("rejects unsafe public fetch URL host encodings", () => {
+    assert.equal(isSafePublicHttpUrl("http://2130706433/internal"), false);
+    assert.equal(isSafePublicHttpUrl("http://0177.0.0.1/internal"), false);
+    assert.equal(isSafePublicHttpUrl("http://[::ffff:127.0.0.1]/internal"), false);
+  });
+
+  it("rejects hostnames that resolve to private addresses", async () => {
+    const publicResolver: HostResolver = async () => [{ address: "93.184.216.34", family: 4 }];
+    const privateResolver: HostResolver = async () => [{ address: "10.0.0.1", family: 4 }];
+    const mixedResolver: HostResolver = async () => [
+      { address: "93.184.216.34", family: 4 },
+      { address: "127.0.0.1", family: 4 },
+    ];
+
+    await assert.doesNotReject(() =>
+      assertSafePublicHttpUrl("https://example.com/report", publicResolver),
+    );
+    await assert.rejects(
+      () => assertSafePublicHttpUrl("https://example.com/report", privateResolver),
+      /URL host is not safe/,
+    );
+    await assert.rejects(
+      () => assertSafePublicHttpUrl("https://example.com/report", mixedResolver),
+      /URL host is not safe/,
+    );
+  });
+
   it("rejects responses larger than the configured read cap", async () => {
     await assert.rejects(
       readResponseText(new Response("too large"), 3),

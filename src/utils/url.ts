@@ -1,10 +1,17 @@
+import normalizeUrlPackage from "normalize-url";
+
 export function normalizeUrl(url: string): string {
   const trimmed = url.trim();
 
   try {
-    const parsed = new URL(trimmed);
-    parsed.hash = "";
-    return parsed.toString();
+    return normalizeUrlPackage(trimmed, {
+      normalizeProtocol: false,
+      removeQueryParameters: false,
+      removeSingleSlash: false,
+      removeTrailingSlash: false,
+      stripHash: true,
+      stripWWW: false,
+    });
   } catch {
     return trimmed;
   }

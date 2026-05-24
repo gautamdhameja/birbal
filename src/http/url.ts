@@ -1,61 +1,67 @@
+import type { LookupAddress } from "node:dns";
+import { lookup } from "node:dns/promises";
+
+import ipaddr from "ipaddr.js";
+
 import { HTTP } from "../constants/runtime.js";
 
-const IPV4_PARTS = 4;
-const IPV4_MAX_OCTET = 255;
+export type HostAddress = Pick<LookupAddress, "address" | "family">;
+export type HostResolver = (hostname: string) => Promise<readonly HostAddress[]>;
 
-function isPrivateIpv4(hostname: string): boolean {
-  const parts = hostname.split(".");
-  if (parts.length !== IPV4_PARTS) {
-    return false;
-  }
+const UNSAFE_HOSTNAMES = new Set(["localhost", "metadata.google.internal"]);
 
-  const octets = parts.map((part) => Number(part));
-  if (octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > IPV4_MAX_OCTET)) {
-    return false;
-  }
-
-  const [first = 0, second = 0] = octets;
-  return (
-    first === 0 ||
-    first === 10 ||
-    first === 127 ||
-    (first === 100 && second >= 64 && second <= 127) ||
-    (first === 169 && second === 254) ||
-    (first === 172 && second >= 16 && second <= 31) ||
-    (first === 192 && second === 168) ||
-    first >= 224
-  );
+async function resolveHostname(hostname: string): Promise<readonly HostAddress[]> {
+  return lookup(hostname, { all: true, verbatim: true });
 }
 
 function normalizeHostname(hostname: string): string {
-  const normalizedHostname = hostname.toLocaleLowerCase();
+  const normalizedHostname = hostname.toLowerCase();
 
   if (normalizedHostname.startsWith("[") && normalizedHostname.endsWith("]")) {
     return normalizedHostname.slice(1, -1);
   }
 
-  return normalizedHostname;
+  return normalizedHostname.endsWith(".") ? normalizedHostname.slice(0, -1) : normalizedHostname;
+}
+
+function parseIpAddress(hostname: string): ipaddr.IPv4 | ipaddr.IPv6 | undefined {
+  try {
+    return ipaddr.process(hostname);
+  } catch {
+    return undefined;
+  }
+}
+
+function isPublicIpAddress(address: string): boolean {
+  return parseIpAddress(address)?.range() === "unicast";
 }
 
 function isUnsafeHostname(hostname: string): boolean {
   const normalizedHostname = normalizeHostname(hostname);
-  const isIpv6Hostname = normalizedHostname.includes(":");
 
   return (
-    normalizedHostname === "localhost" ||
+    UNSAFE_HOSTNAMES.has(normalizedHostname) ||
     normalizedHostname.endsWith(".localhost") ||
     normalizedHostname.endsWith(".local") ||
-    normalizedHostname === "metadata.google.internal" ||
-    normalizedHostname === "169.254.169.254" ||
-    (isIpv6Hostname &&
-      (normalizedHostname === "::" ||
-        normalizedHostname === "::1" ||
-        normalizedHostname.startsWith("::ffff:") ||
-        normalizedHostname.startsWith("fc") ||
-        normalizedHostname.startsWith("fd") ||
-        normalizedHostname.startsWith("fe80:"))) ||
-    isPrivateIpv4(normalizedHostname)
+    (parseIpAddress(normalizedHostname) !== undefined && !isPublicIpAddress(normalizedHostname))
   );
+}
+
+async function resolvesOnlyToPublicAddresses(
+  hostname: string,
+  resolver: HostResolver,
+): Promise<boolean> {
+  const normalizedHostname = normalizeHostname(hostname);
+  if (parseIpAddress(normalizedHostname) !== undefined) {
+    return isPublicIpAddress(normalizedHostname);
+  }
+
+  try {
+    const addresses = await resolver(normalizedHostname);
+    return addresses.length > 0 && addresses.every((address) => isPublicIpAddress(address.address));
+  } catch {
+    return false;
+  }
 }
 
 export function isHttpUrlWithoutCredentials(value: string): boolean {
@@ -83,6 +89,19 @@ export function isSafePublicHttpUrl(value: string): boolean {
   }
 
   return !isUnsafeHostname(new URL(value).hostname);
+}
+
+export async function assertSafePublicHttpUrl(
+  value: string,
+  resolver: HostResolver = resolveHostname,
+): Promise<void> {
+  if (!isSafePublicHttpUrl(value)) {
+    throw new Error(unsafeHttpUrlErrorMessage());
+  }
+
+  if (!(await resolvesOnlyToPublicAddresses(new URL(value).hostname, resolver))) {
+    throw new Error(unsafeHttpUrlErrorMessage());
+  }
 }
 
 export function httpUrlErrorMessage(): string {

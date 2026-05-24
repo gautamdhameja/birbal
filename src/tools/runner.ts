@@ -13,40 +13,16 @@ export type ToolRunTraceContext = {
 };
 
 function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, timeoutMs: number): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const controller = new AbortController();
-    let settled = false;
-    const timeout = setTimeout(() => {
-      if (settled) {
-        return;
-      }
-
-      settled = true;
-      controller.abort();
-      reject(new Error(`${TOOLS.ERRORS.TIMEOUT_PREFIX} ${timeoutMs}ms.`));
-    }, timeoutMs);
-
-    run(controller.signal).then(
-      (value) => {
-        if (settled) {
-          return;
-        }
-
-        settled = true;
-        clearTimeout(timeout);
-        resolve(value);
-      },
-      (error: unknown) => {
-        if (settled) {
-          return;
-        }
-
-        settled = true;
-        clearTimeout(timeout);
-        reject(error);
-      },
+  const signal = AbortSignal.timeout(timeoutMs);
+  const timeout = new Promise<never>((_resolve, reject) => {
+    signal.addEventListener(
+      "abort",
+      () => reject(new Error(`${TOOLS.ERRORS.TIMEOUT_PREFIX} ${timeoutMs}ms.`)),
+      { once: true },
     );
   });
+
+  return Promise.race([run(signal), timeout]);
 }
 
 export async function runTool(

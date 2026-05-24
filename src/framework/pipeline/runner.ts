@@ -1,4 +1,5 @@
 import { loadSourceRegistry } from "../../config/sourceRegistry.js";
+import { ModelParseError } from "../llm/repair.js";
 import { isHttpStatusError, summarizeHttpErrorBody } from "../../http/client.js";
 import { logger } from "../../logging/logger.js";
 import { preview } from "../../logging/preview.js";
@@ -109,6 +110,25 @@ function serializeErrorCause(error: unknown): unknown {
       status: error.status,
       statusText: error.statusText,
       bodyPreview: summarizeHttpErrorBody(error.body),
+    };
+  }
+
+  if (error instanceof ModelParseError) {
+    return {
+      name: error.name,
+      type: error.type,
+      message: preview(error.message),
+      details: {
+        ...error.details,
+        invalidOutput: preview(error.details.invalidOutput),
+        schemaDescription: preview(error.details.schemaDescription),
+        ...(error.details.repairedOutput
+          ? { repairedOutput: preview(error.details.repairedOutput) }
+          : {}),
+        ...(error.details.repairValidationError
+          ? { repairValidationError: preview(error.details.repairValidationError) }
+          : {}),
+      },
     };
   }
 
@@ -627,7 +647,7 @@ async function scoreItems(
   counts: PipelineCounts,
   errors: PipelineError[],
 ): Promise<PipelineRunItem[]> {
-  async function scoreOne(item: PipelineRunItem): Promise<PipelineRunItem> {
+  async function scoreOne(item: PipelineRunItem): Promise<PipelineRunItem | undefined> {
     try {
       const score = await scorer.score(item, context);
       incrementCount(counts, "scored");
@@ -647,19 +667,25 @@ async function scoreItems(
         );
       }
 
-      return item;
+      return undefined;
     }
   }
 
   if (!scorer.scoreBatch || batchSize(context.config, "scoring") <= 1) {
-    return mapLimit(items, executionLimit(context.config, "scoringConcurrency"), scoreOne);
+    const scoredItems = await mapLimit(
+      items,
+      executionLimit(context.config, "scoringConcurrency"),
+      scoreOne,
+    );
+
+    return scoredItems.filter((item): item is PipelineRunItem => item !== undefined);
   }
 
-  return mapBatches(
+  const scoredItems = await mapBatches(
     items,
     batchSize(context.config, "scoring"),
     executionLimit(context.config, "scoringConcurrency"),
-    async (batch) => {
+    async (batch): Promise<Array<PipelineRunItem | undefined>> => {
       try {
         const scores = await scorer.scoreBatch?.(batch, context);
         assertBatchResultLength(scores ?? [], batch.length, "scoreBatch");
@@ -683,10 +709,12 @@ async function scoreItems(
           throw new PipelinePolicyAbortError("Pipeline stopped after batch scoring failure.");
         }
 
-        return batch;
+        return batch.map(() => undefined);
       }
     },
   );
+
+  return scoredItems.filter((item): item is PipelineRunItem => item !== undefined);
 }
 
 async function classifyAndExtractStructured(
@@ -1059,6 +1087,8 @@ export async function runPipeline(
         batchSize: batchSize(config, "scoring"),
       },
     );
+    assertMinimumViableItemCount(config, items.length, "scoring");
+
     items = await classifyAndExtractStructured(
       items,
       components.classifiers[0],

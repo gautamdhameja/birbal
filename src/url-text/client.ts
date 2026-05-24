@@ -3,8 +3,9 @@ import { HTTP } from "../constants/runtime.js";
 import { fetchWithRetry } from "../framework/network/fetch.js";
 import { buildHttpStatusError, readResponseText } from "../http/client.js";
 import {
+  assertSafePublicHttpUrl,
+  type HostResolver,
   httpUrlErrorMessage,
-  isSafePublicHttpUrl,
   unsafeHttpUrlErrorMessage,
 } from "../http/url.js";
 import { normalizeUrl } from "../utils/url.js";
@@ -15,6 +16,7 @@ export type FetchUrlTextOptions = {
   url: string;
   maxChars?: number;
   signal?: AbortSignal;
+  hostResolver?: HostResolver;
 };
 
 export type FetchUrlTextResult = ExtractedUrlText & {
@@ -53,15 +55,14 @@ export async function fetchUrlText({
   url,
   maxChars = URL_TEXT.DEFAULT_MAX_CHARS,
   signal,
+  hostResolver,
 }: FetchUrlTextOptions): Promise<FetchUrlTextResult> {
   if (!URL.canParse(url)) {
     throw new Error(httpUrlErrorMessage());
   }
-  if (!isSafePublicHttpUrl(url)) {
-    throw new Error(unsafeHttpUrlErrorMessage());
-  }
+  await assertSafePublicHttpUrl(url, hostResolver);
   assertValidMaxChars(maxChars);
-  const { response, finalUrl } = await fetchSafeUrl(url, signal);
+  const { response, finalUrl } = await fetchSafeUrl(url, signal, hostResolver);
 
   if (!response.ok) {
     throw await buildHttpStatusError(URL_TEXT.ERRORS.HTTP_FAILED_PREFIX, response);
@@ -83,6 +84,7 @@ export async function fetchUrlText({
 async function fetchSafeUrl(
   url: string,
   signal?: AbortSignal,
+  hostResolver?: HostResolver,
   redirectCount = 0,
 ): Promise<FetchedSafeUrl> {
   if (redirectCount > MAX_REDIRECTS) {
@@ -105,11 +107,13 @@ async function fetchSafeUrl(
     }
 
     const nextUrl = new URL(location, url).toString();
-    if (!isSafePublicHttpUrl(nextUrl)) {
+    try {
+      await assertSafePublicHttpUrl(nextUrl, hostResolver);
+    } catch {
       throw new Error(unsafeHttpUrlErrorMessage());
     }
 
-    return fetchSafeUrl(nextUrl, signal, redirectCount + 1);
+    return fetchSafeUrl(nextUrl, signal, hostResolver, redirectCount + 1);
   }
 
   return { response, finalUrl: url };

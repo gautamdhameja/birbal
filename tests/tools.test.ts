@@ -21,6 +21,8 @@ function assertString(value: unknown): asserts value is string {
   assert.equal(typeof value, "string");
 }
 
+const publicHostResolver = async () => [{ address: "93.184.216.34", family: 4 as const }];
+
 describe("tool registry", () => {
   it("formats local ISO timestamps with an explicit timezone offset", () => {
     assert.match(
@@ -438,13 +440,20 @@ describe("tool registry", () => {
     }) as typeof fetch;
 
     try {
-      assert.deepEqual(await fetchUrlText({ url: "https://example.com/report", maxChars: 30 }), {
-        url: "https://example.com/report",
-        title: "Paywalled report",
-        plainText: "Subscribe to continue reading",
-        detectedPaywall: true,
-        contentLength: 29,
-      });
+      assert.deepEqual(
+        await fetchUrlText({
+          url: "https://example.com/report",
+          maxChars: 30,
+          hostResolver: publicHostResolver,
+        }),
+        {
+          url: "https://example.com/report",
+          title: "Paywalled report",
+          plainText: "Subscribe to continue reading",
+          detectedPaywall: true,
+          contentLength: 29,
+        },
+      );
       assert.equal(requestedUrl, "https://example.com/report");
     } finally {
       globalThis.fetch = originalFetch;
@@ -490,7 +499,7 @@ describe("tool registry", () => {
 
     try {
       await assert.rejects(
-        () => fetchUrlText({ url: "https://example.com/report" }),
+        () => fetchUrlText({ url: "https://example.com/report", hostResolver: publicHostResolver }),
         new RegExp(HTTP.ERRORS.UNSAFE_HTTP_URL),
       );
       assert.deepEqual(requestedUrls, ["https://example.com/report"]);
@@ -532,14 +541,20 @@ describe("tool registry", () => {
     }) as typeof fetch;
 
     try {
-      assert.deepEqual(await fetchUrlText({ url: "https://example.com/report" }), {
-        url: "https://example.com/final",
-        title: "Redirected report",
-        plainText: "Final report body.",
-        canonicalUrl: "https://example.com/canonical",
-        detectedPaywall: false,
-        contentLength: 18,
-      });
+      assert.deepEqual(
+        await fetchUrlText({
+          url: "https://example.com/report",
+          hostResolver: publicHostResolver,
+        }),
+        {
+          url: "https://example.com/final",
+          title: "Redirected report",
+          plainText: "Final report body.",
+          canonicalUrl: "https://example.com/canonical",
+          detectedPaywall: false,
+          contentLength: 18,
+        },
+      );
     } finally {
       globalThis.fetch = originalFetch;
     }

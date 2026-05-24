@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { calculateFinalScore, parseItemScore, rankScoredCandidates } from "../src/daily/scoring.js";
+import {
+  calculateFinalScore,
+  parseItemScore,
+  parseItemScores,
+  rankScoredCandidates,
+} from "../src/daily/scoring.js";
 import type { CandidateItem, ItemScore, ScoredCandidateItem } from "../src/daily/types.js";
 import { CONTENT_FETCH_STATUSES, SOURCE_REGISTRY, SOURCES } from "../src/constants.js";
 import type { UserPreferences } from "../src/memory/types.js";
@@ -177,6 +182,49 @@ describe("daily item scoring", () => {
           '{"enterpriseRelevance":6,"workflowRedesignDepth":4,"realUseCaseSpecificity":4,"deploymentFdeRelevance":3,"businessOutcomeClarity":4,"technicalImplementationUsefulness":5,"recency":3,"nonGenericInsight":4,"rejected":false,"reason":"bad"}',
         ),
       /invalid item score/i,
+    );
+  });
+
+  it("rejects malformed batch scores with extra or duplicate ids", () => {
+    const validScore = {
+      enterpriseRelevance: 5,
+      workflowRedesignDepth: 4,
+      realUseCaseSpecificity: 4,
+      deploymentFdeRelevance: 3,
+      businessOutcomeClarity: 4,
+      technicalImplementationUsefulness: 5,
+      recency: 3,
+      nonGenericInsight: 4,
+      rejected: false,
+      reason: "Useful deployment signal.",
+    };
+
+    assert.throws(
+      () =>
+        parseItemScores(
+          JSON.stringify({
+            scores: [
+              { id: "first", ...validScore },
+              { id: "extra", ...validScore },
+            ],
+          }),
+          ["first"],
+        ),
+      /unexpected score for candidate extra/i,
+    );
+
+    assert.throws(
+      () =>
+        parseItemScores(
+          JSON.stringify({
+            scores: [
+              { id: "first", ...validScore },
+              { id: "first", ...validScore },
+            ],
+          }),
+          ["first", "second"],
+        ),
+      /duplicate score for candidate first/i,
     );
   });
 

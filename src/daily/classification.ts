@@ -4,7 +4,7 @@ import { AGENT } from "../constants/agent.js";
 import { CANDIDATE_CATEGORIES } from "../constants/candidates.js";
 import { CLASSIFICATION } from "../constants/classification.js";
 import { LLAMA } from "../constants/llama.js";
-import { complete } from "../llama/client.js";
+import { completeStructuredWithRepair } from "../framework/llm/repair.js";
 import type { ChatMessage, CompleteOptions } from "../llama/schema.js";
 import { logger } from "../logging/logger.js";
 import { parseJson } from "../utils/json.js";
@@ -146,16 +146,18 @@ export function parseCategoryClassification(
   raw: string,
   categories: [CandidateCategory, ...CandidateCategory[]] = CATEGORY_VALUES,
 ): CandidateCategory {
-  const parsed = z
-    .strictObject({
-      [CLASSIFICATION.RESPONSE_FIELDS.CATEGORY]: z.enum(categories),
-    })
-    .safeParse(parseJson(raw));
+  const parsed = categoryClassificationSchema(categories).safeParse(parseJson(raw));
   if (!parsed.success) {
     throw new Error(`${CLASSIFICATION.ERRORS.INVALID_CLASSIFICATION} ${parsed.error.message}`);
   }
 
   return parsed.data.category;
+}
+
+function categoryClassificationSchema(categories: [CandidateCategory, ...CandidateCategory[]]) {
+  return z.strictObject({
+    [CLASSIFICATION.RESPONSE_FIELDS.CATEGORY]: z.enum(categories),
+  });
 }
 
 export async function classifyCandidateCategory(
@@ -178,10 +180,11 @@ export async function classifyCandidateCategory(
       content: buildClassificationPrompt(candidate, score),
     },
   ];
-  let lastError: unknown;
-
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
-    const raw = await complete(messages, {
+  const result = await completeStructuredWithRepair({
+    messages,
+    schema: categoryClassificationSchema(allowedCategories(score)),
+    repairInstructions: CLASSIFICATION.REPAIR_PROMPT,
+    completeOptions: {
       temperature: CLASSIFICATION.MODEL_TEMPERATURE,
       max_tokens: CLASSIFICATION.MAX_TOKENS,
       ...traceOptions,
@@ -189,23 +192,10 @@ export async function classifyCandidateCategory(
       response_format: {
         type: LLAMA.RESPONSE_FORMATS.JSON_OBJECT,
       },
-    });
-
-    try {
-      return parseCategoryClassification(raw, allowedCategories(score));
-    } catch (error) {
-      lastError = error;
-      messages.push(
-        {
-          role: AGENT.ROLES.ASSISTANT,
-          content: raw,
-        },
-        {
-          role: AGENT.ROLES.USER,
-          content: CLASSIFICATION.REPAIR_PROMPT,
-        },
-      );
-    }
+    },
+  });
+  if (result.ok) {
+    return result.value.category;
   }
 
   const fallbackCategory = fallbackCategoryFromScore(score);
@@ -214,7 +204,8 @@ export async function classifyCandidateCategory(
       event: CLASSIFICATION.LOG_EVENTS.FALLBACK_CATEGORY,
       url: candidate.url,
       fallbackCategory,
-      error: lastError instanceof Error ? lastError.message : String(lastError),
+      error: result.error.message,
+      modelParseError: result.error,
     },
     CLASSIFICATION.LOG_MESSAGES.FALLBACK_CATEGORY,
   );
