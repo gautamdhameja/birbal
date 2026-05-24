@@ -37,10 +37,11 @@ const PipelineCollectionMethodSchema = z.strictObject({
 
 const PipelineContentFetchPolicySchema = z.strictObject({
   enabled: z.boolean(),
+  fetchForTopN: NonNegativeIntegerSchema,
+  maxChars: PositiveIntegerSchema,
+  preferFetchedContent: z.boolean(),
   fetcherId: NonEmptyStringSchema.optional(),
   extractorIds: z.array(NonEmptyStringSchema).optional(),
-  maxItems: z.number().int().positive().optional(),
-  requireFetchedContent: z.boolean().optional(),
   metadata: MetadataSchema.optional(),
 });
 

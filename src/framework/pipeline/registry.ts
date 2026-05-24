@@ -108,6 +108,14 @@ function enabledCollectorIds(config: PipelineConfig): string[] {
     .map((method) => method.collectorId);
 }
 
+function enabledContentFetcherIds(config: PipelineConfig): Array<string | undefined> {
+  return config.contentFetchPolicy.enabled ? [config.contentFetchPolicy.fetcherId] : [];
+}
+
+function enabledContentExtractorIds(config: PipelineConfig): string[] {
+  return config.contentFetchPolicy.enabled ? (config.contentFetchPolicy.extractorIds ?? []) : [];
+}
+
 export class PipelineComponentRegistry {
   private readonly collectors: ComponentBucket<SourceCollector> = new Map();
   private readonly contentFetchers: ComponentBucket<ContentFetcher> = new Map();
@@ -213,7 +221,12 @@ export class PipelineComponentRegistry {
         ...resolveMany(uniqueIds(enabledCollectorIds(config)), (id) => this.getCollector(id)),
       );
       resolved.contentFetchers.push(
-        ...resolveSingle(config.contentFetchPolicy.fetcherId, (id) => this.getContentFetcher(id)),
+        ...resolveMany(uniqueIds(enabledContentFetcherIds(config)), (id) =>
+          this.getContentFetcher(id),
+        ),
+      );
+      resolved.contentExtractors.push(
+        ...resolveMany(enabledContentExtractorIds(config), (id) => this.getContentExtractor(id)),
       );
       resolved.scorers.push(...resolveSingle(config.scorerId, (id) => this.getScorer(id)));
       resolved.classifiers.push(
@@ -244,9 +257,10 @@ export class PipelineComponentRegistry {
     resolved.contentFetchers.push(
       ...resolveMany(
         uniqueIds([
-          config.contentFetchPolicy.fetcherId,
-          componentConfig.contentFetcher,
-          ...(componentConfig.contentFetchers ?? []),
+          ...enabledContentFetcherIds(config),
+          ...(config.contentFetchPolicy.enabled
+            ? [componentConfig.contentFetcher, ...(componentConfig.contentFetchers ?? [])]
+            : []),
         ]),
         (id) => this.getContentFetcher(id),
       ),
@@ -254,9 +268,10 @@ export class PipelineComponentRegistry {
     resolved.contentExtractors.push(
       ...resolveMany(
         uniqueIds([
-          ...(config.contentFetchPolicy.extractorIds ?? []),
-          componentConfig.contentExtractor,
-          ...(componentConfig.contentExtractors ?? []),
+          ...enabledContentExtractorIds(config),
+          ...(config.contentFetchPolicy.enabled
+            ? [componentConfig.contentExtractor, ...(componentConfig.contentExtractors ?? [])]
+            : []),
         ]),
         (id) => this.getContentExtractor(id),
       ),

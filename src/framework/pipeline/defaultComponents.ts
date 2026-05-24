@@ -12,10 +12,10 @@ import { selectDigestItemsWithTrace } from "../../daily/digestSelection.js";
 import { collectDailyCandidateResult } from "../../daily/pipeline.js";
 import { scoreItem, scoreItems } from "../../daily/scoring.js";
 import type { CandidateItem, ItemScore, ScoredCandidateItem } from "../../daily/types.js";
+import { fetchUrlContent } from "../content/fetchUrl.js";
+import type { FetchUrlContentResult } from "../content/fetchUrl.js";
 import { loadPreferences } from "../../memory/preferences.js";
 import type { UserPreferences } from "../../memory/types.js";
-import { fetchUrlText } from "../../url-text/client.js";
-import type { FetchUrlTextResult } from "../../url-text/client.js";
 import { extractProductionUseCase } from "../../use-cases/extraction.js";
 import type { ProductionUseCaseExtraction } from "../../use-cases/extraction.js";
 import { loadProductionUseCaseScoutConfig } from "../../use-cases/config.js";
@@ -92,7 +92,7 @@ function isCandidateItem(value: unknown): value is CandidateItem {
   );
 }
 
-function fetchedTextFromCandidate(candidate: CandidateItem): FetchUrlTextResult | null {
+function fetchedTextFromCandidate(candidate: CandidateItem): FetchUrlContentResult | null {
   if (
     !candidate.contentText ||
     (candidate.contentFetchStatus !== CONTENT_FETCH_STATUSES.FETCHED &&
@@ -103,10 +103,11 @@ function fetchedTextFromCandidate(candidate: CandidateItem): FetchUrlTextResult 
 
   return {
     url: candidate.url,
+    contentType: "",
     title: candidate.title,
     plainText: candidate.contentText,
-    detectedPaywall: candidate.contentFetchStatus === CONTENT_FETCH_STATUSES.PAYWALLED,
     contentLength: candidate.contentText.length,
+    fetchStatus: candidate.contentFetchStatus,
   };
 }
 
@@ -117,15 +118,13 @@ function candidateWithFetchedContent(runItem: PipelineRunItem): CandidateItem {
     runItem.content !== null &&
     "plainText" in runItem.content
   ) {
-    const fetched = runItem.content as FetchUrlTextResult;
+    const fetched = runItem.content as FetchUrlContentResult;
     return {
       ...candidate,
       title: candidate.title || fetched.title,
       summary: candidate.summary || fetched.plainText,
       contentText: fetched.plainText,
-      contentFetchStatus: fetched.detectedPaywall
-        ? CONTENT_FETCH_STATUSES.PAYWALLED
-        : CONTENT_FETCH_STATUSES.FETCHED,
+      contentFetchStatus: fetched.fetchStatus,
       raw: {
         item: candidate.raw,
         fetchedText: fetched,
@@ -147,8 +146,8 @@ function dailyScoredItemFromRunItem(item: PipelineRunItem): ScoredCandidateItem 
     ...candidate,
     contentText,
     contentFetchStatus:
-      item.metadata.contentFetchStatus === "fetched"
-        ? CONTENT_FETCH_STATUSES.FETCHED
+      typeof item.metadata.contentFetchStatus === "string"
+        ? item.metadata.contentFetchStatus
         : candidate.contentFetchStatus,
     category: typeof item.classification === "string" ? item.classification : candidate.category,
   } as CandidateItem;
@@ -237,7 +236,7 @@ const braveWebSearchCollector: SourceCollector = {
 };
 
 const urlTextFetcher: ContentFetcher = {
-  async fetch(item) {
+  async fetch(item, context) {
     const runItem = asRunItem(item);
     const candidate = runItem.item as { url: string };
     const persistedCandidate = getItemByUrl(candidate.url);
@@ -246,16 +245,17 @@ const urlTextFetcher: ContentFetcher = {
       return cached;
     }
 
-    const fetched = await fetchUrlText({ url: candidate.url });
-    if (isCandidateItem(runItem.item)) {
+    const fetched = await fetchUrlContent({
+      url: candidate.url,
+      maxChars: context.config.contentFetchPolicy.maxChars,
+    });
+    if (isCandidateItem(runItem.item) && fetched.fetchStatus !== CONTENT_FETCH_STATUSES.FAILED) {
       upsertItem({
         ...runItem.item,
         title: runItem.item.title || fetched.title,
         summary: runItem.item.summary || fetched.plainText,
         contentText: fetched.plainText,
-        contentFetchStatus: fetched.detectedPaywall
-          ? CONTENT_FETCH_STATUSES.PAYWALLED
-          : CONTENT_FETCH_STATUSES.FETCHED,
+        contentFetchStatus: fetched.fetchStatus,
       });
     }
 

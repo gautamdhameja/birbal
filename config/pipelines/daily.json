@@ -14,8 +14,9 @@
   "contentFetchPolicy": {
     "enabled": true,
     "fetcherId": "url_text_fetcher",
-    "maxItems": 10,
-    "requireFetchedContent": false
+    "fetchForTopN": 10,
+    "maxChars": 12000,
+    "preferFetchedContent": true
   },
   "scorerId": "enterprise_deployment_scorer",
   "classifierId": "enterprise_digest_classifier",

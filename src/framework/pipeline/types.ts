@@ -38,10 +38,11 @@ export type PipelineCollectionMethod = {
 
 export type PipelineContentFetchPolicy = {
   enabled: boolean;
+  fetchForTopN: number;
+  maxChars: number;
+  preferFetchedContent: boolean;
   fetcherId?: string;
   extractorIds?: string[];
-  maxItems?: number;
-  requireFetchedContent?: boolean;
   metadata?: PipelineMetadata;
 };
 

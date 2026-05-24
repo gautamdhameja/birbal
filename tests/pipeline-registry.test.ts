@@ -18,6 +18,9 @@ function pipelineConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig
     ],
     contentFetchPolicy: {
       enabled: false,
+      fetchForTopN: 0,
+      maxChars: 12000,
+      preferFetchedContent: false,
     },
     scorerId: "test_scorer",
     selectorId: "test_selector",
@@ -114,6 +117,13 @@ describe("pipeline component registry", () => {
     const resolved = registry.resolveFromConfig(
       pipelineConfig({
         pipelineId: "research",
+        contentFetchPolicy: {
+          enabled: true,
+          fetcherId: "first_fetcher",
+          fetchForTopN: 2,
+          maxChars: 12000,
+          preferFetchedContent: false,
+        },
         components: {
           contentFetchers: ["first_fetcher", "second_fetcher"],
         },

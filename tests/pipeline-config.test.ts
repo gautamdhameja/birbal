@@ -35,6 +35,13 @@ describe("pipeline config", () => {
       continueOnScoringFailure: true,
       minItemsRequiredForSuccess: 5,
     });
+    assert.deepEqual(config.contentFetchPolicy, {
+      enabled: true,
+      fetcherId: "url_text_fetcher",
+      fetchForTopN: 10,
+      maxChars: 12000,
+      preferFetchedContent: true,
+    });
     assert.deepEqual(config.components, {
       collectors: ["source_domain_collector"],
       contentFetcher: "url_text_fetcher",
@@ -54,6 +61,13 @@ describe("pipeline config", () => {
     assert.equal(config.pipelineId, "use_cases");
     assert.equal(config.scorerId, "production_use_case_filter");
     assert.equal(config.structuredExtractorId, "production_use_case_extractor");
+    assert.deepEqual(config.contentFetchPolicy, {
+      enabled: true,
+      fetcherId: "url_text_fetcher",
+      fetchForTopN: 30,
+      maxChars: 24000,
+      preferFetchedContent: true,
+    });
     assert.deepEqual(config.failurePolicy, {
       failFast: false,
       continueOnSourceFailure: true,

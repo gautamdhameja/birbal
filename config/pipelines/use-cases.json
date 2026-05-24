@@ -25,8 +25,9 @@
   "contentFetchPolicy": {
     "enabled": true,
     "fetcherId": "url_text_fetcher",
-    "maxItems": 30,
-    "requireFetchedContent": true
+    "fetchForTopN": 30,
+    "maxChars": 24000,
+    "preferFetchedContent": true
   },
   "scorerId": "production_use_case_filter",
   "structuredExtractorId": "production_use_case_extractor",

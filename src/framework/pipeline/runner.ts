@@ -150,6 +150,71 @@ function toPipelineError(error: unknown, metadata: Omit<PipelineError, "message"
   };
 }
 
+function fetchedContentStatus(content: unknown): string | undefined {
+  if (
+    typeof content === "object" &&
+    content !== null &&
+    "fetchStatus" in content &&
+    typeof content.fetchStatus === "string"
+  ) {
+    return content.fetchStatus;
+  }
+
+  return undefined;
+}
+
+function fetchedContentError(content: unknown): unknown {
+  if (typeof content === "object" && content !== null && "error" in content) {
+    const error = content.error;
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "message" in error &&
+      typeof error.message === "string"
+    ) {
+      return new Error(error.message);
+    }
+
+    return error;
+  }
+
+  return content;
+}
+
+function fetchedContentRank(item: PipelineRunItem): number {
+  const status =
+    typeof item.metadata.contentFetchStatus === "string"
+      ? item.metadata.contentFetchStatus
+      : fetchedContentStatus(item.content);
+
+  if (status === "fetched" || status === "paywalled") {
+    return 0;
+  }
+
+  if (status === "failed") {
+    return 2;
+  }
+
+  return 1;
+}
+
+function preferFetchedContentOrder(
+  items: PipelineRunItem[],
+  config: PipelineConfig,
+): PipelineRunItem[] {
+  if (!config.contentFetchPolicy.preferFetchedContent) {
+    return items;
+  }
+
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort((left, right) => {
+      const rankDifference = fetchedContentRank(left.item) - fetchedContentRank(right.item);
+      return rankDifference || left.index - right.index;
+    })
+    .map(({ item }) => item);
+}
+
 function statusFrom(
   errors: readonly PipelineError[],
   artifacts: readonly PipelineArtifact[],
@@ -218,7 +283,7 @@ function batchSize(
 }
 
 function fetchLimit(config: PipelineConfig, itemCount: number): number {
-  return Math.min(config.contentFetchPolicy.maxItems ?? itemCount, itemCount);
+  return Math.min(config.contentFetchPolicy.fetchForTopN, itemCount);
 }
 
 function collectedItemLimit(config: PipelineConfig, itemCount: number): number {
@@ -550,36 +615,49 @@ async function fetchAndExtractContent(
       );
     }
 
-    return config.contentFetchPolicy.requireFetchedContent ? [] : items;
+    return items.map((item) => ({
+      ...item,
+      metadata: {
+        ...item.metadata,
+        contentFetchStatus: "not_fetched",
+      },
+    }));
   }
 
   const limit = fetchLimit(config, items.length);
 
-  return mapLimit(items, executionLimit(config, "contentFetchConcurrency"), async (item, index) => {
-    if (index >= limit) {
-      return item;
-    }
-
-    let content: unknown;
-    try {
-      content = await fetcher.fetch(item, context);
-      incrementCount(counts, "contentFetched");
-    } catch (error) {
-      incrementCount(counts, "contentFetchErrors");
-      errors.push(
-        toPipelineError(error, {
-          itemId: item.id,
-          code: "content_fetch_failed",
-        }),
-      );
-
-      if (!shouldContinueAfterContentFetchFailure(config)) {
-        throw new PipelinePolicyAbortError(
-          `Pipeline stopped after content fetch failure for ${item.id}.`,
-        );
+  const fetchedItems = await mapLimit(
+    items,
+    executionLimit(config, "contentFetchConcurrency"),
+    async (item, index) => {
+      if (index >= limit) {
+        return {
+          ...item,
+          metadata: {
+            ...item.metadata,
+            contentFetchStatus: "not_fetched",
+          },
+        };
       }
 
-      if (!config.contentFetchPolicy.requireFetchedContent) {
+      let content: unknown;
+      try {
+        content = await fetcher.fetch(item, context);
+      } catch (error) {
+        incrementCount(counts, "contentFetchErrors");
+        errors.push(
+          toPipelineError(error, {
+            itemId: item.id,
+            code: "content_fetch_failed",
+          }),
+        );
+
+        if (!shouldContinueAfterContentFetchFailure(config)) {
+          throw new PipelinePolicyAbortError(
+            `Pipeline stopped after content fetch failure for ${item.id}.`,
+          );
+        }
+
         return {
           ...item,
           metadata: {
@@ -589,43 +667,69 @@ async function fetchAndExtractContent(
         };
       }
 
-      return undefined;
-    }
-
-    const extractedContent = [];
-    for (const extractor of extractors) {
-      try {
-        extractedContent.push(await extractor.extract(content, context));
-        incrementCount(counts, "contentExtracted");
-      } catch (error) {
-        incrementCount(counts, "contentExtractionErrors");
+      const contentFetchStatus = fetchedContentStatus(content);
+      if (contentFetchStatus === "failed") {
+        incrementCount(counts, "contentFetchErrors");
         errors.push(
-          toPipelineError(error, {
+          toPipelineError(fetchedContentError(content), {
             itemId: item.id,
-            code: "content_extraction_failed",
+            code: "content_fetch_failed",
           }),
         );
 
-        if (!shouldContinueAfterNonPolicyFailure(config)) {
+        if (!shouldContinueAfterContentFetchFailure(config)) {
           throw new PipelinePolicyAbortError(
-            `Pipeline stopped after content extraction failure for ${item.id}.`,
+            `Pipeline stopped after content fetch failure for ${item.id}.`,
           );
         }
-      }
-    }
 
-    return {
-      ...item,
-      content,
-      extractedContent,
-      metadata: {
-        ...item.metadata,
-        contentFetchStatus: "fetched",
-      },
-    };
-  }).then((fetchedItems) =>
-    fetchedItems.filter((item): item is PipelineRunItem => item !== undefined),
+        return {
+          ...item,
+          content,
+          metadata: {
+            ...item.metadata,
+            contentFetchStatus,
+          },
+        };
+      }
+
+      incrementCount(counts, "contentFetched");
+
+      const extractedContent = [];
+      for (const extractor of extractors) {
+        try {
+          extractedContent.push(await extractor.extract(content, context));
+          incrementCount(counts, "contentExtracted");
+        } catch (error) {
+          incrementCount(counts, "contentExtractionErrors");
+          errors.push(
+            toPipelineError(error, {
+              itemId: item.id,
+              code: "content_extraction_failed",
+            }),
+          );
+
+          if (!shouldContinueAfterNonPolicyFailure(config)) {
+            throw new PipelinePolicyAbortError(
+              `Pipeline stopped after content extraction failure for ${item.id}.`,
+            );
+          }
+        }
+      }
+
+      return {
+        ...item,
+        content,
+        extractedContent,
+        metadata: {
+          ...item.metadata,
+          contentFetchStatus: contentFetchStatus ?? "fetched",
+        },
+      };
+    },
   );
+
+  return preferFetchedContentOrder(fetchedItems, config);
 }
 
 function assertBatchResultLength<TValue>(
@@ -1064,8 +1168,9 @@ export async function runPipeline(
         ),
       {
         concurrency: executionLimit(config, "contentFetchConcurrency"),
-        maxItems: config.contentFetchPolicy.maxItems,
-        requireFetchedContent: config.contentFetchPolicy.requireFetchedContent,
+        fetchForTopN: config.contentFetchPolicy.fetchForTopN,
+        maxChars: config.contentFetchPolicy.maxChars,
+        preferFetchedContent: config.contentFetchPolicy.preferFetchedContent,
       },
     );
     assertMinimumViableItemCount(config, items.length, "content_fetch");

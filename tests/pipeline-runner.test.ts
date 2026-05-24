@@ -15,13 +15,17 @@ import type {
   PipelineLogger,
 } from "../src/framework/pipeline/types.js";
 
+type ConfigOverrides = Omit<Partial<PipelineConfig>, "contentFetchPolicy"> & {
+  contentFetchPolicy?: Partial<PipelineConfig["contentFetchPolicy"]>;
+};
+
 function writeConfig(value: PipelineConfig): string {
   const configPath = join(mkdtempSync(join(tmpdir(), "birbal-pipeline-runner-")), "pipeline.json");
   writeFileSync(configPath, JSON.stringify(value));
   return configPath;
 }
 
-function config(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
+function config(overrides: ConfigOverrides = {}): PipelineConfig {
   return {
     pipelineId: "research",
     enabled: true,
@@ -34,12 +38,6 @@ function config(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
         sourceIds: ["source-a"],
       },
     ],
-    contentFetchPolicy: {
-      enabled: true,
-      fetcherId: "fetcher",
-      extractorIds: ["extractor"],
-      requireFetchedContent: true,
-    },
     scorerId: "scorer",
     classifierId: "classifier",
     structuredExtractorId: "structured_extractor",
@@ -53,6 +51,14 @@ function config(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
       maxCandidates: 10,
     },
     ...overrides,
+    contentFetchPolicy: {
+      enabled: true,
+      fetcherId: "fetcher",
+      fetchForTopN: 10,
+      maxChars: 12000,
+      preferFetchedContent: false,
+      ...overrides.contentFetchPolicy,
+    },
     failurePolicy: overrides.failurePolicy ?? {
       failFast: false,
       continueOnSourceFailure: true,
@@ -165,22 +171,34 @@ describe("pipeline runner", () => {
 
     const finishedRuns: unknown[] = [];
     const failedRuns: string[] = [];
-    const result = await runPipeline(writeConfig(config()), {
-      startRun: () => "run-1",
-      finishRun: (_runId, summary) => {
-        finishedRuns.push(summary);
+    const result = await runPipeline(
+      writeConfig(
+        config({
+          contentFetchPolicy: {
+            extractorIds: ["extractor"],
+          },
+        }),
+      ),
+      {
+        startRun: () => "run-1",
+        finishRun: (_runId, summary) => {
+          finishedRuns.push(summary);
+        },
+        failRun: (_runId, errorSummary) => {
+          failedRuns.push(errorSummary);
+        },
+        loadSourceRegistry: () => ({ sources: [] }),
+        logger: recordingLogger(logs),
+        now: (() => {
+          const dates = [
+            new Date("2026-05-23T08:00:00.000Z"),
+            new Date("2026-05-23T08:00:05.000Z"),
+          ];
+          return () => dates.shift() ?? new Date("2026-05-23T08:00:05.000Z");
+        })(),
+        registry,
       },
-      failRun: (_runId, errorSummary) => {
-        failedRuns.push(errorSummary);
-      },
-      loadSourceRegistry: () => ({ sources: [] }),
-      logger: recordingLogger(logs),
-      now: (() => {
-        const dates = [new Date("2026-05-23T08:00:00.000Z"), new Date("2026-05-23T08:00:05.000Z")];
-        return () => dates.shift() ?? new Date("2026-05-23T08:00:05.000Z");
-      })(),
-      registry,
-    });
+    );
 
     assert.equal(result.pipelineId, "research");
     assert.equal(result.runId, "run-1");
@@ -303,7 +321,6 @@ describe("pipeline runner", () => {
           contentFetchPolicy: {
             enabled: true,
             fetcherId: "fetcher",
-            requireFetchedContent: false,
           },
         }),
       ),
@@ -326,6 +343,129 @@ describe("pipeline runner", () => {
     assert.equal(result.counts.artifactsWritten, 1);
     assert.equal(result.errors[0]?.code, "content_fetch_failed");
     assert.equal(finishedRuns.length, 1);
+  });
+
+  it("treats structured failed content fetch results as fetch failures", async () => {
+    const registry = new PipelineComponentRegistry();
+
+    registry.registerCollector("collector", {
+      collect: async () => [{ id: "first" }],
+    });
+    registry.registerContentFetcher("fetcher", {
+      fetch: async () => ({
+        url: "https://example.com/blocked",
+        title: "",
+        plainText: "",
+        contentLength: 0,
+        fetchStatus: "failed",
+        error: {
+          message: "blocked",
+          code: "fetch_failed",
+        },
+      }),
+    });
+    registry.registerScorer("scorer", {
+      score: async () => ({ finalScore: 1 }),
+    });
+    registry.registerSelector("selector", {
+      select: async (items) => items,
+    });
+    registry.registerRenderer("renderer", {
+      render: async () => "rendered",
+    });
+    registry.registerArtifactWriter("writer", {
+      write: async () => ({ id: "artifact", type: "markdown" }),
+    });
+
+    const result = await runPipeline(
+      writeConfig(
+        config({
+          classifierId: undefined,
+          structuredExtractorId: undefined,
+          contentFetchPolicy: {
+            enabled: true,
+            fetcherId: "fetcher",
+          },
+        }),
+      ),
+      {
+        startRun: () => "run-structured-fetch-failure",
+        finishRun: () => undefined,
+        failRun: () => undefined,
+        loadSourceRegistry: () => ({ sources: [] }),
+        logger: silentLogger(),
+        now: () => new Date("2026-05-23T08:00:00.000Z"),
+        registry,
+      },
+    );
+
+    assert.equal(result.status, "partial_success");
+    assert.equal(result.counts.contentFetched, undefined);
+    assert.equal(result.counts.contentFetchErrors, 1);
+    assert.equal(result.errors[0]?.code, "content_fetch_failed");
+    assert.equal(result.errors[0]?.message, "blocked");
+  });
+
+  it("can prefer fetched content before later pipeline stages", async () => {
+    const registry = new PipelineComponentRegistry();
+
+    registry.registerCollector("collector", {
+      collect: async () => [{ id: "snippet-only" }, { id: "full-text" }],
+    });
+    registry.registerContentFetcher("fetcher", {
+      fetch: async (item) => {
+        const runItem = item as PipelineRunItem;
+        return {
+          fetchStatus: runItem.id === "snippet-only" ? "failed" : "fetched",
+          error: runItem.id === "snippet-only" ? { message: "blocked" } : undefined,
+        };
+      },
+    });
+    registry.registerScorer("scorer", {
+      score: async () => ({ finalScore: 1 }),
+    });
+    registry.registerSelector("selector", {
+      select: async (items) => {
+        assert.deepEqual(
+          (items as PipelineRunItem[]).map((item) => item.id),
+          ["full-text", "snippet-only"],
+        );
+        return items;
+      },
+    });
+    registry.registerRenderer("renderer", {
+      render: async () => "rendered",
+    });
+    registry.registerArtifactWriter("writer", {
+      write: async () => ({ id: "artifact", type: "markdown" }),
+    });
+
+    const result = await runPipeline(
+      writeConfig(
+        config({
+          classifierId: undefined,
+          structuredExtractorId: undefined,
+          contentFetchPolicy: {
+            enabled: true,
+            fetcherId: "fetcher",
+            preferFetchedContent: true,
+          },
+        }),
+      ),
+      {
+        startRun: () => "run-prefer-fetched",
+        finishRun: () => undefined,
+        failRun: () => undefined,
+        loadSourceRegistry: () => ({ sources: [] }),
+        logger: silentLogger(),
+        now: () => new Date("2026-05-23T08:00:00.000Z"),
+        registry,
+      },
+    );
+
+    assert.equal(result.status, "partial_success");
+    assert.equal(result.counts.contentFetched, 1);
+    assert.equal(result.counts.contentFetchErrors, 1);
   });
 
   it("drops unscored items when scoring failures are continuable", async () => {
@@ -538,7 +678,6 @@ describe("pipeline runner", () => {
           contentFetchPolicy: {
             enabled: true,
             fetcherId: "fetcher",
-            requireFetchedContent: false,
           },
         }),
       ),

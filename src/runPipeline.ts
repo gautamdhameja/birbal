@@ -72,7 +72,7 @@ function applyLimit(config: PipelineConfig, limit: number | undefined): Pipeline
     ...config,
     contentFetchPolicy: {
       ...config.contentFetchPolicy,
-      maxItems: limit,
+      fetchForTopN: Math.min(config.contentFetchPolicy.fetchForTopN, limit),
     },
     limits: {
       ...config.limits,
