@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { z } from "zod";
 
+import { URL_TEXT } from "../../constants/url-text.js";
 import type { PipelineConfig, PipelineComponentConfig } from "./types.js";
 
 const PIPELINE_CONFIG_DIRECTORY = "config/pipelines";
@@ -17,6 +18,7 @@ const MetadataSchema = z.record(z.string(), z.unknown());
 const LimitsSchema = z.record(z.string(), z.number().finite().nonnegative());
 const PositiveIntegerSchema = z.number().int().positive();
 const NonNegativeIntegerSchema = z.number().int().nonnegative();
+const ConcurrencySchema = z.number().int().min(1).max(20);
 
 const DefaultFailurePolicy = {
   failFast: false,
@@ -38,7 +40,7 @@ const PipelineCollectionMethodSchema = z.strictObject({
 const PipelineContentFetchPolicySchema = z.strictObject({
   enabled: z.boolean(),
   fetchForTopN: NonNegativeIntegerSchema,
-  maxChars: PositiveIntegerSchema,
+  maxChars: PositiveIntegerSchema.max(URL_TEXT.MAX_CHARS_LIMIT),
   preferFetchedContent: z.boolean(),
   fetcherId: NonEmptyStringSchema.optional(),
   extractorIds: z.array(NonEmptyStringSchema).optional(),
@@ -54,11 +56,11 @@ const PipelineOutputConfigSchema = z.strictObject({
 });
 
 const PipelineExecutionConfigSchema = z.strictObject({
-  collectionConcurrency: PositiveIntegerSchema.optional(),
-  contentFetchConcurrency: PositiveIntegerSchema.optional(),
-  scoringConcurrency: PositiveIntegerSchema.optional(),
-  classificationConcurrency: PositiveIntegerSchema.optional(),
-  structuredExtractionConcurrency: PositiveIntegerSchema.optional(),
+  collectionConcurrency: ConcurrencySchema.optional(),
+  contentFetchConcurrency: ConcurrencySchema.optional(),
+  scoringConcurrency: ConcurrencySchema.optional(),
+  classificationConcurrency: ConcurrencySchema.optional(),
+  structuredExtractionConcurrency: ConcurrencySchema.optional(),
   batchSize: z
     .strictObject({
       scoring: PositiveIntegerSchema.optional(),
@@ -102,6 +104,7 @@ const PipelineConfigFileSchema = z.strictObject({
   collectionMethods: z.array(PipelineCollectionMethodSchema).min(1),
   contentFetchPolicy: PipelineContentFetchPolicySchema,
   scorerId: NonEmptyStringSchema,
+  rubricId: NonEmptyStringSchema.optional(),
   classifierId: NonEmptyStringSchema.optional(),
   structuredExtractorId: NonEmptyStringSchema.optional(),
   selectorId: NonEmptyStringSchema,
@@ -135,6 +138,7 @@ function buildPipelineComponentConfig(config: PipelineConfigFile): PipelineCompo
     selector: config.selectorId,
     renderer: config.rendererId,
     artifactWriter: config.output.artifactWriterId,
+    rubric: config.rubricId,
   };
 }
 

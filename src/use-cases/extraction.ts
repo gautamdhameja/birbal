@@ -8,7 +8,17 @@ import type { ChatMessage, CompleteOptions } from "../llama/schema.js";
 import { logger } from "../logging/logger.js";
 import type { FetchUrlTextResult } from "../url-text/client.js";
 import { parseJson } from "../utils/json.js";
+import { normalizeUrl } from "../utils/url.js";
 import type { ProductionUseCase, UseCaseSearchCandidate } from "./types.js";
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 
 const AcceptedExtractionSchema = z.strictObject({
   [USE_CASES.RESPONSE_FIELDS.ACCEPTED]: z.literal(true),
@@ -17,7 +27,9 @@ const AcceptedExtractionSchema = z.strictObject({
   [USE_CASES.RESPONSE_FIELDS.WHAT_AI_DOES]: z.string().trim().min(1),
   [USE_CASES.RESPONSE_FIELDS.PRODUCTION_EVIDENCE]: z.string().trim().min(1),
   [USE_CASES.RESPONSE_FIELDS.BUSINESS_METRIC]: z.string().trim().min(1),
-  [USE_CASES.RESPONSE_FIELDS.SOURCE_LINK]: z.url(),
+  [USE_CASES.RESPONSE_FIELDS.SOURCE_LINK]: z.url().refine(isHttpUrl, {
+    message: "sourceLink must use http or https.",
+  }),
   [USE_CASES.RESPONSE_FIELDS.PUBLISH_DATE]: z.string().trim().min(1),
   [USE_CASES.RESPONSE_FIELDS.WHY_THIS_MATTERS]: z.string().trim().min(1),
 });
@@ -39,6 +51,52 @@ export type ProductionUseCaseExtraction =
       rejectionReason: string;
     };
 type ModelTraceOptions = Pick<CompleteOptions, "traceId" | "traceLabel">;
+
+function sameNormalizedUrl(left: string, right: string | undefined): boolean {
+  return right !== undefined && normalizeUrl(left) === normalizeUrl(right);
+}
+
+function sourceLinkMatchesCandidate(
+  extraction: ProductionUseCaseExtraction,
+  candidate: UseCaseSearchCandidate,
+  fetched: FetchUrlTextResult,
+): boolean {
+  return (
+    !extraction.accepted ||
+    sameNormalizedUrl(extraction.sourceLink, candidate.url) ||
+    sameNormalizedUrl(extraction.sourceLink, fetched.canonicalUrl)
+  );
+}
+
+function publishDateIsUsable(extraction: ProductionUseCaseExtraction): boolean {
+  return !extraction.accepted || !Number.isNaN(Date.parse(extraction.publishDate));
+}
+
+function validateAcceptedExtractionSource(
+  extraction: ProductionUseCaseExtraction,
+  candidate: UseCaseSearchCandidate,
+  fetched: FetchUrlTextResult,
+): ProductionUseCaseExtraction {
+  if (!extraction.accepted) {
+    return extraction;
+  }
+
+  if (!sourceLinkMatchesCandidate(extraction, candidate, fetched)) {
+    return {
+      accepted: false,
+      rejectionReason: "Extracted source link did not match the fetched source.",
+    };
+  }
+
+  if (!publishDateIsUsable(extraction)) {
+    return {
+      accepted: false,
+      rejectionReason: "Extracted publish date was not parseable.",
+    };
+  }
+
+  return extraction;
+}
 
 function truncatePromptText(value: string | undefined, maxChars: number): string | undefined {
   if (!value || value.length <= maxChars) {
@@ -169,7 +227,7 @@ export async function extractProductionUseCase(
     },
   });
   if (result.ok) {
-    return result.value;
+    return validateAcceptedExtractionSource(result.value, candidate, fetched);
   }
 
   logger.warn(

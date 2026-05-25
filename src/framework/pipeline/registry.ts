@@ -10,6 +10,7 @@ import type {
   SourceCollector,
   StructuredExtractor,
 } from "./types.js";
+import type { Rubric } from "../scoring/rubric.js";
 
 type ComponentKind =
   | "collectors"
@@ -20,7 +21,8 @@ type ComponentKind =
   | "structuredExtractors"
   | "selectors"
   | "renderers"
-  | "artifactWriters";
+  | "artifactWriters"
+  | "rubrics";
 
 type ComponentKindMap = {
   collectors: SourceCollector;
@@ -32,6 +34,7 @@ type ComponentKindMap = {
   selectors: Selector;
   renderers: Renderer;
   artifactWriters: ArtifactWriter;
+  rubrics: Rubric;
 };
 
 type ComponentBucket<TComponent> = Map<string, TComponent>;
@@ -50,6 +53,7 @@ export type PipelineComponentRegistration = {
   selectors?: Record<string, Selector>;
   renderers?: Record<string, Renderer>;
   artifactWriters?: Record<string, ArtifactWriter>;
+  rubrics?: Record<string, Rubric>;
 };
 
 export type ResolvedPipelineComponents = {
@@ -62,6 +66,7 @@ export type ResolvedPipelineComponents = {
   selectors: Selector[];
   renderers: Renderer[];
   artifactWriters: ArtifactWriter[];
+  rubrics: Rubric[];
 };
 
 function assertComponentId(id: string): void {
@@ -81,6 +86,7 @@ function emptyResolvedComponents(): ResolvedPipelineComponents {
     selectors: [],
     renderers: [],
     artifactWriters: [],
+    rubrics: [],
   };
 }
 
@@ -126,6 +132,7 @@ export class PipelineComponentRegistry {
   private readonly selectors: ComponentBucket<Selector> = new Map();
   private readonly renderers: ComponentBucket<Renderer> = new Map();
   private readonly artifactWriters: ComponentBucket<ArtifactWriter> = new Map();
+  private readonly rubrics: ComponentBucket<Rubric> = new Map();
 
   constructor(private readonly options: PipelineComponentRegistryOptions = {}) {}
 
@@ -165,6 +172,10 @@ export class PipelineComponentRegistry {
     this.register("artifactWriters", id, component);
   }
 
+  registerRubric(id: string, component: Rubric): void {
+    this.register("rubrics", id, component);
+  }
+
   registerMany(components: PipelineComponentRegistration): void {
     this.registerEntries("collectors", components.collectors);
     this.registerEntries("contentFetchers", components.contentFetchers);
@@ -175,6 +186,7 @@ export class PipelineComponentRegistry {
     this.registerEntries("selectors", components.selectors);
     this.registerEntries("renderers", components.renderers);
     this.registerEntries("artifactWriters", components.artifactWriters);
+    this.registerEntries("rubrics", components.rubrics);
   }
 
   getCollector(id: string): SourceCollector {
@@ -213,6 +225,10 @@ export class PipelineComponentRegistry {
     return this.get("artifactWriters", id);
   }
 
+  getRubric(id: string): Rubric {
+    return this.get("rubrics", id);
+  }
+
   resolveFromConfig(config: PipelineConfig): ResolvedPipelineComponents {
     const resolved = emptyResolvedComponents();
     const componentConfig = config.components;
@@ -240,6 +256,7 @@ export class PipelineComponentRegistry {
       resolved.artifactWriters.push(
         ...resolveSingle(config.output.artifactWriterId, (id) => this.getArtifactWriter(id)),
       );
+      resolved.rubrics.push(...resolveSingle(config.rubricId, (id) => this.getRubric(id)));
 
       return resolved;
     }
@@ -330,6 +347,12 @@ export class PipelineComponentRegistry {
           ...(componentConfig.artifactWriters ?? []),
         ]),
         (id) => this.getArtifactWriter(id),
+      ),
+    );
+    resolved.rubrics.push(
+      ...resolveMany(
+        uniqueIds([config.rubricId, componentConfig.rubric, ...(componentConfig.rubrics ?? [])]),
+        (id) => this.getRubric(id),
       ),
     );
 

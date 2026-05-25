@@ -3,6 +3,7 @@ import { ModelParseError } from "../llm/repair.js";
 import { isHttpStatusError, summarizeHttpErrorBody } from "../../http/client.js";
 import { logger } from "../../logging/logger.js";
 import { preview } from "../../logging/preview.js";
+import { normalizeUrl } from "../../utils/url.js";
 import { mapBatches, mapLimit } from "./concurrency.js";
 import { loadPipelineConfig } from "./config.js";
 import { PipelineComponentRegistry, pipelineComponentRegistry } from "./registry.js";
@@ -263,6 +264,37 @@ function createRunItem(
     item,
     metadata,
   };
+}
+
+function runItemDedupeKey(item: PipelineRunItem): string {
+  if (
+    typeof item.item === "object" &&
+    item.item !== null &&
+    "url" in item.item &&
+    typeof item.item.url === "string"
+  ) {
+    return `url:${normalizeUrl(item.item.url)}`;
+  }
+
+  return `id:${item.id}`;
+}
+
+function dedupeRunItems(items: PipelineRunItem[], counts: PipelineCounts): PipelineRunItem[] {
+  const seen = new Set<string>();
+  const deduped: PipelineRunItem[] = [];
+
+  for (const item of items) {
+    const key = runItemDedupeKey(item);
+    if (seen.has(key)) {
+      incrementCount(counts, "duplicatesRemoved");
+      continue;
+    }
+
+    seen.add(key);
+    deduped.push(item);
+  }
+
+  return deduped;
 }
 
 function enabledCollectionMethods(config: PipelineConfig): PipelineCollectionMethod[] {
@@ -1122,6 +1154,8 @@ export async function runPipeline(
     config,
     logger: deps.logger,
     db: deps.db,
+    rubric: components.rubrics[0],
+    rubrics: components.rubrics,
     researchProfile: deps.researchProfile,
     sourceRegistry,
     startedAt,
@@ -1145,6 +1179,7 @@ export async function runPipeline(
         concurrency: executionLimit(config, "collectionConcurrency"),
       },
     );
+    items = dedupeRunItems(items, counts);
     const collectedLimit = collectedItemLimit(config, items.length);
     if (items.length > collectedLimit) {
       incrementCount(counts, "collectionLimited", items.length - collectedLimit);

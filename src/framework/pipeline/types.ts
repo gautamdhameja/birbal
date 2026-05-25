@@ -1,3 +1,5 @@
+import type { Rubric } from "../scoring/rubric.js";
+
 export type PipelineId = string;
 
 export type PipelineMetadata = Record<string, unknown>;
@@ -16,6 +18,7 @@ export type PipelineComponentConfig = {
   selectors?: string[];
   renderers?: string[];
   artifactWriters?: string[];
+  rubrics?: string[];
   collector?: string;
   contentFetcher?: string;
   contentExtractor?: string;
@@ -25,6 +28,7 @@ export type PipelineComponentConfig = {
   selector?: string;
   renderer?: string;
   artifactWriter?: string;
+  rubric?: string;
 };
 
 export type PipelineCollectionMethod = {
@@ -118,6 +122,7 @@ export interface PipelineConfig<TSettings = PipelineMetadata> {
   collectionMethods: PipelineCollectionMethod[];
   contentFetchPolicy: PipelineContentFetchPolicy;
   scorerId: string;
+  rubricId?: string;
   classifierId?: string;
   structuredExtractorId?: string;
   selectorId: string;
@@ -143,6 +148,8 @@ export interface PipelineContext<
   config: TConfig;
   logger: PipelineLogger;
   db: TDb;
+  rubric?: Rubric;
+  rubrics: readonly Rubric[];
   researchProfile: TResearchProfile;
   sourceRegistry: TSourceRegistry;
   startedAt: Date;

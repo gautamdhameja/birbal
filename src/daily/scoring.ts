@@ -4,32 +4,22 @@ import { AGENT } from "../constants/agent.js";
 import { LLAMA } from "../constants/llama.js";
 import { SCORING } from "../constants/scoring.js";
 import { completeStructuredWithRepair, ModelParseError } from "../framework/llm/repair.js";
+import { calculateWeightedFinalScore, type Rubric } from "../framework/scoring/rubric.js";
 import type { ChatMessage, CompleteOptions } from "../llama/schema.js";
 import type { UserPreferences } from "../memory/types.js";
+import {
+  EnterpriseDailyScoreSchema,
+  enterpriseDailyReadingRubric,
+  type EnterpriseDailyScore,
+} from "../pipelines/daily/rubric.js";
 import { parseJson } from "../utils/json.js";
 import type { CandidateItem, ItemScore, ScoredCandidateItem } from "./types.js";
 
-const ScoreResponseSchema = z
-  .strictObject({
-    [SCORING.RESPONSE_FIELDS.ENTERPRISE_RELEVANCE]: z.number().min(1).max(5),
-    [SCORING.RESPONSE_FIELDS.WORKFLOW_REDESIGN_DEPTH]: z.number().min(1).max(5),
-    [SCORING.RESPONSE_FIELDS.REAL_USE_CASE_SPECIFICITY]: z.number().min(1).max(5),
-    [SCORING.RESPONSE_FIELDS.DEPLOYMENT_FDE_RELEVANCE]: z.number().min(1).max(5),
-    [SCORING.RESPONSE_FIELDS.BUSINESS_OUTCOME_CLARITY]: z.number().min(1).max(5),
-    [SCORING.RESPONSE_FIELDS.TECHNICAL_IMPLEMENTATION_USEFULNESS]: z.number().min(1).max(5),
-    [SCORING.RESPONSE_FIELDS.RECENCY]: z.number().min(1).max(5),
-    [SCORING.RESPONSE_FIELDS.NON_GENERIC_INSIGHT]: z.number().min(1).max(5),
-    [SCORING.RESPONSE_FIELDS.REJECTED]: z.boolean(),
-    [SCORING.RESPONSE_FIELDS.REJECTION_REASON]: z.string().min(1).optional(),
-    [SCORING.RESPONSE_FIELDS.REASON]: z.string().min(1),
-  })
-  .refine((score) => !score.rejected || Boolean(score.rejectionReason), {
-    message: "rejectionReason is required when rejected is true.",
-    path: [SCORING.RESPONSE_FIELDS.REJECTION_REASON],
-  });
-
-type ScoreResponse = z.infer<typeof ScoreResponseSchema>;
-type ModelTraceOptions = Pick<CompleteOptions, "traceId" | "traceLabel">;
+const ScoreResponseSchema = EnterpriseDailyScoreSchema;
+type ScoreResponse = EnterpriseDailyScore;
+type ModelTraceOptions = Pick<CompleteOptions, "traceId" | "traceLabel"> & {
+  rubric?: Rubric<EnterpriseDailyScore>;
+};
 const ScoreBatchResponseSchema = z.strictObject({
   scores: z.array(
     ScoreResponseSchema.extend({
@@ -120,6 +110,17 @@ function renderCandidateForScoring(candidate: CandidateItem): string {
   });
 }
 
+function renderRubricForScoring(rubric: Rubric<EnterpriseDailyScore>): string {
+  return JSON.stringify({
+    id: rubric.id,
+    description: rubric.description,
+    scale: rubric.scale,
+    criteria: rubric.criteria,
+    weights: rubric.weights,
+    hardRejectionRules: rubric.hardRejectionRules,
+  });
+}
+
 function renderCandidatesForBatchScoring(candidates: readonly CandidateItem[]): string {
   return JSON.stringify(
     candidates.map((candidate) => ({
@@ -138,9 +139,16 @@ function renderCandidatesForBatchScoring(candidates: readonly CandidateItem[]): 
   );
 }
 
-function buildScorePrompt(candidate: CandidateItem, preferences: UserPreferences): string {
+function buildScorePrompt(
+  candidate: CandidateItem,
+  preferences: UserPreferences,
+  rubric: Rubric<EnterpriseDailyScore>,
+): string {
   return [
     renderPreferencesForScoring(preferences),
+    "",
+    "Rubric:",
+    renderRubricForScoring(rubric),
     "",
     `${SCORING.USER_PROMPT_LABELS.CANDIDATE}:`,
     renderCandidateForScoring(candidate),
@@ -165,9 +173,13 @@ function buildScorePrompt(candidate: CandidateItem, preferences: UserPreferences
 function buildBatchScorePrompt(
   candidates: readonly CandidateItem[],
   preferences: UserPreferences,
+  rubric: Rubric<EnterpriseDailyScore>,
 ): string {
   return [
     renderPreferencesForScoring(preferences),
+    "",
+    "Rubric:",
+    renderRubricForScoring(rubric),
     "",
     `${SCORING.USER_PROMPT_LABELS.CANDIDATE}:`,
     renderCandidatesForBatchScoring(candidates),
@@ -196,21 +208,11 @@ function buildBatchScorePrompt(
   ].join("\n");
 }
 
-export function calculateFinalScore(score: ScoreResponse): number {
-  if (score.rejected) {
-    return 0;
-  }
-
-  return (
-    SCORING.WEIGHTS.ENTERPRISE_RELEVANCE * score.enterpriseRelevance +
-    SCORING.WEIGHTS.WORKFLOW_REDESIGN_DEPTH * score.workflowRedesignDepth +
-    SCORING.WEIGHTS.REAL_USE_CASE_SPECIFICITY * score.realUseCaseSpecificity +
-    SCORING.WEIGHTS.DEPLOYMENT_FDE_RELEVANCE * score.deploymentFdeRelevance +
-    SCORING.WEIGHTS.BUSINESS_OUTCOME_CLARITY * score.businessOutcomeClarity +
-    SCORING.WEIGHTS.TECHNICAL_IMPLEMENTATION_USEFULNESS * score.technicalImplementationUsefulness +
-    SCORING.WEIGHTS.RECENCY * score.recency +
-    SCORING.WEIGHTS.NON_GENERIC_INSIGHT * score.nonGenericInsight
-  );
+export function calculateFinalScore(
+  score: ScoreResponse,
+  rubric: Rubric<EnterpriseDailyScore> = enterpriseDailyReadingRubric,
+): number {
+  return calculateWeightedFinalScore(score, rubric.weights);
 }
 
 export function parseItemScore(raw: string): ItemScore {
@@ -225,10 +227,13 @@ export function parseItemScore(raw: string): ItemScore {
   };
 }
 
-function toItemScore(score: ScoreResponse): ItemScore {
+function toItemScore(
+  score: ScoreResponse,
+  rubric: Rubric<EnterpriseDailyScore> = enterpriseDailyReadingRubric,
+): ItemScore {
   return {
     ...score,
-    finalScore: calculateFinalScore(score),
+    finalScore: calculateFinalScore(score, rubric),
   };
 }
 
@@ -241,7 +246,11 @@ export function parseItemScores(raw: string, expectedIds: readonly string[]): It
   return toItemScores(parsed.data, expectedIds);
 }
 
-function toItemScores(scoreBatch: ScoreBatchResponse, expectedIds: readonly string[]): ItemScore[] {
+function toItemScores(
+  scoreBatch: ScoreBatchResponse,
+  expectedIds: readonly string[],
+  rubric: Rubric<EnterpriseDailyScore> = enterpriseDailyReadingRubric,
+): ItemScore[] {
   const scoresById = new Map<string, ScoreBatchResponse["scores"][number]>();
   for (const score of scoreBatch.scores) {
     scoresById.set(score.id, score);
@@ -254,7 +263,7 @@ function toItemScores(scoreBatch: ScoreBatchResponse, expectedIds: readonly stri
     }
 
     const { id: _id, ...scoreWithoutId } = score;
-    return toItemScore(scoreWithoutId);
+    return toItemScore(scoreWithoutId, rubric);
   });
 }
 
@@ -263,6 +272,8 @@ export async function scoreItem(
   preferences: UserPreferences,
   traceOptions: ModelTraceOptions = {},
 ): Promise<ItemScore> {
+  const rubric = traceOptions.rubric ?? enterpriseDailyReadingRubric;
+  const { rubric: _rubric, ...completeTraceOptions } = traceOptions;
   const messages: ChatMessage[] = [
     {
       role: AGENT.ROLES.SYSTEM,
@@ -270,7 +281,7 @@ export async function scoreItem(
     },
     {
       role: AGENT.ROLES.USER,
-      content: buildScorePrompt(candidate, preferences),
+      content: buildScorePrompt(candidate, preferences, rubric),
     },
   ];
 
@@ -281,7 +292,7 @@ export async function scoreItem(
     completeOptions: {
       temperature: SCORING.MODEL_TEMPERATURE,
       max_tokens: SCORING.MAX_TOKENS,
-      ...traceOptions,
+      ...completeTraceOptions,
       traceLabel: traceOptions.traceLabel ?? "daily.score_item",
       response_format: {
         type: LLAMA.RESPONSE_FORMATS.JSON_OBJECT,
@@ -292,7 +303,7 @@ export async function scoreItem(
     throw new ModelParseError(result.error);
   }
 
-  return toItemScore(result.value);
+  return toItemScore(result.value, rubric);
 }
 
 export async function scoreItems(
@@ -304,6 +315,8 @@ export async function scoreItems(
     return [];
   }
 
+  const rubric = traceOptions.rubric ?? enterpriseDailyReadingRubric;
+  const { rubric: _rubric, ...completeTraceOptions } = traceOptions;
   const expectedIds = candidates.map((candidate) => candidate.id);
   const messages: ChatMessage[] = [
     {
@@ -312,7 +325,7 @@ export async function scoreItems(
     },
     {
       role: AGENT.ROLES.USER,
-      content: buildBatchScorePrompt(candidates, preferences),
+      content: buildBatchScorePrompt(candidates, preferences, rubric),
     },
   ];
 
@@ -323,7 +336,7 @@ export async function scoreItems(
     completeOptions: {
       temperature: SCORING.MODEL_TEMPERATURE,
       max_tokens: SCORING.BATCH_MAX_TOKENS,
-      ...traceOptions,
+      ...completeTraceOptions,
       traceLabel: traceOptions.traceLabel ?? "daily.score_items",
       response_format: {
         type: LLAMA.RESPONSE_FORMATS.JSON_OBJECT,
@@ -334,7 +347,7 @@ export async function scoreItems(
     throw new ModelParseError(result.error);
   }
 
-  return toItemScores(result.value, expectedIds);
+  return toItemScores(result.value, expectedIds, rubric);
 }
 
 function compareScoredCandidates(left: ScoredCandidateItem, right: ScoredCandidateItem): number {

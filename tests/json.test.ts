@@ -11,25 +11,25 @@ describe("parseAgentResponse", () => {
     });
   });
 
-  it("extracts a valid object from surrounding text", () => {
-    assert.deepEqual(parseAgentResponse('before {"type":"clarify","question":"Continue?"} after'), {
+  it("allows surrounding whitespace", () => {
+    assert.deepEqual(parseAgentResponse('  {"type":"clarify","question":"Continue?"}\n'), {
       type: "clarify",
       question: "Continue?",
     });
   });
 
-  it("skips earlier balanced braces that are not valid JSON", () => {
-    assert.deepEqual(parseAgentResponse('noise {not json} {"type":"final","answer":"ok"}'), {
-      type: "final",
-      answer: "ok",
-    });
+  it("rejects surrounding prose", () => {
+    assert.throws(
+      () => parseAgentResponse('before {"type":"clarify","question":"Continue?"} after'),
+      /must be valid JSON/,
+    );
   });
 
-  it("finds a valid object inside an invalid outer brace block", () => {
-    assert.deepEqual(parseAgentResponse('noise {bad {"type":"final","answer":"ok"}}'), {
-      type: "final",
-      answer: "ok",
-    });
+  it("rejects embedded JSON after earlier invalid braces", () => {
+    assert.throws(
+      () => parseAgentResponse('noise {not json} {"type":"final","answer":"ok"}'),
+      /must be valid JSON/,
+    );
   });
 
   it("preserves braces inside JSON strings", () => {
@@ -39,10 +39,10 @@ describe("parseAgentResponse", () => {
     });
   });
 
-  it("repairs unescaped newlines inside JSON strings", () => {
-    assert.deepEqual(parseAgentResponse('{"type":"final","answer":"hello\nworld"}'), {
-      type: "final",
-      answer: "hello\nworld",
-    });
+  it("rejects unescaped newlines inside JSON strings", () => {
+    assert.throws(
+      () => parseAgentResponse('{"type":"final","answer":"hello\nworld"}'),
+      /must be valid JSON/,
+    );
   });
 });

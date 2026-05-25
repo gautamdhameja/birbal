@@ -1,8 +1,11 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+
 import { searchWeb } from "../../brave-search/client.js";
 import { loadSourceRegistry } from "../../config/sourceRegistry.js";
 import type { SourceRegistry } from "../../config/sourceRegistry.js";
 import { CONTENT_FETCH_STATUSES } from "../../constants/candidates.js";
-import { getItemByUrl, getScore, upsertItem, upsertScore } from "../../db/items.js";
+import { getItemByUrl, upsertItem, upsertScore } from "../../db/items.js";
 import {
   classifyCandidateCategory,
   fallbackCategoryFromScore,
@@ -22,6 +25,10 @@ import { loadProductionUseCaseScoutConfig } from "../../use-cases/config.js";
 import { writeUseCaseReport } from "../../use-cases/markdown.js";
 import { collectProductionUseCaseCandidates } from "../../use-cases/pipeline.js";
 import type { ProductionUseCase, UseCaseSearchCandidate } from "../../use-cases/types.js";
+import { enterpriseDailyReadingRubric } from "../../pipelines/daily/rubric.js";
+import type { EnterpriseDailyScore } from "../../pipelines/daily/rubric.js";
+import { enterpriseUseCaseRubric } from "../../pipelines/useCases/rubric.js";
+import type { Rubric } from "../scoring/rubric.js";
 import { pipelineComponentRegistry, PipelineComponentRegistry } from "./registry.js";
 import type { PipelineRunItem } from "./runner.js";
 import type {
@@ -55,6 +62,30 @@ function sourceRegistryFromContext(context: PipelineContext): SourceRegistry {
   return (context.sourceRegistry as SourceRegistry | null) ?? loadSourceRegistry();
 }
 
+function scopedSourceRegistry(
+  sourceRegistry: SourceRegistry,
+  sourceIds: readonly string[],
+): SourceRegistry {
+  if (sourceIds.length === 0) {
+    return sourceRegistry;
+  }
+
+  const allowedSourceIds = new Set(sourceIds);
+  return {
+    sources: sourceRegistry.sources.filter((source) => allowedSourceIds.has(source.id)),
+  };
+}
+
+function collectionSourceIds(method: PipelineCollectionMethod, context: PipelineContext): string[] {
+  return method.sourceIds ?? context.config.sourceIds;
+}
+
+function enterpriseDailyRubricFromContext(context: PipelineContext): Rubric<EnterpriseDailyScore> {
+  return (
+    (context.rubric as Rubric<EnterpriseDailyScore> | undefined) ?? enterpriseDailyReadingRubric
+  );
+}
+
 function outputLimit(context: PipelineContext): number | undefined {
   const limit = context.config.limits.limit ?? context.config.limits.maxResults;
   return typeof limit === "number" && Number.isInteger(limit) && limit > 0 ? limit : undefined;
@@ -71,8 +102,19 @@ function renderOutputPath(context: PipelineContext): string {
     .replaceAll("{date}", dateString())
     .replaceAll("{pipelineId}", context.pipelineId)
     .replaceAll("{runId}", context.runId);
+  const unsafeParts = [directory, filename].flatMap((part) => part.split(/[\\/]+/));
+  if (isAbsolute(directory) || isAbsolute(filename) || unsafeParts.includes("..")) {
+    throw new Error("Pipeline output path must stay inside the workspace.");
+  }
 
-  return `${directory}/${filename}`;
+  const artifactRoot = resolve(process.cwd());
+  const outputPath = resolve(artifactRoot, join(directory, filename));
+  const relativeOutputPath = relative(artifactRoot, outputPath);
+  if (relativeOutputPath.startsWith("..") || isAbsolute(relativeOutputPath)) {
+    throw new Error("Pipeline output path must stay inside the workspace.");
+  }
+
+  return outputPath;
 }
 
 function selectedRunItemScore(item: PipelineRunItem): ItemScore {
@@ -169,15 +211,33 @@ function useCaseQueries(method: PipelineCollectionMethod): readonly string[] {
     : config.dailyQueries;
 }
 
+function useCaseScoutConfigFromContext(context: PipelineContext) {
+  const config = loadProductionUseCaseScoutConfig();
+  return {
+    ...config,
+    maxSearchResultsPerQuery:
+      context.config.limits.maxSearchResultsPerQuery ?? config.maxSearchResultsPerQuery,
+    maxCandidatesForExtraction:
+      context.config.limits.maxCandidatesForExtraction ?? config.maxCandidatesForExtraction,
+    maxResults: context.config.limits.maxResults ?? config.maxResults,
+  };
+}
+
 const sourceDomainCollector: SourceCollector = {
   async collect(method, context) {
     const collectionMethod = method as PipelineCollectionMethod;
     if (context.pipelineId === "daily") {
       const preferences = preferencesFromContext(context);
-      const result = await collectDailyCandidateResult(sourceRegistryFromContext(context), {
-        dailyMix: preferences.dailyMix,
-        enableAcademicFallback: preferences.enableAcademicFallback,
-      });
+      const result = await collectDailyCandidateResult(
+        scopedSourceRegistry(
+          sourceRegistryFromContext(context),
+          collectionSourceIds(collectionMethod, context),
+        ),
+        {
+          dailyMix: preferences.dailyMix,
+          enableAcademicFallback: preferences.enableAcademicFallback,
+        },
+      );
 
       context.logger.info(
         {
@@ -191,7 +251,7 @@ const sourceDomainCollector: SourceCollector = {
       return result.candidates;
     }
 
-    const config = loadProductionUseCaseScoutConfig();
+    const config = useCaseScoutConfigFromContext(context);
     const result = await collectProductionUseCaseCandidates(
       config,
       (query, maxResults, freshness) => searchWeb({ query, maxResults, freshness }),
@@ -214,7 +274,7 @@ const sourceDomainCollector: SourceCollector = {
 
 const braveWebSearchCollector: SourceCollector = {
   async collect(method, context) {
-    const config = loadProductionUseCaseScoutConfig();
+    const config = useCaseScoutConfigFromContext(context);
     const result = await collectProductionUseCaseCandidates(
       config,
       (query, maxResults, freshness) => searchWeb({ query, maxResults, freshness }),
@@ -270,14 +330,11 @@ const enterpriseDeploymentScorer: Scorer = {
 
     upsertItem(candidate);
     const persistedItem = getItemByUrl(candidate.url) ?? existingItem ?? candidate;
-    const existingScore = getScore(persistedItem.id);
-    if (existingScore) {
-      return existingScore;
-    }
 
     const score = await scoreItem(candidate, preferencesFromContext(context), {
       traceId: context.runId,
       traceLabel: "pipeline.daily.enterprise_deployment_scorer",
+      rubric: enterpriseDailyRubricFromContext(context),
     });
     upsertScore(persistedItem.id, score);
 
@@ -298,11 +355,6 @@ const enterpriseDeploymentScorer: Scorer = {
 
       upsertItem(candidate);
       const persistedItem = getItemByUrl(candidate.url) ?? existingItem ?? candidate;
-      const existingScore = getScore(persistedItem.id);
-      if (existingScore) {
-        orderedScores[index] = existingScore;
-        continue;
-      }
 
       candidatesToScore.push({
         candidate,
@@ -317,6 +369,7 @@ const enterpriseDeploymentScorer: Scorer = {
       {
         traceId: context.runId,
         traceLabel: "pipeline.daily.enterprise_deployment_scorer.batch",
+        rubric: enterpriseDailyRubricFromContext(context),
       },
     );
     for (const [index, score] of newScores.entries()) {
@@ -428,8 +481,6 @@ const productionUseCaseMarkdownRenderer: Renderer = {
 
 const filesystemArtifactWriter: ArtifactWriter = {
   async write(output, context) {
-    const { mkdirSync, writeFileSync } = await import("node:fs");
-    const { dirname } = await import("node:path");
     const path = renderOutputPath(context);
 
     mkdirSync(dirname(path), { recursive: true });
@@ -479,6 +530,10 @@ export function registerDefaultPipelineComponents(
     },
     artifactWriters: {
       filesystem_artifact_writer: filesystemArtifactWriter,
+    },
+    rubrics: {
+      [enterpriseDailyReadingRubric.id]: enterpriseDailyReadingRubric,
+      [enterpriseUseCaseRubric.id]: enterpriseUseCaseRubric,
     },
   });
 

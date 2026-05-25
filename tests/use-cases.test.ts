@@ -172,6 +172,82 @@ describe("production use case scout", () => {
     }
   });
 
+  it("rejects accepted extractions with mismatched source links", async () => {
+    const originalFetch = globalThis.fetch;
+    const originalServerUrl = process.env.LLAMA_SERVER_URL;
+    const originalModel = process.env.LLAMA_MODEL;
+
+    process.env.LLAMA_SERVER_URL = "http://localhost:8080/v1/chat/completions";
+    process.env.LLAMA_MODEL = "local";
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  accepted: true,
+                  company: "Acme",
+                  workflow: "Customer support",
+                  whatAiDoes: "Drafts replies.",
+                  productionEvidence: "Rolled out.",
+                  businessMetric: "20% faster.",
+                  sourceLink: "https://attacker.example/fake",
+                  publishDate: "2026-05-20",
+                  whyThisMattersForEnterpriseAiWorkflowRedesign: "Shows workflow change.",
+                }),
+              },
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        },
+      )) as typeof fetch;
+
+    try {
+      assert.deepEqual(
+        await extractProductionUseCase(
+          {
+            id: "use-case:https://example.com/story",
+            query: "enterprise AI customer story",
+            title: "Example story",
+            url: "https://example.com/story",
+            description: "Named company production deployment.",
+            publishedAt: "2026-05-20",
+            raw: {},
+          },
+          {
+            url: "https://example.com/story",
+            title: "Example story",
+            plainText: "Acme rolled out an AI assistant.",
+            detectedPaywall: false,
+            contentLength: 32,
+          },
+        ),
+        {
+          accepted: false,
+          rejectionReason: "Extracted source link did not match the fetched source.",
+        },
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalServerUrl === undefined) {
+        delete process.env.LLAMA_SERVER_URL;
+      } else {
+        process.env.LLAMA_SERVER_URL = originalServerUrl;
+      }
+      if (originalModel === undefined) {
+        delete process.env.LLAMA_MODEL;
+      } else {
+        process.env.LLAMA_MODEL = originalModel;
+      }
+    }
+  });
+
   it("collects, prioritizes, fetches, extracts, and returns accepted production use cases", async () => {
     const searchedQueries: string[] = [];
     const fetchedUrls: string[] = [];
@@ -294,6 +370,30 @@ describe("production use case scout", () => {
     assert.match(markdown, /## 1\. Acme/);
     assert.match(markdown, /Workflow: Customer support/);
     assert.match(markdown, /Publish date: 2026-05-20/);
+  });
+
+  it("escapes Markdown in use-case reports", () => {
+    const markdown = writeUseCaseReport(
+      [
+        {
+          company: "Acme [spoof](https://evil.example)",
+          workflow: "Support #1",
+          whatAiDoes: "Drafts *replies*.",
+          productionEvidence: "> rolled out",
+          businessMetric: "20% faster.",
+          sourceLink: "javascript:alert(1)",
+          publishDate: "2026-05-20",
+          whyThisMattersForEnterpriseAiWorkflowRedesign:
+            "Avoids fake [links](https://evil.example).",
+        },
+      ],
+      new Date("2026-05-22T10:00:00Z"),
+    );
+
+    assert.ok(markdown.includes("Acme \\[spoof\\]\\(https://evil.example\\)"));
+    assert.ok(markdown.includes("Support \\#1"));
+    assert.ok(markdown.includes("Drafts \\*replies\\*."));
+    assert.ok(markdown.includes("javascript:alert\\(1\\)"));
   });
 
   it("saves Markdown reports under the use case report directory", () => {

@@ -7,6 +7,7 @@ import { describe, it } from "node:test";
 import { PipelineComponentRegistry } from "../src/framework/pipeline/registry.js";
 import { runPipeline } from "../src/framework/pipeline/runner.js";
 import { ModelParseError } from "../src/framework/llm/repair.js";
+import { registerDefaultPipelineComponents } from "../src/framework/pipeline/defaultComponents.js";
 import { HttpStatusError } from "../src/http/client.js";
 import type { PipelineRunItem } from "../src/framework/pipeline/runner.js";
 import type {
@@ -836,5 +837,114 @@ describe("pipeline runner", () => {
     assert.equal(result.status, "success");
     assert.deepEqual(calls, ["first,second", "third"]);
     assert.equal(result.counts.scored, 3);
+  });
+
+  it("deduplicates collected URL items across collection methods", async () => {
+    const registry = new PipelineComponentRegistry();
+    let fetched = 0;
+
+    registry.registerCollector("collector", {
+      collect: async () => [{ id: "first", url: "https://example.com/report#section" }],
+    });
+    registry.registerContentFetcher("fetcher", {
+      fetch: async () => {
+        fetched += 1;
+        return { fetchStatus: "fetched" };
+      },
+    });
+    registry.registerScorer("scorer", {
+      score: async () => ({ finalScore: 1 }),
+    });
+    registry.registerSelector("selector", {
+      select: async (items) => items,
+    });
+    registry.registerRenderer("renderer", {
+      render: async () => "rendered",
+    });
+    registry.registerArtifactWriter("writer", {
+      write: async () => ({ id: "artifact", type: "markdown" }),
+    });
+
+    const result = await runPipeline(
+      writeConfig(
+        config({
+          collectionMethods: [
+            {
+              id: "first",
+              collectorId: "collector",
+            },
+            {
+              id: "second",
+              collectorId: "collector",
+            },
+          ],
+          classifierId: undefined,
+          structuredExtractorId: undefined,
+        }),
+      ),
+      {
+        startRun: () => "run-dedupe",
+        finishRun: () => undefined,
+        failRun: () => undefined,
+        loadSourceRegistry: () => ({ sources: [] }),
+        logger: silentLogger(),
+        now: () => new Date("2026-05-23T08:00:00.000Z"),
+        registry,
+      },
+    );
+
+    assert.equal(result.status, "success");
+    assert.equal(result.counts.collected, 2);
+    assert.equal(result.counts.duplicatesRemoved, 1);
+    assert.equal(fetched, 1);
+  });
+
+  it("rejects filesystem artifact paths outside the workspace", async () => {
+    const registry = new PipelineComponentRegistry();
+    registerDefaultPipelineComponents(registry);
+
+    registry.registerCollector("collector", {
+      collect: async () => [{ id: "first" }],
+    });
+    registry.registerScorer("scorer", {
+      score: async () => ({ finalScore: 1 }),
+    });
+    registry.registerSelector("selector", {
+      select: async (items) => items,
+    });
+    registry.registerRenderer("renderer", {
+      render: async () => "rendered",
+    });
+
+    const result = await runPipeline(
+      writeConfig(
+        config({
+          contentFetchPolicy: {
+            enabled: false,
+          },
+          classifierId: undefined,
+          structuredExtractorId: undefined,
+          output: {
+            format: "markdown",
+            artifactWriterId: "filesystem_artifact_writer",
+            directory: "..",
+            filenameTemplate: "outside.md",
+          },
+        }),
+      ),
+      {
+        startRun: () => "run-output-path",
+        finishRun: () => undefined,
+        failRun: () => undefined,
+        loadSourceRegistry: () => ({ sources: [] }),
+        logger: silentLogger(),
+        now: () => new Date("2026-05-23T08:00:00.000Z"),
+        registry,
+      },
+    );
+
+    assert.equal(result.status, "failed");
+    assert.equal(result.errors.at(-1)?.code, "pipeline_failed");
+    assert.match(result.errors.at(-1)?.message ?? "", /inside the workspace/);
   });
 });

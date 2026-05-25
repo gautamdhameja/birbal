@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { registerDefaultPipelineComponents } from "../src/framework/pipeline/defaultComponents.js";
 import { PipelineComponentRegistry } from "../src/framework/pipeline/registry.js";
+import { ENTERPRISE_DAILY_READING_RUBRIC_ID } from "../src/pipelines/daily/rubric.js";
+import { ENTERPRISE_USE_CASE_RUBRIC_ID } from "../src/pipelines/useCases/rubric.js";
 import type { PipelineConfig } from "../src/framework/pipeline/types.js";
 
 function pipelineConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
@@ -97,6 +100,34 @@ describe("pipeline component registry", () => {
     assert.deepEqual(resolved.contentFetchers, []);
   });
 
+  it("resolves rubric IDs from top-level pipeline config", () => {
+    const rubric = {
+      id: "rubric",
+      description: "Test rubric.",
+      scale: {
+        min: 1,
+        max: 5,
+      },
+      criteria: [],
+      weights: {},
+      hardRejectionRules: [],
+      outputSchema: {} as never,
+    };
+    const registry = new PipelineComponentRegistry();
+
+    registerRequiredDefaults(registry);
+    registry.registerRubric("rubric", rubric);
+
+    const resolved = registry.resolveFromConfig(
+      pipelineConfig({
+        rubricId: "rubric",
+        components: undefined,
+      }),
+    );
+
+    assert.deepEqual(resolved.rubrics, [rubric]);
+  });
+
   it("supports registering many components and resolving ordered component arrays", () => {
     const firstFetcher = {
       fetch: async () => "first",
@@ -171,5 +202,20 @@ describe("pipeline component registry", () => {
     registry.registerScorer("scorer", secondScorer);
 
     assert.equal(registry.getScorer("scorer"), secondScorer);
+  });
+
+  it("registers the enterprise daily reading rubric as a default component", () => {
+    const registry = new PipelineComponentRegistry();
+
+    registerDefaultPipelineComponents(registry);
+
+    assert.equal(
+      registry.getRubric(ENTERPRISE_DAILY_READING_RUBRIC_ID).id,
+      ENTERPRISE_DAILY_READING_RUBRIC_ID,
+    );
+    assert.equal(
+      registry.getRubric(ENTERPRISE_USE_CASE_RUBRIC_ID).id,
+      ENTERPRISE_USE_CASE_RUBRIC_ID,
+    );
   });
 });

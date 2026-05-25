@@ -18,6 +18,7 @@ describe("pipeline config", () => {
 
     assert.equal(config.pipelineId, "daily");
     assert.equal(config.enabled, true);
+    assert.equal(config.rubricId, "enterprise_daily_reading_rubric");
     assert.deepEqual(config.sourceIds, ["hackernews"]);
     assert.deepEqual(config.execution, {
       collectionConcurrency: 3,
@@ -47,6 +48,7 @@ describe("pipeline config", () => {
       contentFetcher: "url_text_fetcher",
       contentExtractors: undefined,
       scorer: "enterprise_deployment_scorer",
+      rubric: "enterprise_daily_reading_rubric",
       classifier: "enterprise_digest_classifier",
       structuredExtractor: undefined,
       selector: "daily_enterprise_mix_selector",
@@ -60,6 +62,7 @@ describe("pipeline config", () => {
 
     assert.equal(config.pipelineId, "use_cases");
     assert.equal(config.scorerId, "production_use_case_filter");
+    assert.equal(config.rubricId, undefined);
     assert.equal(config.structuredExtractorId, "production_use_case_extractor");
     assert.deepEqual(config.contentFetchPolicy, {
       enabled: true,
@@ -79,6 +82,7 @@ describe("pipeline config", () => {
       "source_domain_collector",
       "brave_web_search_collector",
     ]);
+    assert.equal(config.components?.rubric, undefined);
   });
 
   it("rejects invalid pipeline config JSON", () => {

@@ -19,26 +19,34 @@ function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
+function escapeMarkdownText(value: string): string {
+  return normalizeWhitespace(value).replace(/[\\`*_{}[\]()#+!|>]/g, "\\$&");
+}
+
 function renderUseCaseUrl(url: string): string {
   try {
     const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return escapeMarkdownText(url);
+    }
+
     return `[${parsed.hostname}](${parsed.toString()})`;
   } catch {
-    return normalizeWhitespace(url);
+    return escapeMarkdownText(url);
   }
 }
 
 function renderUseCase(useCase: ProductionUseCase, index: number): string {
   return [
-    `## ${index + 1}. ${normalizeWhitespace(useCase.company)}`,
+    `## ${index + 1}. ${escapeMarkdownText(useCase.company)}`,
     "",
-    `- Workflow: ${normalizeWhitespace(useCase.workflow)}`,
-    `- What AI does: ${normalizeWhitespace(useCase.whatAiDoes)}`,
-    `- Production evidence: ${normalizeWhitespace(useCase.productionEvidence)}`,
-    `- Business metric: ${normalizeWhitespace(useCase.businessMetric)}`,
+    `- Workflow: ${escapeMarkdownText(useCase.workflow)}`,
+    `- What AI does: ${escapeMarkdownText(useCase.whatAiDoes)}`,
+    `- Production evidence: ${escapeMarkdownText(useCase.productionEvidence)}`,
+    `- Business metric: ${escapeMarkdownText(useCase.businessMetric)}`,
     `- Source link: ${renderUseCaseUrl(useCase.sourceLink)}`,
-    `- Publish date: ${formatDateOnly(useCase.publishDate, "Unknown")}`,
-    `- Why this matters: ${normalizeWhitespace(useCase.whyThisMattersForEnterpriseAiWorkflowRedesign)}`,
+    `- Publish date: ${escapeMarkdownText(formatDateOnly(useCase.publishDate, "Unknown"))}`,
+    `- Why this matters: ${escapeMarkdownText(useCase.whyThisMattersForEnterpriseAiWorkflowRedesign)}`,
   ].join("\n");
 }
 
