@@ -28,6 +28,16 @@ type NormalizedSearchWebOptions = {
   freshness: string;
 };
 
+type BraveSearchQuotaState = {
+  calls: number;
+  rateLimited: boolean;
+};
+
+const quotaState: BraveSearchQuotaState = {
+  calls: 0,
+  rateLimited: false,
+};
+
 const BraveWebResultSchema = z.looseObject({
   title: z.string().catch(""),
   url: z.string().catch(""),
@@ -102,8 +112,26 @@ export function normalizeBraveWebResult(result: BraveWebResult): SearchWebResult
   };
 }
 
+function reserveBraveSearchCall(maxCalls: number): void {
+  if (quotaState.rateLimited) {
+    throw new Error(BRAVE_SEARCH.ERRORS.RATE_LIMIT_CIRCUIT_OPEN);
+  }
+
+  if (quotaState.calls >= maxCalls) {
+    throw new Error(BRAVE_SEARCH.ERRORS.QUOTA_EXCEEDED);
+  }
+
+  quotaState.calls += 1;
+}
+
+export function resetBraveSearchQuotaForTests(): void {
+  quotaState.calls = 0;
+  quotaState.rateLimited = false;
+}
+
 export async function searchWeb(options: SearchWebOptions): Promise<SearchWebResult[]> {
   const config = getBraveSearchConfig();
+  reserveBraveSearchCall(config.BRAVE_SEARCH_MAX_CALLS_PER_PROCESS);
   const response = await fetchWithRetry(
     buildBraveSearchUrl(config.BRAVE_SEARCH_URL, normalizeOptions(options)),
     {
@@ -120,6 +148,10 @@ export async function searchWeb(options: SearchWebOptions): Promise<SearchWebRes
   );
 
   if (!response.ok) {
+    if (response.status === 429) {
+      quotaState.rateLimited = true;
+    }
+
     throw await buildHttpStatusError(BRAVE_SEARCH.ERRORS.HTTP_FAILED_PREFIX, response);
   }
 

@@ -90,6 +90,12 @@ function recordingLogger(logs: unknown[]): PipelineLogger {
   };
 }
 
+function testSourceRegistry(): { sources: Array<{ id: string }> } {
+  return {
+    sources: [{ id: "source-a" }],
+  };
+}
+
 describe("pipeline runner", () => {
   it("runs configured generic pipeline components in order", async () => {
     const calls: string[] = [];
@@ -188,7 +194,7 @@ describe("pipeline runner", () => {
         failRun: (_runId, errorSummary) => {
           failedRuns.push(errorSummary);
         },
-        loadSourceRegistry: () => ({ sources: [] }),
+        loadSourceRegistry: testSourceRegistry,
         logger: recordingLogger(logs),
         now: (() => {
           const dates = [
@@ -272,7 +278,7 @@ describe("pipeline runner", () => {
       startRun: () => "run-2",
       finishRun: () => undefined,
       failRun: () => undefined,
-      loadSourceRegistry: () => ({ sources: [] }),
+      loadSourceRegistry: testSourceRegistry,
       logger: silentLogger(),
       now: () => new Date("2026-05-23T08:00:00.000Z"),
       registry: new PipelineComponentRegistry(),
@@ -319,7 +325,7 @@ describe("pipeline runner", () => {
         startRun: () => "run-no-score",
         finishRun: () => undefined,
         failRun: () => undefined,
-        loadSourceRegistry: () => ({ sources: [] }),
+        loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
         registry,
@@ -378,7 +384,7 @@ describe("pipeline runner", () => {
           finishedRuns.push(summary);
         },
         failRun: () => undefined,
-        loadSourceRegistry: () => ({ sources: [] }),
+        loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
         registry,
@@ -440,7 +446,7 @@ describe("pipeline runner", () => {
         startRun: () => "run-structured-fetch-failure",
         finishRun: () => undefined,
         failRun: () => undefined,
-        loadSourceRegistry: () => ({ sources: [] }),
+        loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
         registry,
@@ -504,7 +510,7 @@ describe("pipeline runner", () => {
         startRun: () => "run-prefer-fetched",
         finishRun: () => undefined,
         failRun: () => undefined,
-        loadSourceRegistry: () => ({ sources: [] }),
+        loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
         registry,
@@ -571,7 +577,7 @@ describe("pipeline runner", () => {
         startRun: () => "run-scoring-partial",
         finishRun: () => undefined,
         failRun: () => undefined,
-        loadSourceRegistry: () => ({ sources: [] }),
+        loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
         registry,
@@ -627,7 +633,7 @@ describe("pipeline runner", () => {
         startRun: () => "run-source-failure",
         finishRun: () => undefined,
         failRun: () => undefined,
-        loadSourceRegistry: () => ({ sources: [] }),
+        loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
         registry,
@@ -638,6 +644,109 @@ describe("pipeline runner", () => {
     assert.equal(result.counts.collectionErrors, 1);
     assert.equal(result.errors[0]?.code, "collection_failed");
     assert.equal(result.errors.at(-1)?.code, "failure_policy_abort");
+  });
+
+  it("marks structured collector errors as partial when source failures are continuable", async () => {
+    const registry = new PipelineComponentRegistry();
+
+    registry.registerCollector("collector", {
+      collect: async () => ({
+        items: [{ id: "first" }],
+        errors: [
+          {
+            message: "one query failed",
+            code: "source_collection_failed",
+            metadata: { query: "bad query" },
+          },
+        ],
+      }),
+    });
+    registry.registerScorer("scorer", {
+      score: async () => ({ finalScore: 1 }),
+    });
+    registry.registerSelector("selector", {
+      select: async (items) => items,
+    });
+    registry.registerRenderer("renderer", {
+      render: async () => "rendered",
+    });
+    registry.registerArtifactWriter("writer", {
+      write: async () => ({ id: "artifact", type: "markdown" }),
+    });
+
+    const result = await runPipeline(
+      writeConfig(
+        config({
+          contentFetchPolicy: {
+            enabled: false,
+          },
+          classifierId: undefined,
+          structuredExtractorId: undefined,
+        }),
+      ),
+      {
+        startRun: () => "run-source-partial",
+        finishRun: () => undefined,
+        failRun: () => undefined,
+        loadSourceRegistry: testSourceRegistry,
+        logger: silentLogger(),
+        now: () => new Date("2026-05-23T08:00:00.000Z"),
+        registry,
+      },
+    );
+
+    assert.equal(result.status, "partial_success");
+    assert.equal(result.counts.collectionErrors, 1);
+    assert.equal(result.counts.selected, 1);
+    assert.equal(result.errors[0]?.code, "source_collection_failed");
+  });
+
+  it("rejects pipeline configs that reference unknown source IDs", async () => {
+    const registry = new PipelineComponentRegistry();
+
+    registry.registerCollector("collector", {
+      collect: async () => [{ id: "first" }],
+    });
+    registry.registerScorer("scorer", {
+      score: async () => ({ finalScore: 1 }),
+    });
+    registry.registerSelector("selector", {
+      select: async (items) => items,
+    });
+    registry.registerRenderer("renderer", {
+      render: async () => "rendered",
+    });
+    registry.registerArtifactWriter("writer", {
+      write: async () => ({ id: "artifact", type: "markdown" }),
+    });
+
+    const result = await runPipeline(
+      writeConfig(
+        config({
+          sourceIds: ["missing-source"],
+          collectionMethods: [
+            {
+              id: "web",
+              collectorId: "collector",
+              sourceIds: ["missing-source"],
+            },
+          ],
+        }),
+      ),
+      {
+        startRun: () => "run-unknown-source",
+        finishRun: () => undefined,
+        failRun: () => undefined,
+        loadSourceRegistry: testSourceRegistry,
+        logger: silentLogger(),
+        now: () => new Date("2026-05-23T08:00:00.000Z"),
+        registry,
+      },
+    );
+
+    assert.equal(result.status, "failed");
+    assert.equal(result.errors[0]?.code, "source_registry_load_failed");
+    assert.match(result.errors[0]?.message ?? "", /unknown source IDs: missing-source/);
   });
 
   it("fails when selected output is below the configured minimum", async () => {
@@ -680,7 +789,7 @@ describe("pipeline runner", () => {
         startRun: () => "run-minimum-output",
         finishRun: () => undefined,
         failRun: () => undefined,
-        loadSourceRegistry: () => ({ sources: [] }),
+        loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
         registry,
@@ -733,7 +842,7 @@ describe("pipeline runner", () => {
         startRun: () => "run-4",
         finishRun: () => undefined,
         failRun: () => undefined,
-        loadSourceRegistry: () => ({ sources: [] }),
+        loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
         registry,
@@ -802,7 +911,7 @@ describe("pipeline runner", () => {
         startRun: () => "run-model-parse-error",
         finishRun: () => undefined,
         failRun: () => undefined,
-        loadSourceRegistry: () => ({ sources: [] }),
+        loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
         registry,
@@ -874,7 +983,7 @@ describe("pipeline runner", () => {
         startRun: () => "run-5",
         finishRun: () => undefined,
         failRun: () => undefined,
-        loadSourceRegistry: () => ({ sources: [] }),
+        loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
         registry,
@@ -933,7 +1042,7 @@ describe("pipeline runner", () => {
         startRun: () => "run-dedupe",
         finishRun: () => undefined,
         failRun: () => undefined,
-        loadSourceRegistry: () => ({ sources: [] }),
+        loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
         registry,
@@ -983,7 +1092,7 @@ describe("pipeline runner", () => {
         startRun: () => "run-output-path",
         finishRun: () => undefined,
         failRun: () => undefined,
-        loadSourceRegistry: () => ({ sources: [] }),
+        loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
         registry,
@@ -1037,7 +1146,7 @@ describe("pipeline runner", () => {
           startRun: () => "run-output-symlink",
           finishRun: () => undefined,
           failRun: () => undefined,
-          loadSourceRegistry: () => ({ sources: [] }),
+          loadSourceRegistry: testSourceRegistry,
           logger: silentLogger(),
           now: () => new Date("2026-05-23T08:00:00.000Z"),
           registry,

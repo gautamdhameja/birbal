@@ -77,7 +77,7 @@ export type PipelineOutputConfig = {
   format: string;
   directory?: string;
   filenameTemplate?: string;
-  artifactWriterId?: string;
+  artifactWriterId: string;
   metadata?: PipelineMetadata;
 };
 
@@ -181,8 +181,16 @@ export interface SourceCollector<
   TCollectedItem = unknown,
   TContext extends PipelineContext = PipelineContext,
 > {
-  collect(query: TQuery, context: TContext): Promise<TCollectedItem[]>;
+  collect(
+    query: TQuery,
+    context: TContext,
+  ): Promise<TCollectedItem[] | SourceCollectionResult<TCollectedItem>>;
 }
+
+export type SourceCollectionResult<TCollectedItem = unknown> = {
+  items: TCollectedItem[];
+  errors?: PipelineError[];
+};
 
 export interface ContentFetcher<
   TItem = unknown,

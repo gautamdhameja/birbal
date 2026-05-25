@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { beforeEach, describe, it } from "node:test";
 
 import { buildArxivSearchQuery, parseArxivAtomFeed } from "../src/arxiv/client.js";
-import { normalizeBraveWebResult, searchWeb } from "../src/brave-search/client.js";
+import {
+  normalizeBraveWebResult,
+  resetBraveSearchQuotaForTests,
+  searchWeb,
+} from "../src/brave-search/client.js";
 import { CONTENT_FETCH_STATUSES, HTTP, SOURCE_REGISTRY } from "../src/constants.js";
 import { normalizeHackerNewsHit } from "../src/hackernews/client.js";
 import { searchSourceDomain } from "../src/source-search/domain.js";
@@ -24,6 +28,10 @@ function assertString(value: unknown): asserts value is string {
 const publicHostResolver = async () => [{ address: "93.184.216.34", family: 4 as const }];
 
 describe("tool registry", () => {
+  beforeEach(() => {
+    resetBraveSearchQuotaForTests();
+  });
+
   it("formats local ISO timestamps with an explicit timezone offset", () => {
     assert.match(
       formatLocalIsoString(new Date()),
@@ -285,6 +293,73 @@ describe("tool registry", () => {
         delete process.env.BRAVE_SEARCH_API_KEY;
       } else {
         process.env.BRAVE_SEARCH_API_KEY = originalApiKey;
+      }
+    }
+  });
+
+  it("enforces Brave Search process call quota", async () => {
+    const originalFetch = globalThis.fetch;
+    const originalApiKey = process.env.BRAVE_SEARCH_API_KEY;
+    const originalMaxCalls = process.env.BRAVE_SEARCH_MAX_CALLS_PER_PROCESS;
+
+    process.env.BRAVE_SEARCH_API_KEY = "test-key";
+    process.env.BRAVE_SEARCH_MAX_CALLS_PER_PROCESS = "1";
+    globalThis.fetch = (() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ web: { results: [] } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      )) as typeof fetch;
+
+    try {
+      await searchWeb({ query: "LLM agents" });
+      await assert.rejects(
+        () => searchWeb({ query: "LLM agents" }),
+        /Brave Search process quota exceeded/,
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalApiKey === undefined) {
+        delete process.env.BRAVE_SEARCH_API_KEY;
+      } else {
+        process.env.BRAVE_SEARCH_API_KEY = originalApiKey;
+      }
+      if (originalMaxCalls === undefined) {
+        delete process.env.BRAVE_SEARCH_MAX_CALLS_PER_PROCESS;
+      } else {
+        process.env.BRAVE_SEARCH_MAX_CALLS_PER_PROCESS = originalMaxCalls;
+      }
+    }
+  });
+
+  it("rejects invalid Brave Search quota configuration", async () => {
+    const originalFetch = globalThis.fetch;
+    const originalApiKey = process.env.BRAVE_SEARCH_API_KEY;
+    const originalMaxCalls = process.env.BRAVE_SEARCH_MAX_CALLS_PER_PROCESS;
+    let calls = 0;
+
+    process.env.BRAVE_SEARCH_API_KEY = "test-key";
+    process.env.BRAVE_SEARCH_MAX_CALLS_PER_PROCESS = "not-a-number";
+    globalThis.fetch = (() => {
+      calls += 1;
+      return Promise.resolve(new Response("{}"));
+    }) as typeof fetch;
+
+    try {
+      await assert.rejects(() => searchWeb({ query: "LLM agents" }));
+      assert.equal(calls, 0);
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalApiKey === undefined) {
+        delete process.env.BRAVE_SEARCH_API_KEY;
+      } else {
+        process.env.BRAVE_SEARCH_API_KEY = originalApiKey;
+      }
+      if (originalMaxCalls === undefined) {
+        delete process.env.BRAVE_SEARCH_MAX_CALLS_PER_PROCESS;
+      } else {
+        process.env.BRAVE_SEARCH_MAX_CALLS_PER_PROCESS = originalMaxCalls;
       }
     }
   });

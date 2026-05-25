@@ -6,6 +6,7 @@ export const CLI = {
 } as const;
 
 export const LOGGING = {
+  DEBUG_LEVEL: "debug",
   DEFAULT_LEVEL: "info",
   PRETTY_ENABLED_VALUE: "true",
   PRETTY_DESTINATION_FD: 2,

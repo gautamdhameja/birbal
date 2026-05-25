@@ -51,7 +51,7 @@ const PipelineOutputConfigSchema = z.strictObject({
   format: NonEmptyStringSchema,
   directory: NonEmptyStringSchema.optional(),
   filenameTemplate: NonEmptyStringSchema.optional(),
-  artifactWriterId: NonEmptyStringSchema.optional(),
+  artifactWriterId: NonEmptyStringSchema,
   metadata: MetadataSchema.optional(),
 });
 

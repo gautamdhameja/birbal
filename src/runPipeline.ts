@@ -3,7 +3,7 @@ import { pathToFileURL } from "node:url";
 import { Command, InvalidArgumentError } from "commander";
 import dotenv from "dotenv";
 
-import { ENV_FILE_PATHS, OUTPUT } from "./constants/runtime.js";
+import { ENV_FILE_PATHS, LOGGING, OUTPUT } from "./constants/runtime.js";
 import type { PipelineConfig } from "./framework/pipeline/types.js";
 
 type CliOptions = {
@@ -90,7 +90,7 @@ function applyLimit(config: PipelineConfig, limit: number | undefined): Pipeline
 async function main(): Promise<void> {
   const options = parseCliArgs(process.argv.slice(2));
   if (options.trace) {
-    process.env.LOG_LEVEL = "debug";
+    process.env.LOG_LEVEL = LOGGING.DEBUG_LEVEL;
     process.env.LOG_PRETTY = process.env.LOG_PRETTY ?? "true";
   }
 
@@ -103,11 +103,17 @@ async function main(): Promise<void> {
   const loadConfig = (value: string) => applyLimit(loadPipelineConfig(value), options.limit);
 
   if (options.dryRun) {
+    const [{ loadSourceRegistry }, { validateConfiguredSourceIds }] = await Promise.all([
+      import("./config/sourceRegistry.js"),
+      import("./framework/pipeline/runner.js"),
+    ]);
+    const config = loadConfig(configPathOrId);
+    validateConfiguredSourceIds(config, loadSourceRegistry());
     console.log(
       JSON.stringify(
         {
           dryRun: true,
-          config: loadConfig(configPathOrId),
+          config,
         },
         null,
         OUTPUT.JSON_INDENT_SPACES,

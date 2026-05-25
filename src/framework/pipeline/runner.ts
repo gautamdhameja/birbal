@@ -28,6 +28,7 @@ import type {
   Renderer,
   Scorer,
   Selector,
+  SourceCollectionResult,
   SourceCollector,
   StructuredExtractor,
 } from "./types.js";
@@ -242,6 +243,66 @@ function assertComponent<TComponent>(
   }
 
   return component;
+}
+
+function isSourceCollectionResult(value: unknown): value is SourceCollectionResult {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "items" in value &&
+    Array.isArray((value as SourceCollectionResult).items)
+  );
+}
+
+function normalizeCollectionResult(collected: unknown[] | SourceCollectionResult): {
+  items: unknown[];
+  errors: PipelineError[];
+} {
+  if (isSourceCollectionResult(collected)) {
+    return {
+      items: collected.items,
+      errors: collected.errors ?? [],
+    };
+  }
+
+  return {
+    items: collected,
+    errors: [],
+  };
+}
+
+function sourceRegistryIds(sourceRegistry: unknown): Set<string> {
+  if (
+    typeof sourceRegistry !== "object" ||
+    sourceRegistry === null ||
+    !("sources" in sourceRegistry) ||
+    !Array.isArray((sourceRegistry as { sources?: unknown }).sources)
+  ) {
+    return new Set();
+  }
+
+  return new Set(
+    (sourceRegistry as { sources: Array<{ id?: unknown }> }).sources
+      .map((source) => source.id)
+      .filter((id): id is string => typeof id === "string" && id.length > 0),
+  );
+}
+
+export function validateConfiguredSourceIds(config: PipelineConfig, sourceRegistry: unknown): void {
+  const knownSourceIds = sourceRegistryIds(sourceRegistry);
+  const configuredSourceIds = new Set([
+    ...config.sourceIds,
+    ...config.collectionMethods.flatMap((method) => method.sourceIds ?? []),
+  ]);
+  const unknownSourceIds = [...configuredSourceIds].filter(
+    (sourceId) => !knownSourceIds.has(sourceId),
+  );
+
+  if (unknownSourceIds.length > 0) {
+    throw new Error(
+      `Pipeline references unknown source IDs: ${unknownSourceIds.sort().join(", ")}`,
+    );
+  }
 }
 
 function itemId(item: unknown, index: number): string {
@@ -569,8 +630,10 @@ async function collectItems(
 
       try {
         const collected = await collector.collect(method, context);
+        const normalized = normalizeCollectionResult(collected);
         return {
-          items: collected,
+          items: normalized.items,
+          errors: normalized.errors,
           method,
         };
       } catch (error) {
@@ -606,6 +669,17 @@ async function collectItems(
     const method = result.method;
     if (!method) {
       continue;
+    }
+
+    if (result.errors && result.errors.length > 0) {
+      incrementCount(counts, "collectionErrors", result.errors.length);
+      errors.push(...result.errors);
+
+      if (!shouldContinueAfterSourceFailure(context.config)) {
+        throw new PipelinePolicyAbortError(
+          `Pipeline stopped after source collection failure in ${method.id}.`,
+        );
+      }
     }
 
     incrementCount(counts, "collectionMethodsRun");
@@ -1118,6 +1192,7 @@ export async function runPipeline(
   let sourceRegistry: unknown;
   try {
     sourceRegistry = deps.loadSourceRegistry();
+    validateConfiguredSourceIds(config, sourceRegistry);
   } catch (error) {
     errors.push(toPipelineError(error, { code: "source_registry_load_failed" }));
     return failPipelineRun(

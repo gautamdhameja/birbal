@@ -1,4 +1,12 @@
-import { lstatSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  constants as fsConstants,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 import { searchWeb } from "../../brave-search/client.js";
@@ -30,6 +38,7 @@ import { enterpriseDailyReadingRubric } from "../../pipelines/daily/rubric.js";
 import type { EnterpriseDailyScore } from "../../pipelines/daily/rubric.js";
 import type { EnterpriseUseCase } from "../../pipelines/useCases/schema.js";
 import { selectEnterpriseUseCases } from "../../pipelines/useCases/selector.js";
+import { formatDateOnlyInTimeZone } from "../../utils/date.js";
 import type { Rubric } from "../scoring/rubric.js";
 import type { PipelineComponentRegistry } from "./registry.js";
 import { pipelineComponentRegistry } from "./registry.js";
@@ -126,15 +135,15 @@ function outputLimit(context: PipelineContext): number | undefined {
   return typeof limit === "number" && Number.isInteger(limit) && limit > 0 ? limit : undefined;
 }
 
-function dateString(date = new Date()): string {
-  return date.toISOString().slice(0, 10);
+function runDateString(context: PipelineContext): string {
+  return formatDateOnlyInTimeZone(context.startedAt, context.config.schedule?.timezone);
 }
 
 function renderOutputPath(context: PipelineContext): string {
   const directory = context.config.output.directory ?? ".";
   const filenameTemplate = context.config.output.filenameTemplate ?? `${context.pipelineId}.txt`;
   const filename = filenameTemplate
-    .replaceAll("{date}", dateString())
+    .replaceAll("{date}", runDateString(context))
     .replaceAll("{pipelineId}", context.pipelineId)
     .replaceAll("{runId}", context.runId);
   const unsafeParts = [directory, filename].flatMap((part) => part.split(/[\\/]+/));
@@ -264,11 +273,14 @@ function useCaseQueries(method: PipelineCollectionMethod): readonly string[] {
   return method.queries;
 }
 
-function useCaseScoutConfigFromContext(context: PipelineContext) {
+function useCaseScoutConfigFromContext(context: PipelineContext, method: PipelineCollectionMethod) {
+  const sourceRegistry = scopedSourceRegistry(
+    sourceRegistryFromContext(context),
+    collectionSourceIds(method, context),
+  );
+
   return {
-    prioritizedDomains: sourceRegistryFromContext(context).sources.flatMap(
-      (source) => source.domains,
-    ),
+    prioritizedDomains: sourceRegistry.sources.flatMap((source) => source.domains),
     maxSearchQueries: context.config.limits.maxSearchQueries ?? 1,
     maxSearchResultsPerQuery: context.config.limits.maxSearchResultsPerQuery ?? 10,
     maxCandidatesForExtraction: context.config.limits.maxCandidatesForExtraction ?? 30,
@@ -303,14 +315,27 @@ const sourceDomainCollector: SourceCollector = {
       "daily sources selected",
     );
 
-    return result.candidates;
+    return {
+      items: result.candidates,
+      errors: result.errors.map((error) => ({
+        message: error.error,
+        sourceId: error.source,
+        code: "source_collection_failed",
+        metadata: {
+          source: error.source,
+          topic: error.topic,
+          status: error.status,
+        },
+      })),
+    };
   },
 };
 
 const braveWebSearchCollector: SourceCollector = {
   async collect(method, context) {
-    const config = useCaseScoutConfigFromContext(context);
-    const queries = useCaseQueries(method as PipelineCollectionMethod);
+    const collectionMethod = method as PipelineCollectionMethod;
+    const config = useCaseScoutConfigFromContext(context, collectionMethod);
+    const queries = useCaseQueries(collectionMethod);
     const result = await collectUseCaseSearchCandidates(
       config,
       (query, maxResults, freshness) => searchWeb({ query, maxResults, freshness }),
@@ -320,8 +345,8 @@ const braveWebSearchCollector: SourceCollector = {
     context.logger.info(
       {
         event: "pipeline.use_cases.search_queries",
-        collectorId: (method as PipelineCollectionMethod).collectorId,
-        methodId: (method as PipelineCollectionMethod).id,
+        collectorId: collectionMethod.collectorId,
+        methodId: collectionMethod.id,
         configuredQueryCount: queries.length,
         searchedQueryCount: result.searchedQueries,
       },
@@ -338,7 +363,18 @@ const braveWebSearchCollector: SourceCollector = {
       );
     }
 
-    return result.candidates;
+    return {
+      items: result.candidates,
+      errors: result.searchErrors.map((error) => ({
+        message: error.error,
+        stepId: collectionMethod.id,
+        code: "source_collection_failed",
+        metadata: {
+          query: error.query,
+          collectorId: collectionMethod.collectorId,
+        },
+      })),
+    };
   },
 };
 
@@ -477,8 +513,8 @@ const dailyEnterpriseMixSelector: Selector = {
 };
 
 const dailyMarkdownRenderer: Renderer = {
-  async render(items) {
-    return writeDigest(items as ScoredCandidateItem[], new Date());
+  async render(items, context) {
+    return writeDigest(items as ScoredCandidateItem[], runDateString(context));
   },
 };
 
@@ -543,18 +579,31 @@ const enterpriseUseCaseSelector: Selector = {
 };
 
 const enterpriseUseCaseMarkdownRenderer: Renderer = {
-  async render(items) {
-    return renderEnterpriseUseCaseDigest(items as EnterpriseUseCase[], new Date());
+  async render(items, context) {
+    return renderEnterpriseUseCaseDigest(items as EnterpriseUseCase[], runDateString(context));
   },
 };
 
 const filesystemArtifactWriter: ArtifactWriter = {
   async write(output, context) {
     const path = renderOutputPath(context);
+    const fileHandle = { fd: -1 };
 
     mkdirSync(dirname(path), { recursive: true });
     assertOutputPathResolvesInsideWorkspace(path);
-    writeFileSync(path, String(output));
+    fileHandle.fd = openSync(
+      path,
+      fsConstants.O_WRONLY |
+        fsConstants.O_CREAT |
+        fsConstants.O_TRUNC |
+        (fsConstants.O_NOFOLLOW ?? 0),
+      0o600,
+    );
+    try {
+      writeFileSync(fileHandle.fd, String(output));
+    } finally {
+      closeSync(fileHandle.fd);
+    }
 
     return {
       id: `${context.pipelineId}_artifact`,

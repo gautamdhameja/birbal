@@ -25,6 +25,69 @@
       "sourceType": "academic_fallback",
       "searchQueries": ["LLM agents", "agent evaluation", "RAG systems"],
       "enabled": false
+    },
+    {
+      "id": "openai",
+      "name": "OpenAI",
+      "domains": ["openai.com"],
+      "priority": 1,
+      "sourceType": "vendor",
+      "searchQueries": ["enterprise AI customer story workflow production outcome"],
+      "enabled": true
+    },
+    {
+      "id": "microsoft_customers",
+      "name": "Microsoft Customer Stories",
+      "domains": ["microsoft.com", "news.microsoft.com", "blogs.microsoft.com"],
+      "priority": 2,
+      "sourceType": "vendor",
+      "searchQueries": ["Azure OpenAI Copilot enterprise customer story workflow"],
+      "enabled": true
+    },
+    {
+      "id": "google_cloud_customers",
+      "name": "Google Cloud Customer Stories",
+      "domains": ["cloud.google.com", "googlecloudpresscorner.com"],
+      "priority": 3,
+      "sourceType": "vendor",
+      "searchQueries": ["Vertex AI Gemini generative AI enterprise workflow customer story"],
+      "enabled": true
+    },
+    {
+      "id": "anthropic",
+      "name": "Anthropic",
+      "domains": ["anthropic.com"],
+      "priority": 4,
+      "sourceType": "vendor",
+      "searchQueries": ["Claude enterprise customer production workflow deployment"],
+      "enabled": true
+    },
+    {
+      "id": "aws_case_studies",
+      "name": "AWS Case Studies",
+      "domains": ["aws.amazon.com"],
+      "priority": 5,
+      "sourceType": "vendor",
+      "searchQueries": ["generative AI enterprise customer story workflow"],
+      "enabled": true
+    },
+    {
+      "id": "consulting_and_business_press",
+      "name": "Consulting and Business Press",
+      "domains": [
+        "mckinsey.com",
+        "deloitte.com",
+        "bcg.com",
+        "pwc.com",
+        "accenture.com",
+        "reuters.com",
+        "ft.com",
+        "businessinsider.com"
+      ],
+      "priority": 6,
+      "sourceType": "business_press",
+      "searchQueries": ["generative AI enterprise case study workflow ROI"],
+      "enabled": true
     }
   ]
 }

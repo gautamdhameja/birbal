@@ -15,6 +15,9 @@ const SourceRegistryItemSchema = z
     sourceType: z.enum([
       SOURCE_REGISTRY.SOURCE_TYPES.COMMUNITY,
       SOURCE_REGISTRY.SOURCE_TYPES.ACADEMIC_FALLBACK,
+      SOURCE_REGISTRY.SOURCE_TYPES.VENDOR,
+      SOURCE_REGISTRY.SOURCE_TYPES.CONSULTING,
+      SOURCE_REGISTRY.SOURCE_TYPES.BUSINESS_PRESS,
     ]),
     searchQueries: z.array(z.string().trim().min(1)).min(1),
     enabled: z.boolean(),

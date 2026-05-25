@@ -68,7 +68,7 @@ export async function runAgent(task: string, options: RunAgentOptions = {}): Pro
         modelPassId,
         step,
         messageCount: messages.length,
-        lastMessagePreview: preview(messages.at(-1)?.content ?? ""),
+        lastMessageLength: messages.at(-1)?.content.length ?? 0,
       },
       AGENT.LOG_MESSAGES.HARNESS_TO_MODEL,
     );
@@ -83,7 +83,7 @@ export async function runAgent(task: string, options: RunAgentOptions = {}): Pro
         traceId,
         modelPassId,
         step,
-        rawPreview: preview(raw),
+        rawLength: raw.length,
       },
       AGENT.LOG_MESSAGES.MODEL_TO_HARNESS,
     );
@@ -100,7 +100,7 @@ export async function runAgent(task: string, options: RunAgentOptions = {}): Pro
             traceId,
             modelPassId,
             step,
-            rawPreview: preview(raw),
+            rawLength: raw.length,
             error: message,
           },
           AGENT.LOG_MESSAGES.RESPONSE_PARSE_FAILED,
@@ -197,7 +197,7 @@ export async function runAgent(task: string, options: RunAgentOptions = {}): Pro
         traceId,
         modelPassId,
         step,
-        messagePreview: preview(toolResultMessage.content),
+        messageLength: toolResultMessage.content.length,
       },
       AGENT.LOG_MESSAGES.APPEND_TOOL_RESULT,
     );

@@ -29,6 +29,7 @@ function pipelineConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig
     rendererId: "test_renderer",
     output: {
       format: "markdown",
+      artifactWriterId: "test_writer",
     },
     limits: {},
     ...overrides,
@@ -55,6 +56,9 @@ function registerRequiredDefaults(registry: PipelineComponentRegistry): void {
   registry.registerRenderer("test_renderer", {
     render: async () => "",
   });
+  registry.registerArtifactWriter("test_writer", {
+    write: async () => ({ id: "artifact", type: "markdown" }),
+  });
 }
 
 describe("pipeline component registry", () => {
@@ -77,6 +81,9 @@ describe("pipeline component registry", () => {
     registry.registerScorer("enterprise_deployment_scorer", scorer);
     registry.registerSelector("daily_enterprise_mix_selector", selector);
     registry.registerRenderer("daily_markdown_renderer", renderer);
+    registry.registerArtifactWriter("test_writer", {
+      write: async () => ({ id: "artifact", type: "markdown" }),
+    });
 
     const config = pipelineConfig({
       collectionMethods: [

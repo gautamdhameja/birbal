@@ -18,7 +18,7 @@ const traceEnabled = Boolean(options.trace);
 const task = program.args.join(" ").trim() || CLI.DEFAULT_TASK;
 
 if (traceEnabled) {
-  process.env.LOG_LEVEL = process.env.LOG_LEVEL?.trim() || LOGGING.DEFAULT_LEVEL;
+  process.env.LOG_LEVEL = process.env.LOG_LEVEL?.trim() || LOGGING.DEBUG_LEVEL;
   process.env.LOG_PRETTY = process.env.LOG_PRETTY?.trim() || LOGGING.PRETTY_ENABLED_VALUE;
 }
 

@@ -83,7 +83,7 @@ Source folders:
 - `src/arxiv/`, `src/hackernews/`, `src/brave-search/`: source/search clients and environment config.
 - `src/config/`: JSON config loading for source registries.
 - `src/constants/`: domain-specific constants grouped by responsibility.
-- `src/daily/`: daily candidate collection, LLM scoring, classification, digest selection, digest rendering, and an older non-framework daily job.
+- `src/daily/`: daily candidate collection, LLM scoring, classification, digest selection, and digest rendering.
 - `src/db/`: SQLite persistence for items, scores, pipeline runs, and enterprise use cases.
 - `src/framework/`: reusable framework modules for pipelines, LLM JSON repair, scoring rubrics, content fetching, and network fetch helpers.
 - `src/http/`: HTTP response helpers and URL safety checks.
@@ -107,6 +107,8 @@ Generated runtime data is intentionally outside source:
 - `digests/*.md`: daily digest outputs.
 - `digests/use-cases/*.md`: enterprise use-case digest outputs.
 
+The SQLite database is local runtime state and may include fetched article text, raw source payloads, model scores, and extracted use-case records. Treat `data/agent.db` as sensitive local research data; it is ignored by Git and should not be shared without review.
+
 ## Configuration Model
 
 Birbal uses two kinds of configuration.
@@ -118,6 +120,7 @@ Environment variables configure runtime clients:
 - `LLAMA_REQUEST_TIMEOUT_MS`: optional completion timeout, defaulting to `120000`.
 - `BRAVE_SEARCH_API_KEY`: required for Brave Search.
 - `BRAVE_SEARCH_URL`: optional override for the Brave web search API, restricted to `api.search.brave.com`.
+- `BRAVE_SEARCH_MAX_CALLS_PER_PROCESS`: optional process-level Brave Search call budget, defaulting to `50`.
 - `HACKERNEWS_SEARCH_URL`: Hacker News Algolia API URL, restricted to `hn.algolia.com`.
 - `ARXIV_QUERY_URL`: arXiv query API URL, restricted to `export.arxiv.org`.
 - `LOG_LEVEL`: Pino log level, default `info`.
@@ -396,8 +399,6 @@ Rendering in `src/daily/digest.ts`:
 - Writes a dated Markdown digest.
 - Escapes Markdown-sensitive text.
 - Includes source, link, publish date, category, score, five summary lines, workflow impact, why it matters, human role change, integrations, business metric, and positioning relevance.
-
-There is also an older non-framework daily job in `src/daily/job.ts`. It initializes SQLite directly, collects candidates, stores new items, scores only unscored items, enriches shortlisted items with URL text, classifies them, selects digest items, saves a Markdown digest, and records a run summary. The pipeline config path is the newer generic orchestration route.
 
 ## Enterprise Use-Case Pipeline
 

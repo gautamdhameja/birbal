@@ -4,7 +4,6 @@ node_modules/
 dist/
 coverage/
 digests/
-use-case-reports/
 data/*.db
 data/*.db-shm
 data/*.db-wal

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
+import { loadSourceRegistry } from "../src/config/sourceRegistry.js";
 import { loadPipelineConfig } from "../src/framework/pipeline/config.js";
 
 function writeConfig(value: unknown): string {
@@ -93,6 +94,23 @@ describe("pipeline config", () => {
     assert.equal(config.components?.rubric, undefined);
   });
 
+  it("keeps configured pipeline source IDs present in the source registry", () => {
+    const sourceIds = new Set(loadSourceRegistry().sources.map((source) => source.id));
+    const pipelineIds = ["daily", "use-cases"];
+
+    for (const pipelineId of pipelineIds) {
+      const config = loadPipelineConfig(pipelineId);
+      const configuredSourceIds = [
+        ...config.sourceIds,
+        ...config.collectionMethods.flatMap((method) => method.sourceIds ?? []),
+      ];
+
+      for (const sourceId of configuredSourceIds) {
+        assert.ok(sourceIds.has(sourceId), `${pipelineId} references unknown source ${sourceId}`);
+      }
+    }
+  });
+
   it("rejects invalid pipeline config JSON", () => {
     const configPath = join(mkdtempSync(join(tmpdir(), "birbal-pipeline-config-")), "bad.json");
     writeFileSync(configPath, "{");
@@ -107,5 +125,34 @@ describe("pipeline config", () => {
     });
 
     assert.throws(() => loadPipelineConfig(configPath), /Pipeline config is invalid/);
+  });
+
+  it("rejects configs without an artifact writer", () => {
+    const configPath = writeConfig({
+      pipelineId: "daily",
+      enabled: true,
+      description: "Invalid pipeline.",
+      sourceIds: ["hackernews"],
+      collectionMethods: [
+        {
+          id: "source_domain_search",
+          collectorId: "source_domain_collector",
+        },
+      ],
+      contentFetchPolicy: {
+        enabled: true,
+        fetchForTopN: 1,
+        maxChars: 1000,
+        preferFetchedContent: true,
+      },
+      selectorId: "selector",
+      rendererId: "renderer",
+      output: {
+        format: "markdown",
+      },
+      limits: {},
+    });
+
+    assert.throws(() => loadPipelineConfig(configPath), /artifactWriterId/);
   });
 });
