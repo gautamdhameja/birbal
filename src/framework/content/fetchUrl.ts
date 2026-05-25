@@ -1,7 +1,8 @@
 import { CONTENT_FETCH_STATUSES } from "../../constants/candidates.js";
 import { HTTP } from "../../constants/runtime.js";
 import { URL_TEXT } from "../../constants/url-text.js";
-import { fetchWithRetry } from "../network/fetch.js";
+import { fetchPublicHttpWithRetry } from "../network/fetch.js";
+import type { PublicHttpFetchOptions } from "../network/fetch.js";
 import { buildHttpStatusError, isHttpStatusError, readResponseText } from "../../http/client.js";
 import {
   assertSafePublicHttpUrl,
@@ -25,6 +26,11 @@ export type UrlContentFetchError = {
 export type UrlContentFetchPolicy = {
   signal?: AbortSignal;
   hostResolver?: HostResolver;
+  transport?(
+    input: string | URL,
+    init?: RequestInit,
+    options?: PublicHttpFetchOptions,
+  ): Promise<Response>;
   maxRedirects?: number;
   timeoutMs?: number;
   retries?: number;
@@ -201,7 +207,8 @@ async function fetchUrlResponse(
     throw new Error(URL_TEXT.ERRORS.TOO_MANY_REDIRECTS);
   }
 
-  const response = await fetchWithRetry(
+  const fetchResponse = fetchPolicy.transport ?? fetchPublicHttpWithRetry;
+  const response = await fetchResponse(
     url,
     {
       signal: fetchPolicy.signal,
@@ -217,6 +224,7 @@ async function fetchUrlResponse(
       minTimeoutMs: fetchPolicy.minTimeoutMs,
       maxTimeoutMs: fetchPolicy.maxTimeoutMs,
       jitter: fetchPolicy.jitter,
+      hostResolver: fetchPolicy.hostResolver,
     },
   );
 

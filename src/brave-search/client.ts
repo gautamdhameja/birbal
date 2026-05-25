@@ -114,6 +114,9 @@ export async function searchWeb(options: SearchWebOptions): Promise<SearchWebRes
         [HTTP.USER_AGENT_HEADER]: HTTP.USER_AGENT,
       },
     },
+    {
+      retries: BRAVE_SEARCH.RETRIES,
+    },
   );
 
   if (!response.ok) {

@@ -121,7 +121,7 @@ export interface PipelineConfig<TSettings = PipelineMetadata> {
   sourceIds: string[];
   collectionMethods: PipelineCollectionMethod[];
   contentFetchPolicy: PipelineContentFetchPolicy;
-  scorerId: string;
+  scorerId?: string;
   rubricId?: string;
   classifierId?: string;
   structuredExtractorId?: string;

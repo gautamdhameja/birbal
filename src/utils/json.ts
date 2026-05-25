@@ -121,6 +121,10 @@ function parseJsonCandidate(candidate: string): unknown {
   }
 }
 
+export function parseStrictJson(raw: string): unknown {
+  return parseJsonCandidate(raw);
+}
+
 export function parseJson(raw: string): unknown {
   try {
     return parseJsonCandidate(raw);

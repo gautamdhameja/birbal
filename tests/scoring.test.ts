@@ -7,9 +7,8 @@ import {
   parseItemScores,
   rankScoredCandidates,
 } from "../src/daily/scoring.js";
-import type { CandidateItem, ItemScore, ScoredCandidateItem } from "../src/daily/types.js";
+import type { ScoredCandidateItem } from "../src/daily/types.js";
 import { CONTENT_FETCH_STATUSES, SOURCE_REGISTRY, SOURCES } from "../src/constants.js";
-import type { UserPreferences } from "../src/memory/types.js";
 
 function scoredItem(title: string, finalScore: number): ScoredCandidateItem {
   return {
@@ -37,56 +36,6 @@ function scoredItem(title: string, finalScore: number): ScoredCandidateItem {
       reason: "reason",
       finalScore,
     },
-  };
-}
-
-function candidate(overrides: Partial<CandidateItem> = {}): CandidateItem {
-  return {
-    id: "test:https://example.com/item",
-    sourceId: SOURCES.ARXIV,
-    sourceName: "arXiv",
-    sourceType: SOURCE_REGISTRY.SOURCE_TYPES.ACADEMIC_FALLBACK,
-    title: "Example Item",
-    url: "https://example.com/item",
-    summary: "Practical agent evaluation work.",
-    publishedAt: "2026-05-16T10:00:00Z",
-    discoveredAt: "2026-05-16T11:00:00Z",
-    contentFetchStatus: CONTENT_FETCH_STATUSES.NOT_FETCHED,
-    raw: {},
-    ...overrides,
-  };
-}
-
-function preferences(overrides: Partial<UserPreferences> = {}): UserPreferences {
-  return {
-    interests: ["LLM agents"],
-    avoid: ["press release"],
-    preferredDifficulty: "advanced",
-    enableAcademicFallback: false,
-    minFinalScoreForDigest: 3.4,
-    maxItemsPerSource: 2,
-    dailyMix: {
-      arxiv: 0.6,
-      hackernews: 0.4,
-    },
-    ...overrides,
-  };
-}
-
-function score(overrides: Partial<ItemScore> = {}): ItemScore {
-  return {
-    enterpriseRelevance: 5,
-    workflowRedesignDepth: 4,
-    realUseCaseSpecificity: 4,
-    deploymentFdeRelevance: 3,
-    businessOutcomeClarity: 4,
-    technicalImplementationUsefulness: 5,
-    recency: 3,
-    nonGenericInsight: 4,
-    rejected: false,
-    reason: "Strong enterprise deployment match.",
-    finalScore: 4.1,
-    ...overrides,
   };
 }
 

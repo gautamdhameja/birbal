@@ -97,7 +97,7 @@ export async function complete(
   messages: ChatMessage[],
   options: CompleteOptions = {},
 ): Promise<string> {
-  const { serverUrl, model } = getLlamaConfig();
+  const { serverUrl, model, requestTimeoutMs } = getLlamaConfig();
   const parsedOptions = CompleteOptionsSchema.parse(options);
   const modelCallId = randomUUID();
   const startedAt = new Date();
@@ -112,13 +112,17 @@ export async function complete(
 
   let response: Response;
   try {
-    response = await fetchWithTimeout(serverUrl, {
-      method: HTTP.POST_METHOD,
-      headers: {
-        [HTTP.CONTENT_TYPE_HEADER]: HTTP.JSON_CONTENT_TYPE,
+    response = await fetchWithTimeout(
+      serverUrl,
+      {
+        method: HTTP.POST_METHOD,
+        headers: {
+          [HTTP.CONTENT_TYPE_HEADER]: HTTP.JSON_CONTENT_TYPE,
+        },
+        body: JSON.stringify(requestBody),
       },
-      body: JSON.stringify(requestBody),
-    });
+      { timeoutMs: requestTimeoutMs },
+    );
   } catch (error) {
     logCompletionFailed(modelCallId, parsedOptions, startedAt, error);
     const message = error instanceof Error ? error.message : String(error);

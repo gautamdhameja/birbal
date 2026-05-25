@@ -105,6 +105,41 @@ export const DATABASE = {
 
       CREATE INDEX IF NOT EXISTS idx_runs_pipeline_started_at
         ON runs (pipeline_id, started_at DESC);
+
+      CREATE TABLE IF NOT EXISTS use_cases (
+        id TEXT PRIMARY KEY,
+        run_id TEXT,
+        company_name TEXT NOT NULL,
+        industry TEXT NOT NULL,
+        business_function TEXT NOT NULL,
+        workflow_affected TEXT NOT NULL,
+        workflow_before TEXT NOT NULL,
+        workflow_after TEXT NOT NULL,
+        ai_system_or_capability TEXT NOT NULL,
+        human_role_change TEXT NOT NULL,
+        system_integrations TEXT NOT NULL,
+        deployment_stage TEXT NOT NULL,
+        roi_metric TEXT NOT NULL,
+        business_outcome TEXT NOT NULL,
+        governance_or_risk_notes TEXT NOT NULL,
+        implementation_details TEXT NOT NULL,
+        source_title TEXT NOT NULL,
+        source_url TEXT NOT NULL,
+        source_name TEXT NOT NULL,
+        publish_date TEXT NOT NULL,
+        evidence_summary TEXT NOT NULL,
+        confidence_score REAL NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        raw_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(source_url, company_name, workflow_affected)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_use_cases_created_at
+        ON use_cases (created_at DESC);
+
+      CREATE INDEX IF NOT EXISTS idx_use_cases_run_id
+        ON use_cases (run_id, created_at DESC);
     `,
     START_RUN: `
       INSERT INTO runs (
@@ -409,6 +444,140 @@ export const DATABASE = {
     LIST_TOP_SCORED_ITEMS_ORDER_LIMIT: `
       ORDER BY scores.final_score DESC, items.title ASC
       LIMIT ?
+    `,
+    UPSERT_USE_CASE: `
+      INSERT INTO use_cases (
+        id,
+        run_id,
+        company_name,
+        industry,
+        business_function,
+        workflow_affected,
+        workflow_before,
+        workflow_after,
+        ai_system_or_capability,
+        human_role_change,
+        system_integrations,
+        deployment_stage,
+        roi_metric,
+        business_outcome,
+        governance_or_risk_notes,
+        implementation_details,
+        source_title,
+        source_url,
+        source_name,
+        publish_date,
+        evidence_summary,
+        confidence_score,
+        raw_json
+      )
+      VALUES (
+        @id,
+        @runId,
+        @companyName,
+        @industry,
+        @businessFunction,
+        @workflowAffected,
+        @workflowBefore,
+        @workflowAfter,
+        @aiSystemOrCapability,
+        @humanRoleChange,
+        @systemIntegrations,
+        @deploymentStage,
+        @roiMetric,
+        @businessOutcome,
+        @governanceOrRiskNotes,
+        @implementationDetails,
+        @sourceTitle,
+        @sourceUrl,
+        @sourceName,
+        @publishDate,
+        @evidenceSummary,
+        @confidenceScore,
+        @rawJson
+      )
+      ON CONFLICT(source_url, company_name, workflow_affected) DO UPDATE SET
+        id = excluded.id,
+        run_id = excluded.run_id,
+        industry = excluded.industry,
+        business_function = excluded.business_function,
+        workflow_before = excluded.workflow_before,
+        workflow_after = excluded.workflow_after,
+        ai_system_or_capability = excluded.ai_system_or_capability,
+        human_role_change = excluded.human_role_change,
+        system_integrations = excluded.system_integrations,
+        deployment_stage = excluded.deployment_stage,
+        roi_metric = excluded.roi_metric,
+        business_outcome = excluded.business_outcome,
+        governance_or_risk_notes = excluded.governance_or_risk_notes,
+        implementation_details = excluded.implementation_details,
+        source_title = excluded.source_title,
+        source_name = excluded.source_name,
+        publish_date = excluded.publish_date,
+        evidence_summary = excluded.evidence_summary,
+        confidence_score = excluded.confidence_score,
+        raw_json = excluded.raw_json,
+        updated_at = CURRENT_TIMESTAMP
+    `,
+    LIST_RECENT_USE_CASES: `
+      SELECT
+        id,
+        run_id,
+        company_name,
+        industry,
+        business_function,
+        workflow_affected,
+        workflow_before,
+        workflow_after,
+        ai_system_or_capability,
+        human_role_change,
+        system_integrations,
+        deployment_stage,
+        roi_metric,
+        business_outcome,
+        governance_or_risk_notes,
+        implementation_details,
+        source_title,
+        source_url,
+        source_name,
+        publish_date,
+        evidence_summary,
+        confidence_score,
+        created_at,
+        raw_json
+      FROM use_cases
+      ORDER BY created_at DESC, company_name ASC, workflow_affected ASC
+      LIMIT ?
+    `,
+    LIST_USE_CASES_BY_RUN: `
+      SELECT
+        id,
+        run_id,
+        company_name,
+        industry,
+        business_function,
+        workflow_affected,
+        workflow_before,
+        workflow_after,
+        ai_system_or_capability,
+        human_role_change,
+        system_integrations,
+        deployment_stage,
+        roi_metric,
+        business_outcome,
+        governance_or_risk_notes,
+        implementation_details,
+        source_title,
+        source_url,
+        source_name,
+        publish_date,
+        evidence_summary,
+        confidence_score,
+        created_at,
+        raw_json
+      FROM use_cases
+      WHERE run_id = ?
+      ORDER BY created_at DESC, company_name ASC, workflow_affected ASC
     `,
   },
 } as const;

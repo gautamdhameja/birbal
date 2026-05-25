@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -282,6 +282,53 @@ describe("pipeline runner", () => {
     assert.equal(result.artifacts.length, 0);
     assert.equal(result.errors[0]?.code, "component_resolution_failed");
     assert.match(result.errors[0]?.message ?? "", /Unknown pipeline component/);
+  });
+
+  it("allows pipelines to skip the scoring stage", async () => {
+    const registry = new PipelineComponentRegistry();
+
+    registry.registerCollector("collector", {
+      collect: async () => [{ id: "first" }],
+    });
+    registry.registerSelector("selector", {
+      select: async (items) => items,
+    });
+    registry.registerRenderer("renderer", {
+      render: async () => "rendered artifact",
+    });
+    registry.registerArtifactWriter("writer", {
+      write: async () => ({
+        id: "artifact",
+        type: "markdown",
+        path: "artifact.md",
+      }),
+    });
+
+    const result = await runPipeline(
+      writeConfig(
+        config({
+          scorerId: undefined,
+          classifierId: undefined,
+          structuredExtractorId: undefined,
+          contentFetchPolicy: {
+            enabled: false,
+          },
+        }),
+      ),
+      {
+        startRun: () => "run-no-score",
+        finishRun: () => undefined,
+        failRun: () => undefined,
+        loadSourceRegistry: () => ({ sources: [] }),
+        logger: silentLogger(),
+        now: () => new Date("2026-05-23T08:00:00.000Z"),
+        registry,
+      },
+    );
+
+    assert.equal(result.status, "success");
+    assert.equal(result.counts.scored, undefined);
+    assert.equal(result.counts.selected, 1);
   });
 
   it("returns a partial result when non-critical item stages fail but an artifact is written", async () => {
@@ -946,5 +993,63 @@ describe("pipeline runner", () => {
     assert.equal(result.status, "failed");
     assert.equal(result.errors.at(-1)?.code, "pipeline_failed");
     assert.match(result.errors.at(-1)?.message ?? "", /inside the workspace/);
+  });
+
+  it("rejects filesystem artifact paths that resolve through symlinks outside the workspace", async () => {
+    const registry = new PipelineComponentRegistry();
+    const linkName = `.tmp-pipeline-output-link-${Date.now()}`;
+    const outsideDirectory = mkdtempSync(join(tmpdir(), "birbal-artifact-outside-"));
+
+    registerDefaultPipelineComponents(registry);
+    symlinkSync(outsideDirectory, join(process.cwd(), linkName), "dir");
+
+    registry.registerCollector("collector", {
+      collect: async () => [{ id: "first" }],
+    });
+    registry.registerScorer("scorer", {
+      score: async () => ({ finalScore: 1 }),
+    });
+    registry.registerSelector("selector", {
+      select: async (items) => items,
+    });
+    registry.registerRenderer("renderer", {
+      render: async () => "rendered",
+    });
+
+    try {
+      const result = await runPipeline(
+        writeConfig(
+          config({
+            contentFetchPolicy: {
+              enabled: false,
+            },
+            classifierId: undefined,
+            structuredExtractorId: undefined,
+            output: {
+              format: "markdown",
+              artifactWriterId: "filesystem_artifact_writer",
+              directory: linkName,
+              filenameTemplate: "outside.md",
+            },
+          }),
+        ),
+        {
+          startRun: () => "run-output-symlink",
+          finishRun: () => undefined,
+          failRun: () => undefined,
+          loadSourceRegistry: () => ({ sources: [] }),
+          logger: silentLogger(),
+          now: () => new Date("2026-05-23T08:00:00.000Z"),
+          registry,
+        },
+      );
+
+      assert.equal(result.status, "failed");
+      assert.equal(result.errors.at(-1)?.code, "pipeline_failed");
+      assert.match(result.errors.at(-1)?.message ?? "", /outside the workspace/);
+    } finally {
+      rmSync(join(process.cwd(), linkName), { force: true, recursive: true });
+      rmSync(outsideDirectory, { force: true, recursive: true });
+    }
   });
 });

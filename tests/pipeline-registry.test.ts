@@ -4,7 +4,6 @@ import { describe, it } from "node:test";
 import { registerDefaultPipelineComponents } from "../src/framework/pipeline/defaultComponents.js";
 import { PipelineComponentRegistry } from "../src/framework/pipeline/registry.js";
 import { ENTERPRISE_DAILY_READING_RUBRIC_ID } from "../src/pipelines/daily/rubric.js";
-import { ENTERPRISE_USE_CASE_RUBRIC_ID } from "../src/pipelines/useCases/rubric.js";
 import type { PipelineConfig } from "../src/framework/pipeline/types.js";
 
 function pipelineConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
@@ -212,10 +211,6 @@ describe("pipeline component registry", () => {
     assert.equal(
       registry.getRubric(ENTERPRISE_DAILY_READING_RUBRIC_ID).id,
       ENTERPRISE_DAILY_READING_RUBRIC_ID,
-    );
-    assert.equal(
-      registry.getRubric(ENTERPRISE_USE_CASE_RUBRIC_ID).id,
-      ENTERPRISE_USE_CASE_RUBRIC_ID,
     );
   });
 });

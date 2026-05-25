@@ -1,7 +1,6 @@
-import { z } from "zod";
+import type { z } from "zod";
 
 import { AGENT } from "../../constants/agent.js";
-import { LLAMA } from "../../constants/llama.js";
 import {
   completeStructuredWithRepair,
   describeJsonSchema,
@@ -65,12 +64,27 @@ function renderItem(item: unknown): string {
   return JSON.stringify(item);
 }
 
+function renderOutputShape(rubric: Rubric): string {
+  return JSON.stringify({
+    ...Object.fromEntries(
+      rubric.criteria.map((criterion) => [criterion.id, criterion.scale?.min ?? rubric.scale.min]),
+    ),
+    rejected: false,
+    rejectionReason: "required only when rejected is true",
+    reason: "short scoring rationale",
+  });
+}
+
 function buildScoreMessages(item: unknown, rubric: Rubric): ChatMessage[] {
   return [
     {
       role: AGENT.ROLES.SYSTEM,
-      content:
-        "You are a rubric-based scoring component. Return valid JSON only. Apply hard rejection rules before weighted scoring.",
+      content: [
+        "You are a rubric-based scoring component.",
+        "Return exactly one valid JSON object and nothing else.",
+        "Do not include Markdown, code fences, comments, or prose outside JSON.",
+        "Apply hard rejection rules before weighted scoring.",
+      ].join(" "),
     },
     {
       role: AGENT.ROLES.USER,
@@ -78,10 +92,16 @@ function buildScoreMessages(item: unknown, rubric: Rubric): ChatMessage[] {
         "Rubric:",
         renderRubric(rubric),
         "",
+        "Target output JSON shape:",
+        renderOutputShape(rubric),
+        "",
         "Item:",
         renderItem(item),
         "",
-        "Return one JSON object matching the requested output schema. Do not include Markdown or prose outside JSON.",
+        "Return one JSON object matching the target output JSON shape.",
+        "All numeric criteria must use the rubric scale.",
+        "If rejected is false, omit rejectionReason.",
+        "If rejected is true, include a concise rejectionReason.",
       ].join("\n"),
     },
   ];
@@ -117,11 +137,12 @@ export async function scoreItem<TScore extends Record<string, unknown>>(
   rubric: Rubric<TScore>,
   context: RubricScoringContext = {},
 ): Promise<RubricScoreResult<TScore>> {
+  const schemaDescription = describeJsonSchema(rubric.outputSchema);
   const result = await completeStructuredWithRepair({
     messages: buildScoreMessages(item, rubric),
     schema: rubric.outputSchema,
     completeFn: context.completeFn,
-    schemaDescription: describeJsonSchema(rubric.outputSchema),
+    schemaDescription,
     repairInstructions:
       "Repair the rubric score response so it is valid JSON and matches the output schema exactly.",
     completeOptions: {
@@ -129,9 +150,6 @@ export async function scoreItem<TScore extends Record<string, unknown>>(
       max_tokens: context.maxTokens ?? DEFAULT_MAX_TOKENS,
       traceId: context.traceId,
       traceLabel: context.traceLabel ?? `rubric_score.${rubric.id}`,
-      response_format: {
-        type: LLAMA.RESPONSE_FORMATS.JSON_OBJECT,
-      },
     },
   });
 

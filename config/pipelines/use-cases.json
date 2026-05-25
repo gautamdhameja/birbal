@@ -12,14 +12,16 @@
   ],
   "collectionMethods": [
     {
-      "id": "source_specific_search",
-      "collectorId": "source_domain_collector",
-      "enabled": true
-    },
-    {
       "id": "open_web_search",
       "collectorId": "brave_web_search_collector",
-      "enabled": true
+      "enabled": true,
+      "queries": [
+        "site:openai.com OR site:microsoft.com OR site:cloud.google.com OR site:aws.amazon.com enterprise AI customer story workflow production outcome",
+        "site:mckinsey.com OR site:deloitte.com OR site:bcg.com OR site:pwc.com OR site:accenture.com generative AI enterprise case study workflow ROI",
+        "\"enterprise AI\" \"customer story\" workflow production measurable outcome",
+        "\"AI agents\" enterprise \"rolled out\" workflow deployment business outcome",
+        "\"AI agent\" customer support enterprise deployed workflow metric"
+      ]
     }
   ],
   "contentFetchPolicy": {
@@ -29,33 +31,35 @@
     "maxChars": 24000,
     "preferFetchedContent": true
   },
-  "scorerId": "production_use_case_filter",
-  "structuredExtractorId": "production_use_case_extractor",
-  "selectorId": "production_use_case_selector",
-  "rendererId": "production_use_case_markdown_renderer",
+  "structuredExtractorId": "enterprise_use_case_extractor",
+  "selectorId": "enterprise_use_case_selector",
+  "rendererId": "enterprise_use_case_markdown_renderer",
   "output": {
     "format": "markdown",
-    "directory": "use-case-reports",
+    "directory": "digests/use-cases",
     "filenameTemplate": "{date}.md",
     "artifactWriterId": "filesystem_artifact_writer"
   },
   "limits": {
     "maxCandidates": 30,
-    "maxSearchResultsPerQuery": 5,
+    "maxSearchQueries": 5,
+    "maxSearchResultsPerQuery": 20,
     "maxCandidatesForExtraction": 30,
-    "maxResults": 10
+    "maxResults": 10,
+    "maxUseCasesPerRun": 10,
+    "minConfidenceScore": 3,
+    "maxPerIndustry": 3,
+    "maxPerSource": 3
   },
   "execution": {
     "collectionConcurrency": 2,
     "contentFetchConcurrency": 5,
-    "scoringConcurrency": 1,
     "structuredExtractionConcurrency": 1
   },
   "failurePolicy": {
     "failFast": false,
     "continueOnSourceFailure": true,
     "continueOnContentFetchFailure": true,
-    "continueOnScoringFailure": true,
     "minItemsRequiredForSuccess": 1
   }
 }

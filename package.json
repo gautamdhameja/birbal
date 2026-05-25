@@ -1,7 +1,7 @@
 {
   "name": "birbal",
   "version": "1.0.0",
-  "description": "A minimal TypeScript harness for experimenting with local LLM agents and basic tools.",
+  "description": "A local TypeScript AI research scout with a JSON agent harness and configurable enterprise AI pipelines.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/main.ts",
@@ -10,16 +10,21 @@
     "use-cases": "tsx src/runPipeline.ts use_cases",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "test": "LOG_LEVEL=silent tsx --test tests/**/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "check": "npm run format:check && npm run typecheck && npm test"
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm test"
   },
   "keywords": [
     "agent",
     "harness",
     "AI",
     "local-llm",
-    "tools"
+    "tools",
+    "research-scout",
+    "enterprise-ai",
+    "pipelines"
   ],
   "author": "Gautam Dhameja",
   "license": "MIT",
@@ -38,10 +43,13 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.8.0",
+    "eslint": "^10.4.0",
     "prettier": "^3.8.3",
     "tsx": "^4.22.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.4"
   }
 }

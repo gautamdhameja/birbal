@@ -32,7 +32,7 @@ function parseIpAddress(hostname: string): ipaddr.IPv4 | ipaddr.IPv6 | undefined
   }
 }
 
-function isPublicIpAddress(address: string): boolean {
+export function isPublicIpAddress(address: string): boolean {
   return parseIpAddress(address)?.range() === "unicast";
 }
 
@@ -62,6 +62,28 @@ async function resolvesOnlyToPublicAddresses(
   } catch {
     return false;
   }
+}
+
+export async function resolvePublicHostAddresses(
+  hostname: string,
+  resolver: HostResolver = resolveHostname,
+): Promise<readonly HostAddress[]> {
+  const normalizedHostname = normalizeHostname(hostname);
+  if (parseIpAddress(normalizedHostname) !== undefined) {
+    if (!isPublicIpAddress(normalizedHostname)) {
+      throw new Error(unsafeHttpUrlErrorMessage());
+    }
+
+    const family = normalizedHostname.includes(":") ? 6 : 4;
+    return [{ address: normalizedHostname, family }];
+  }
+
+  const addresses = await resolver(normalizedHostname);
+  if (addresses.length === 0 || addresses.some((address) => !isPublicIpAddress(address.address))) {
+    throw new Error(unsafeHttpUrlErrorMessage());
+  }
+
+  return addresses;
 }
 
 export function isHttpUrlWithoutCredentials(value: string): boolean {

@@ -6,7 +6,8 @@ import { preview } from "../../logging/preview.js";
 import { normalizeUrl } from "../../utils/url.js";
 import { mapBatches, mapLimit } from "./concurrency.js";
 import { loadPipelineConfig } from "./config.js";
-import { PipelineComponentRegistry, pipelineComponentRegistry } from "./registry.js";
+import type { PipelineComponentRegistry } from "./registry.js";
+import { pipelineComponentRegistry } from "./registry.js";
 import { failRun, finishRun, startRun } from "./runs.js";
 import type { RunSummary } from "./runs.js";
 import type {
@@ -1210,24 +1211,37 @@ export async function runPipeline(
     );
     assertMinimumViableItemCount(config, items.length, "content_fetch");
 
-    items = await runTimedStage(
-      context,
-      "scoring",
-      items.length,
-      () =>
-        scoreItems(
-          items,
-          assertComponent(components.scorers[0], "scorer"),
-          context,
-          counts,
-          errors,
-        ),
-      {
-        concurrency: executionLimit(config, "scoringConcurrency"),
-        batchSize: batchSize(config, "scoring"),
-      },
-    );
-    assertMinimumViableItemCount(config, items.length, "scoring");
+    if (components.scorers[0]) {
+      items = await runTimedStage(
+        context,
+        "scoring",
+        items.length,
+        () =>
+          scoreItems(
+            items,
+            assertComponent(components.scorers[0], "scorer"),
+            context,
+            counts,
+            errors,
+          ),
+        {
+          concurrency: executionLimit(config, "scoringConcurrency"),
+          batchSize: batchSize(config, "scoring"),
+        },
+      );
+      assertMinimumViableItemCount(config, items.length, "scoring");
+    } else {
+      deps.logger.info(
+        {
+          event: "pipeline.stage.skipped",
+          pipelineId: config.pipelineId,
+          runId,
+          stageId: "scoring",
+          itemCount: items.length,
+        },
+        "pipeline stage skipped",
+      );
+    }
 
     items = await classifyAndExtractStructured(
       items,

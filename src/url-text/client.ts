@@ -1,6 +1,7 @@
 import { CONTENT_FETCH_STATUSES } from "../constants/candidates.js";
 import { URL_TEXT } from "../constants/url-text.js";
 import { fetchUrlContent } from "../framework/content/fetchUrl.js";
+import type { UrlContentFetchPolicy } from "../framework/content/fetchUrl.js";
 import type { HostResolver } from "../http/url.js";
 import type { ExtractedUrlText } from "./extract.js";
 
@@ -9,6 +10,7 @@ export type FetchUrlTextOptions = {
   maxChars?: number;
   signal?: AbortSignal;
   hostResolver?: HostResolver;
+  transport?: UrlContentFetchPolicy["transport"];
 };
 
 export type FetchUrlTextResult = ExtractedUrlText & {
@@ -20,6 +22,7 @@ export async function fetchUrlText({
   maxChars = URL_TEXT.DEFAULT_MAX_CHARS,
   signal,
   hostResolver,
+  transport,
 }: FetchUrlTextOptions): Promise<FetchUrlTextResult> {
   const result = await fetchUrlContent({
     url,
@@ -27,6 +30,7 @@ export async function fetchUrlText({
     fetchPolicy: {
       signal,
       hostResolver,
+      transport,
     },
   });
 

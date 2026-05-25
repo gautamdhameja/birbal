@@ -396,7 +396,7 @@ function scoreFromRow(row: ScoreRow): ItemScore {
   return score;
 }
 
-function assertValidLimit(limit: number): void {
+export function assertValidLimit(limit: number): void {
   if (!Number.isInteger(limit) || limit < 1) {
     throw new Error(DATABASE.ERRORS.INVALID_LIMIT);
   }

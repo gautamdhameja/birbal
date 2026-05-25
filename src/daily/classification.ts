@@ -4,7 +4,7 @@ import { AGENT } from "../constants/agent.js";
 import { CANDIDATE_CATEGORIES } from "../constants/candidates.js";
 import { CLASSIFICATION } from "../constants/classification.js";
 import { LLAMA } from "../constants/llama.js";
-import { completeStructuredWithRepair } from "../framework/llm/repair.js";
+import { completeStructuredWithRepair, summarizeModelParseError } from "../framework/llm/repair.js";
 import type { ChatMessage, CompleteOptions } from "../llama/schema.js";
 import { logger } from "../logging/logger.js";
 import { parseJson } from "../utils/json.js";
@@ -205,7 +205,7 @@ export async function classifyCandidateCategory(
       url: candidate.url,
       fallbackCategory,
       error: result.error.message,
-      modelParseError: result.error,
+      modelParseError: summarizeModelParseError(result.error),
     },
     CLASSIFICATION.LOG_MESSAGES.FALLBACK_CATEGORY,
   );

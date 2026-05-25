@@ -103,7 +103,7 @@ const PipelineConfigFileSchema = z.strictObject({
   sourceIds: z.array(NonEmptyStringSchema),
   collectionMethods: z.array(PipelineCollectionMethodSchema).min(1),
   contentFetchPolicy: PipelineContentFetchPolicySchema,
-  scorerId: NonEmptyStringSchema,
+  scorerId: NonEmptyStringSchema.optional(),
   rubricId: NonEmptyStringSchema.optional(),
   classifierId: NonEmptyStringSchema.optional(),
   structuredExtractorId: NonEmptyStringSchema.optional(),
@@ -129,7 +129,9 @@ export type ValidatedPipelineConfig = z.infer<typeof PipelineConfigSchema>;
 
 function buildPipelineComponentConfig(config: PipelineConfigFile): PipelineComponentConfig {
   return {
-    collectors: config.collectionMethods.map((method) => method.collectorId),
+    collectors: config.collectionMethods
+      .filter((method) => method.enabled !== false)
+      .map((method) => method.collectorId),
     contentFetcher: config.contentFetchPolicy.fetcherId,
     contentExtractors: config.contentFetchPolicy.extractorIds,
     scorer: config.scorerId,

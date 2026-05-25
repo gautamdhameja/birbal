@@ -61,9 +61,17 @@ describe("pipeline config", () => {
     const config = loadPipelineConfig("use-cases");
 
     assert.equal(config.pipelineId, "use_cases");
-    assert.equal(config.scorerId, "production_use_case_filter");
+    assert.equal(config.scorerId, undefined);
     assert.equal(config.rubricId, undefined);
-    assert.equal(config.structuredExtractorId, "production_use_case_extractor");
+    assert.equal(config.structuredExtractorId, "enterprise_use_case_extractor");
+    assert.equal(config.selectorId, "enterprise_use_case_selector");
+    assert.equal(config.rendererId, "enterprise_use_case_markdown_renderer");
+    assert.deepEqual(config.output, {
+      format: "markdown",
+      directory: "digests/use-cases",
+      filenameTemplate: "{date}.md",
+      artifactWriterId: "filesystem_artifact_writer",
+    });
     assert.deepEqual(config.contentFetchPolicy, {
       enabled: true,
       fetcherId: "url_text_fetcher",
@@ -78,10 +86,10 @@ describe("pipeline config", () => {
       continueOnScoringFailure: true,
       minItemsRequiredForSuccess: 1,
     });
-    assert.deepEqual(config.components?.collectors, [
-      "source_domain_collector",
-      "brave_web_search_collector",
-    ]);
+    assert.equal(config.limits.maxSearchQueries, 5);
+    assert.equal(config.limits.maxSearchResultsPerQuery, 20);
+    assert.deepEqual(config.components?.collectors, ["brave_web_search_collector"]);
+    assert.equal(config.components?.scorer, undefined);
     assert.equal(config.components?.rubric, undefined);
   });
 

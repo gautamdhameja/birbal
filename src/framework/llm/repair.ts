@@ -2,7 +2,8 @@ import { z } from "zod";
 
 import { complete } from "../../llama/client.js";
 import type { ChatMessage, CompleteOptions } from "../../llama/schema.js";
-import { parseJson } from "../../utils/json.js";
+import { logger } from "../../logging/logger.js";
+import { parseJson, parseStrictJson } from "../../utils/json.js";
 
 type CompleteFn = (messages: ChatMessage[], options?: CompleteOptions) => Promise<string>;
 
@@ -48,6 +49,8 @@ type ParsedModelOutput<T> =
       validationError: string;
     };
 
+const MAX_LOGGED_VALIDATION_ERROR_CHARS = 1_000;
+
 export class ModelParseError extends Error {
   readonly type = "model_parse_error";
 
@@ -61,6 +64,57 @@ export class ModelParseError extends Error {
   }
 }
 
+function truncateValidationError(validationError: string): string {
+  if (validationError.length <= MAX_LOGGED_VALIDATION_ERROR_CHARS) {
+    return validationError;
+  }
+
+  return `${validationError.slice(0, MAX_LOGGED_VALIDATION_ERROR_CHARS)}...`;
+}
+
+function jsonShapeSummary(raw: string): Record<string, unknown> | undefined {
+  let parsed: unknown;
+  try {
+    parsed = parseJson(raw);
+  } catch {
+    return undefined;
+  }
+
+  if (Array.isArray(parsed)) {
+    return {
+      topLevelType: "array",
+      length: parsed.length,
+      firstItemKeys:
+        typeof parsed[0] === "object" && parsed[0] !== null ? Object.keys(parsed[0]) : [],
+    };
+  }
+
+  if (typeof parsed !== "object" || parsed === null) {
+    return {
+      topLevelType: typeof parsed,
+    };
+  }
+
+  const record = parsed as Record<string, unknown>;
+  const useCases = Array.isArray(record.useCases)
+    ? record.useCases
+    : Array.isArray(record.use_cases)
+      ? record.use_cases
+      : undefined;
+
+  return {
+    topLevelType: "object",
+    topLevelKeys: Object.keys(record),
+    ...(useCases
+      ? {
+          useCasesLength: useCases.length,
+          firstUseCaseKeys:
+            typeof useCases[0] === "object" && useCases[0] !== null ? Object.keys(useCases[0]) : [],
+        }
+      : {}),
+  };
+}
+
 export function describeJsonSchema<T>(schema: z.ZodType<T>): string {
   try {
     return JSON.stringify(z.toJSONSchema(schema), null, 2);
@@ -70,10 +124,25 @@ export function describeJsonSchema<T>(schema: z.ZodType<T>): string {
   }
 }
 
+export function summarizeModelParseError(details: ModelParseErrorDetails): Record<string, unknown> {
+  return {
+    type: details.type,
+    message: details.message,
+    validationError: truncateValidationError(details.validationError),
+    repairAttempted: details.repairAttempted,
+    invalidOutputChars: details.invalidOutput.length,
+    schemaDescriptionChars: details.schemaDescription.length,
+    ...(details.repairedOutput ? { repairedOutputChars: details.repairedOutput.length } : {}),
+    ...(details.repairValidationError
+      ? { repairValidationError: truncateValidationError(details.repairValidationError) }
+      : {}),
+  };
+}
+
 function parseModelOutput<T>(raw: string, schema: z.ZodType<T>): ParsedModelOutput<T> {
   let parsedJson: unknown;
   try {
-    parsedJson = parseJson(raw);
+    parsedJson = parseStrictJson(raw);
   } catch (error) {
     return {
       ok: false,
@@ -170,6 +239,19 @@ export async function completeStructuredWithRepair<T>({
     };
   }
 
+  logger.debug(
+    {
+      event: "structured_output.validation_failed",
+      traceId: completeOptions.traceId,
+      traceLabel: completeOptions.traceLabel,
+      repaired: false,
+      validationError: truncateValidationError(initialParsed.validationError),
+      outputShape: jsonShapeSummary(initialOutput),
+      outputChars: initialOutput.length,
+    },
+    "structured model output failed validation",
+  );
+
   const repairMessages: ChatMessage[] = [
     ...messages,
     {
@@ -194,6 +276,16 @@ export async function completeStructuredWithRepair<T>({
   });
   const repairedParsed = parseModelOutput(repairedOutput, schema);
   if (repairedParsed.ok) {
+    logger.debug(
+      {
+        event: "structured_output.repaired",
+        traceId: completeOptions.traceId,
+        traceLabel: completeOptions.traceLabel,
+        outputChars: repairedOutput.length,
+      },
+      "structured model output repaired",
+    );
+
     return {
       ok: true,
       value: repairedParsed.value,
@@ -201,6 +293,19 @@ export async function completeStructuredWithRepair<T>({
       repaired: true,
     };
   }
+
+  logger.warn(
+    {
+      event: "structured_output.repair_failed",
+      traceId: completeOptions.traceId,
+      traceLabel: completeOptions.traceLabel,
+      validationError: truncateValidationError(initialParsed.validationError),
+      repairValidationError: truncateValidationError(repairedParsed.validationError),
+      outputShape: jsonShapeSummary(repairedOutput),
+      outputChars: repairedOutput.length,
+    },
+    "structured model output repair failed",
+  );
 
   return failedResult({
     initialOutput,

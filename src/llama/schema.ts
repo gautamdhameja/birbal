@@ -44,11 +44,17 @@ export const LlamaChatCompletionResponseSchema = z.object({
 export const LlamaEnvSchema = z.strictObject({
   LLAMA_SERVER_URL: z.url().refine(isHttpUrlWithoutCredentials, httpUrlErrorMessage()),
   LLAMA_MODEL: z.string().min(1),
+  LLAMA_REQUEST_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(LLAMA.DEFAULT_REQUEST_TIMEOUT_MS),
 });
 
 export const LlamaConfigSchema = z.strictObject({
   serverUrl: z.url().refine(isHttpUrlWithoutCredentials, httpUrlErrorMessage()),
   model: z.string().min(1),
+  requestTimeoutMs: z.number().int().positive(),
 });
 
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;

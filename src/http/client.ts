@@ -2,6 +2,8 @@ import { HTTP } from "../constants/runtime.js";
 export {
   FetchAbortError as HttpAbortError,
   FetchStructuredError,
+  fetchPublicHttpWithRetry,
+  fetchPublicHttpWithTimeout,
   FetchTimeoutError as HttpTimeoutError,
   fetchWithRetry,
   fetchWithTimeout,

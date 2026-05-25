@@ -62,6 +62,28 @@ describe("shared LLM output repair", () => {
     assert.match(calls[1]?.messages.at(-1)?.content ?? "", /"required":\["answer"\]/);
   });
 
+  it("treats embedded JSON in surrounding prose as invalid before repair", async () => {
+    let calls = 0;
+    const result = await completeStructuredWithRepair({
+      messages: [{ role: "user", content: "Return JSON only." }],
+      schema: ExampleSchema,
+      completeFn: async () => {
+        calls += 1;
+        return calls === 1 ? 'Here is the JSON: {"answer":"ok"}' : '{"answer":"ok"}';
+      },
+    });
+
+    assert.equal(calls, 2);
+    assert.deepEqual(result, {
+      ok: true,
+      value: {
+        answer: "ok",
+      },
+      raw: '{"answer":"ok"}',
+      repaired: true,
+    });
+  });
+
   it("returns structured model_parse_error when repair also fails", async () => {
     const result = await completeStructuredWithRepair({
       messages: [{ role: "user", content: "Return JSON." }],

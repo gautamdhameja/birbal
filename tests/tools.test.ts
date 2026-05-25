@@ -257,6 +257,38 @@ describe("tool registry", () => {
     }
   });
 
+  it("does not retry Brave Search failures that could consume quota", async () => {
+    const originalFetch = globalThis.fetch;
+    const originalApiKey = process.env.BRAVE_SEARCH_API_KEY;
+    let calls = 0;
+
+    process.env.BRAVE_SEARCH_API_KEY = "test-key";
+    globalThis.fetch = (() => {
+      calls += 1;
+
+      return Promise.resolve(new Response("rate limit", { status: 429 }));
+    }) as typeof fetch;
+
+    try {
+      await assert.rejects(
+        () =>
+          searchWeb({
+            query: "LLM agents",
+            maxResults: 3,
+          }),
+        /Brave Search request failed with HTTP 429/,
+      );
+      assert.equal(calls, 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalApiKey === undefined) {
+        delete process.env.BRAVE_SEARCH_API_KEY;
+      } else {
+        process.env.BRAVE_SEARCH_API_KEY = originalApiKey;
+      }
+    }
+  });
+
   it("searches each configured source domain and deduplicates by canonical URL", async () => {
     const originalFetch = globalThis.fetch;
     const originalApiKey = process.env.BRAVE_SEARCH_API_KEY;
@@ -416,14 +448,12 @@ describe("tool registry", () => {
   });
 
   it("fetches URL text with raw fetch", async () => {
-    const originalFetch = globalThis.fetch;
     let requestedUrl = "";
 
-    globalThis.fetch = ((input) => {
+    const transport = async (input: string | URL): Promise<Response> => {
       requestedUrl = String(input);
-      return Promise.resolve(
-        new Response(
-          `
+      return new Response(
+        `
             <html>
               <head><title>Paywalled report</title></head>
               <body>
@@ -434,30 +464,26 @@ describe("tool registry", () => {
               </body>
             </html>
           `,
-          { status: 200, headers: { "content-type": "text/html" } },
-        ),
+        { status: 200, headers: { "content-type": "text/html" } },
       );
-    }) as typeof fetch;
+    };
 
-    try {
-      assert.deepEqual(
-        await fetchUrlText({
-          url: "https://example.com/report",
-          maxChars: 30,
-          hostResolver: publicHostResolver,
-        }),
-        {
-          url: "https://example.com/report",
-          title: "Paywalled report",
-          plainText: "Subscribe to continue reading",
-          detectedPaywall: true,
-          contentLength: 29,
-        },
-      );
-      assert.equal(requestedUrl, "https://example.com/report");
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    assert.deepEqual(
+      await fetchUrlText({
+        url: "https://example.com/report",
+        maxChars: 30,
+        hostResolver: publicHostResolver,
+        transport,
+      }),
+      {
+        url: "https://example.com/report",
+        title: "Paywalled report",
+        plainText: "Subscribe to continue reading",
+        detectedPaywall: true,
+        contentLength: 29,
+      },
+    );
+    assert.equal(requestedUrl, "https://example.com/report");
   });
 
   it("rejects unsafe fetch URL hosts before making a request", async () => {
@@ -481,52 +507,45 @@ describe("tool registry", () => {
   });
 
   it("rejects unsafe redirect targets before following them", async () => {
-    const originalFetch = globalThis.fetch;
     const requestedUrls: string[] = [];
 
-    globalThis.fetch = ((input) => {
+    const transport = async (input: string | URL): Promise<Response> => {
       requestedUrls.push(String(input));
 
-      return Promise.resolve(
-        new Response("", {
-          status: 302,
-          headers: {
-            location: "http://127.0.0.1/internal",
-          },
-        }),
-      );
-    }) as typeof fetch;
+      return new Response("", {
+        status: 302,
+        headers: {
+          location: "http://127.0.0.1/internal",
+        },
+      });
+    };
 
-    try {
-      await assert.rejects(
-        () => fetchUrlText({ url: "https://example.com/report", hostResolver: publicHostResolver }),
-        new RegExp(HTTP.ERRORS.UNSAFE_HTTP_URL),
-      );
-      assert.deepEqual(requestedUrls, ["https://example.com/report"]);
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    await assert.rejects(
+      () =>
+        fetchUrlText({
+          url: "https://example.com/report",
+          hostResolver: publicHostResolver,
+          transport,
+        }),
+      new RegExp(HTTP.ERRORS.UNSAFE_HTTP_URL),
+    );
+    assert.deepEqual(requestedUrls, ["https://example.com/report"]);
   });
 
   it("uses the final redirected URL when extracting canonical URLs", async () => {
-    const originalFetch = globalThis.fetch;
-
-    globalThis.fetch = ((input) => {
+    const transport = async (input: string | URL): Promise<Response> => {
       const requestedUrl = String(input);
       if (requestedUrl === "https://example.com/report") {
-        return Promise.resolve(
-          new Response("", {
-            status: 302,
-            headers: {
-              location: "/final",
-            },
-          }),
-        );
+        return new Response("", {
+          status: 302,
+          headers: {
+            location: "/final",
+          },
+        });
       }
 
-      return Promise.resolve(
-        new Response(
-          `
+      return new Response(
+        `
             <html>
               <head>
                 <title>Redirected report</title>
@@ -535,29 +554,25 @@ describe("tool registry", () => {
               <body><main><p>Final report body.</p></main></body>
             </html>
           `,
-          { status: 200, headers: { "content-type": "text/html" } },
-        ),
+        { status: 200, headers: { "content-type": "text/html" } },
       );
-    }) as typeof fetch;
+    };
 
-    try {
-      assert.deepEqual(
-        await fetchUrlText({
-          url: "https://example.com/report",
-          hostResolver: publicHostResolver,
-        }),
-        {
-          url: "https://example.com/final",
-          title: "Redirected report",
-          plainText: "Final report body.",
-          canonicalUrl: "https://example.com/canonical",
-          detectedPaywall: false,
-          contentLength: 18,
-        },
-      );
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    assert.deepEqual(
+      await fetchUrlText({
+        url: "https://example.com/report",
+        hostResolver: publicHostResolver,
+        transport,
+      }),
+      {
+        url: "https://example.com/final",
+        title: "Redirected report",
+        plainText: "Final report body.",
+        canonicalUrl: "https://example.com/canonical",
+        detectedPaywall: false,
+        contentLength: 18,
+      },
+    );
   });
 
   it("runs get_time", async () => {

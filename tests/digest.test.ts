@@ -66,11 +66,11 @@ describe("Markdown digest writer", () => {
     assert.match(markdown, /- 5-line summary:/);
     assert.match(
       markdown,
-      /  - A bank redesigned an onboarding workflow with human in the loop review\./,
+      / {2}- A bank redesigned an onboarding workflow with human in the loop review\./,
     );
-    assert.match(markdown, /  - The system uses RAG and API integration\./);
-    assert.match(markdown, /  - The rollout tracked productivity and cycle time\./);
-    assert.match(markdown, /  - Not specified in the source\./);
+    assert.match(markdown, / {2}- The system uses RAG and API integration\./);
+    assert.match(markdown, / {2}- The rollout tracked productivity and cycle time\./);
+    assert.match(markdown, / {2}- Not specified in the source\./);
     assert.match(
       markdown,
       /- Enterprise workflow affected: Core workflow and operating model design\./,
@@ -109,7 +109,7 @@ describe("Markdown digest writer", () => {
       "2026-05-19",
     );
 
-    assert.match(markdown, /  - No summary available\./);
+    assert.match(markdown, / {2}- No summary available\./);
   });
 
   it("escapes markdown text and rejects invalid digest URLs", () => {
@@ -127,7 +127,7 @@ describe("Markdown digest writer", () => {
 
     assert.match(markdown, /## 1\. \\\[Injected\\\]\\\(https:\/\/example\.com\\\)/);
     assert.match(markdown, /- Link: Invalid URL/);
-    assert.match(markdown, /  - \\> fake quote/);
+    assert.match(markdown, / {2}- \\> fake quote/);
   });
 
   it("saves digests under the digest directory", () => {
