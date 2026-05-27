@@ -1,49 +1,15 @@
 import { randomUUID } from "node:crypto";
 
-import { DATABASE } from "../../constants/database.js";
-import { getDb } from "../../db/items.js";
-import type { PipelineArtifact, PipelineError, PipelineMetadata } from "./types.js";
-
-export type StoredRunStatus =
-  | typeof DATABASE.RUN_STATUSES.SUCCESS
-  | typeof DATABASE.RUN_STATUSES.PARTIAL_SUCCESS
-  | typeof DATABASE.RUN_STATUSES.FAILED;
-
-export type RunSummary = {
-  status?: StoredRunStatus | "partial";
-  sourcesAttempted?: number;
-  sourcesSucceeded?: number;
-  sourcesFailed?: number;
-  itemsCollected?: number;
-  itemsStored?: number;
-  itemsScored?: number;
-  itemsRejected?: number;
-  itemsSelected?: number;
-  artifacts?: PipelineArtifact[];
-  errors?: PipelineError[] | Array<{ error?: string; message?: string }>;
-  errorSummary?: string | null;
-  metadata?: PipelineMetadata;
-};
-
-export type StoredRun = {
-  id: string;
-  pipelineId: string;
-  runType: string;
-  startedAt: string;
-  finishedAt: string | null;
-  status: StoredRunStatus;
-  sourcesAttempted: number;
-  sourcesSucceeded: number;
-  sourcesFailed: number;
-  itemsCollected: number;
-  itemsStored: number;
-  itemsScored: number;
-  itemsRejected: number;
-  itemsSelected: number;
-  artifacts: unknown[];
-  errorSummary: string | null;
-  metadata: PipelineMetadata;
-};
+import { DATABASE } from "../constants/database.js";
+import {
+  normalizeRunStatus,
+  PIPELINE_RUN_STATUSES,
+  PIPELINE_RUN_TYPES,
+  summarizeRunErrors,
+} from "../framework/pipeline/runStore.js";
+import type { PipelineMetadata, StoredRun, StoredRunStatus } from "../framework/pipeline/index.js";
+import type { RunSummary, PipelineRunStore } from "../framework/pipeline/runStore.js";
+import { getDb } from "./items.js";
 
 type RunRow = {
   id: string;
@@ -77,32 +43,6 @@ function parseJson(value: string, fallback: unknown): unknown {
   }
 }
 
-function normalizeStatus(status: RunSummary["status"]): StoredRunStatus {
-  if (status === "partial") {
-    return DATABASE.RUN_STATUSES.PARTIAL_SUCCESS;
-  }
-
-  return status ?? DATABASE.RUN_STATUSES.SUCCESS;
-}
-
-function summarizeErrors(errors: RunSummary["errors"]): string | null {
-  if (!errors || errors.length === 0) {
-    return null;
-  }
-
-  return errors
-    .map((error) => {
-      if (error.message) {
-        return error.message;
-      }
-
-      return "error" in error ? error.error : undefined;
-    })
-    .filter((message): message is string => Boolean(message))
-    .slice(0, 5)
-    .join("; ");
-}
-
 function runFromRow(row: RunRow): StoredRun {
   return {
     id: row.id,
@@ -125,7 +65,7 @@ function runFromRow(row: RunRow): StoredRun {
   };
 }
 
-export function startRun(pipelineId: string, runType = DATABASE.RUN_TYPES.MANUAL): string {
+export function startRun(pipelineId: string, runType = PIPELINE_RUN_TYPES.MANUAL): string {
   const id = randomUUID();
 
   getDb().prepare(DATABASE.SQL.START_RUN).run({
@@ -133,7 +73,7 @@ export function startRun(pipelineId: string, runType = DATABASE.RUN_TYPES.MANUAL
     pipelineId,
     runType,
     startedAt: nowIso(),
-    status: DATABASE.RUN_STATUSES.FAILED,
+    status: PIPELINE_RUN_STATUSES.FAILED,
   });
 
   return id;
@@ -145,7 +85,7 @@ export function finishRun(runId: string, result: RunSummary): void {
     .run({
       id: runId,
       finishedAt: nowIso(),
-      status: normalizeStatus(result.status),
+      status: normalizeRunStatus(result.status),
       sourcesAttempted: result.sourcesAttempted ?? 0,
       sourcesSucceeded: result.sourcesSucceeded ?? 0,
       sourcesFailed: result.sourcesFailed ?? 0,
@@ -155,7 +95,7 @@ export function finishRun(runId: string, result: RunSummary): void {
       itemsRejected: result.itemsRejected ?? 0,
       itemsSelected: result.itemsSelected ?? 0,
       artifactsJson: JSON.stringify(result.artifacts ?? []),
-      errorSummary: result.errorSummary ?? summarizeErrors(result.errors),
+      errorSummary: result.errorSummary ?? summarizeRunErrors(result.errors),
       metadataJson: JSON.stringify(result.metadata ?? {}),
     });
 }
@@ -164,7 +104,7 @@ export function failRun(runId: string, errorSummary: string): void {
   getDb().prepare(DATABASE.SQL.FAIL_RUN).run({
     id: runId,
     finishedAt: nowIso(),
-    status: DATABASE.RUN_STATUSES.FAILED,
+    status: PIPELINE_RUN_STATUSES.FAILED,
     errorSummary,
   });
 }
@@ -178,3 +118,10 @@ export function getRecentRuns(pipelineId: string, limit: number): StoredRun[] {
 
   return rows.map(runFromRow);
 }
+
+export const sqlitePipelineRunStore: PipelineRunStore = {
+  startRun,
+  finishRun,
+  failRun,
+  getRecentRuns,
+};

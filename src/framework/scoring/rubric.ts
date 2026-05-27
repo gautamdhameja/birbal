@@ -1,14 +1,13 @@
 import type { z } from "zod";
 
-import { AGENT } from "../../constants/agent.js";
 import {
   completeStructuredWithRepair,
   describeJsonSchema,
   ModelParseError,
 } from "../llm/repair.js";
-import type { ChatMessage, CompleteOptions } from "../../llama/schema.js";
+import type { ChatMessage, ModelClient } from "../llm/types.js";
 
-type CompleteFn = (messages: ChatMessage[], options?: CompleteOptions) => Promise<string>;
+type CompleteFn = ModelClient["complete"];
 
 export type RubricScale = {
   min: number;
@@ -43,6 +42,10 @@ export type RubricScoringContext = {
   temperature?: number;
   maxTokens?: number;
   completeFn?: CompleteFn;
+  logger?: {
+    debug(payload: Record<string, unknown>, message?: string): void;
+    warn(payload: Record<string, unknown>, message?: string): void;
+  };
   metadata?: Record<string, unknown>;
 };
 
@@ -78,7 +81,7 @@ function renderOutputShape(rubric: Rubric): string {
 function buildScoreMessages(item: unknown, rubric: Rubric): ChatMessage[] {
   return [
     {
-      role: AGENT.ROLES.SYSTEM,
+      role: "system",
       content: [
         "You are a rubric-based scoring component.",
         "Return exactly one valid JSON object and nothing else.",
@@ -87,7 +90,7 @@ function buildScoreMessages(item: unknown, rubric: Rubric): ChatMessage[] {
       ].join(" "),
     },
     {
-      role: AGENT.ROLES.USER,
+      role: "user",
       content: [
         "Rubric:",
         renderRubric(rubric),
@@ -137,11 +140,16 @@ export async function scoreItem<TScore extends Record<string, unknown>>(
   rubric: Rubric<TScore>,
   context: RubricScoringContext = {},
 ): Promise<RubricScoreResult<TScore>> {
+  if (!context.completeFn) {
+    throw new Error("Rubric scoring requires a model completion function.");
+  }
+
   const schemaDescription = describeJsonSchema(rubric.outputSchema);
   const result = await completeStructuredWithRepair({
     messages: buildScoreMessages(item, rubric),
     schema: rubric.outputSchema,
     completeFn: context.completeFn,
+    logger: context.logger,
     schemaDescription,
     repairInstructions:
       "Repair the rubric score response so it is valid JSON and matches the output schema exactly.",

@@ -6,6 +6,7 @@ Thumbs.db
 Desktop.ini
 dist/
 coverage/
+docs/book/
 digests/
 data/*.db
 data/*.db-shm

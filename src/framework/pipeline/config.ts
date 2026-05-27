@@ -25,6 +25,7 @@ const DefaultFailurePolicy = {
   continueOnSourceFailure: true,
   continueOnContentFetchFailure: true,
   continueOnScoringFailure: true,
+  continueOnStructuredExtractionFailure: true,
   minItemsRequiredForSuccess: 1,
 } as const;
 
@@ -76,6 +77,7 @@ const PipelineFailurePolicySchema = z
     continueOnSourceFailure: z.boolean().optional(),
     continueOnContentFetchFailure: z.boolean().optional(),
     continueOnScoringFailure: z.boolean().optional(),
+    continueOnStructuredExtractionFailure: z.boolean().optional(),
     minItemsRequiredForSuccess: NonNegativeIntegerSchema.optional(),
   })
   .optional()

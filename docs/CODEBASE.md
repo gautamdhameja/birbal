@@ -85,21 +85,22 @@ Source folders:
 - `src/constants/`: domain-specific constants grouped by responsibility.
 - `src/daily/`: daily candidate collection, LLM scoring, classification, digest selection, and digest rendering.
 - `src/db/`: SQLite persistence for items, scores, pipeline runs, and enterprise use cases.
-- `src/framework/`: reusable framework modules for pipelines, LLM JSON repair, scoring rubrics, content fetching, and network fetch helpers.
+- `src/framework/`: reusable framework modules for agent harness orchestration, tools, model contracts, pipelines, LLM JSON repair, scoring rubrics, content fetching, and network fetch helpers.
 - `src/http/`: HTTP response helpers and URL safety checks.
-- `src/llama/`: llama.cpp-compatible chat completion client, schemas, and env config.
+- `src/llama/`: llama.cpp-compatible chat completion client, framework adapter, schemas, and env config.
 - `src/logging/`: Pino logger and safe preview helper.
 - `src/memory/`: user preference schema and loader.
+- `src/pipelines/register.ts`: Birbal-specific pipeline component registration.
 - `src/pipelines/daily/`: current daily rubric.
 - `src/pipelines/useCases/`: enterprise use-case search, schema, extractor, selector, and renderer.
 - `src/source-search/`: domain-constrained Brave Search helper.
-- `src/tools/`: agent tool definitions, registry, and runner.
+- `src/tools/`: Birbal agent tool definitions, registry, and executor adapter.
 - `src/url-text/`: HTML text extraction and URL text wrapper.
 - `src/utils/`: JSON, date, and URL helpers.
 
 Tests:
 
-- `tests/*.test.ts`: unit and integration-style tests for agent behavior, source clients, pipeline config/registry/runner, concurrency, LLM repair, scoring, classification, daily digest behavior, URL fetching, preferences, DB storage, and use-case extraction/rendering/selection/storage.
+- `tests/*.test.ts`: unit and integration-style tests for agent behavior, source clients, pipeline config/registry/orchestration, concurrency, LLM repair, scoring, classification, daily digest behavior, URL fetching, preferences, DB storage, and use-case extraction/rendering/selection/storage.
 
 Generated runtime data is intentionally outside source:
 
@@ -136,6 +137,18 @@ All config loaders parse JSON and validate with Zod before returning typed data.
 
 ## LLM Client and Structured Output Flow
 
+Framework-level model contracts live in `src/framework/llm/types.ts`.
+
+The reusable contract is `ModelClient`:
+
+```ts
+type ModelClient = {
+  complete(messages: ChatMessage[], options?: ModelCompleteOptions): Promise<string>;
+};
+```
+
+This keeps the harness independent of a specific model provider. The only real runtime adapter today is `llamaCppModelAdapter` in `src/llama/adapter.ts`; it delegates to the llama.cpp-compatible HTTP client in `src/llama/client.ts`.
+
 The local model integration is in `src/llama/`.
 
 `getLlamaConfig()` reads and validates environment variables. `complete()` builds an OpenAI-style chat completion request:
@@ -167,21 +180,42 @@ This repair flow is used by daily scoring, daily classification, generic rubric 
 
 ## Agent Harness
 
-The agent loop lives in `src/agent/run.ts`.
+The reusable agent harness orchestrator lives in `src/framework/agent/harnessOrchestrator.ts`. It is dependency-injected with:
 
-The base prompt in `prompts/system-agent.txt` tells the model to return exactly one JSON object using one of three response types:
+- a `ModelClient`
+- a tool executor
+- a prompt builder
+- a tool prompt renderer
+- a response parser
+- optional logging and protocol labels
+
+The Birbal-specific adapter lives in `src/agent/run.ts`.
+
+The framework JSON protocol lives in `src/framework/agent/protocol.ts`. The base prompt in `prompts/system-agent.txt` tells the model to return exactly one JSON object using one of three response types:
 
 - `{"type":"final","answer":"..."}`
 - `{"type":"tool_call","tool":"...","args":{}}`
 - `{"type":"clarify","question":"..."}`
 
-`buildSystemPrompt()` appends rendered tool definitions from `src/tools/registry.ts`. `parseAgentResponse()` rejects responses that are too large, non-JSON, or invalid against the discriminated union in `src/agent/protocol.ts`.
+`buildSystemPrompt()` appends rendered tool definitions from `src/tools/registry.ts`. `parseAgentResponse()` delegates to the framework parser and rejects responses that are too large, non-JSON, or invalid against the final/tool/clarify discriminated union.
 
-`runAgent()` keeps a message history for up to `AGENT.DEFAULT_MAX_STEPS` steps. On a tool call it runs `runTool()`, appends a `tool_result` user message, and continues. On `final` or `clarify`, it returns text to the CLI. Invalid model JSON or protocol errors are returned as an agent error string instead of thrown.
+The framework harness keeps a message history for up to the configured max steps. On a tool call it runs the injected tool executor, appends a `tool_result` user message, and continues. On `final` or `clarify`, it returns text to the caller. Invalid model JSON or protocol errors are returned as an agent error string instead of thrown.
+
+The generic harness also exposes lifecycle hooks for framework users:
+
+- `beforeModelCall`
+- `afterModelCall`
+- `onParseFailure`
+- `onResponseParsed`
+- `beforeToolCall`
+- `afterToolCall`
+- `onMaxSteps`
+
+Framework consumers should import reusable APIs from `src/framework/index.ts` or the focused barrel modules under `src/framework/*/index.ts`.
 
 ## Agent Tools
 
-Tools are handwritten modules under `src/tools/`. Each tool has:
+Generic tool primitives live under `src/framework/tools/`. Birbal's concrete handwritten tools live under `src/tools/`. Each tool has:
 
 - A stable name and description from `src/constants/tools.ts`.
 - A Zod args schema.
@@ -197,7 +231,7 @@ Current tools:
 - `search_source_domain`: searches configured source domains through Brave Search.
 - `fetch_url_text`: fetches a public URL and extracts readable text.
 
-`src/tools/runner.ts` handles lookup, argument validation, timeout, result validation, structured logging, and error wrapping.
+`src/framework/tools/registry.ts` owns the reusable `ToolRegistry`. `src/framework/tools/executor.ts` handles lookup, argument validation, timeout, result validation, structured logging, and error wrapping. `src/tools/registry.ts` and `src/tools/executor.ts` are thin Birbal adapters around those framework primitives.
 
 ## Pipeline Framework
 
@@ -239,11 +273,11 @@ The registry has separate buckets for collectors, fetchers, extractors, scorers,
 
 `resolveFromConfig()` resolves all component IDs referenced by the pipeline config, including derived `components` entries. Unknown IDs fail the run before work begins.
 
-`defaultComponents.ts` registers the built-in components once per registry using a `WeakSet`.
+`src/framework/pipeline/defaultComponents.ts` registers only generic framework components, currently the filesystem artifact writer. Birbal app components are registered from `src/pipelines/register.ts` using `registerBirbalPipelineComponents()`.
 
-### Runner Stages
+### Orchestration Stages
 
-`runner.ts` is the orchestration core. A run follows this order:
+`orchestrator.ts` is the pipeline orchestration core. A run follows this order:
 
 1. Load pipeline config.
 2. Start a run record in SQLite.
@@ -264,11 +298,12 @@ The registry has separate buckets for collectors, fetchers, extractors, scorers,
 17. Write an artifact.
 18. Finish the run and return a `PipelineResult`.
 
-The runner collects stage counts and structured errors. It supports fail-fast behavior and per-stage continuation controls through `failurePolicy`:
+The orchestrator collects stage counts and structured errors. It supports fail-fast behavior and per-stage continuation controls through `failurePolicy`:
 
 - `continueOnSourceFailure`
 - `continueOnContentFetchFailure`
 - `continueOnScoringFailure`
+- `continueOnStructuredExtractionFailure`
 - `minItemsRequiredForSuccess`
 - `failFast`
 
@@ -290,41 +325,43 @@ These helpers are used by collection, content fetch, scoring, classification, st
 
 ### Run Persistence
 
-`runs.ts` starts, finishes, fails, and lists pipeline runs. It writes to the `runs` table through the shared SQLite connection from `src/db/items.ts`.
+`src/framework/pipeline/runStore.ts` defines the generic `PipelineRunStore` contract and an in-memory implementation for tests and framework examples. `src/db/pipelineRuns.ts` is Birbal's SQLite implementation; it starts, finishes, fails, and lists pipeline runs through the shared SQLite connection from `src/db/items.ts`.
 
 Runs start as `failed` by default and are updated on completion. This makes interrupted runs visible as failed/incomplete records.
 
-## Built-In Pipeline Components
+The framework-level `PipelineRunStore` interface captures the storage boundary. `sqlitePipelineRunStore` is the current implementation used by Birbal and is injected by the pipeline CLI.
 
-`src/framework/pipeline/defaultComponents.ts` adapts domain modules into framework components.
+## Birbal Pipeline Components
 
-Registered collectors:
+`src/pipelines/register.ts` adapts Birbal domain modules into framework components.
+
+Registered Birbal collectors:
 
 - `source_domain_collector`: collects configured daily sources for the `daily` pipeline.
 - `brave_web_search_collector`: collects enterprise use-case candidates from configured Brave Search queries.
 
-Registered content fetchers:
+Registered Birbal content fetchers:
 
 - `url_text_fetcher`: fetches URL text through `fetchUrlContent()`, reuses cached item content when present, and upserts fetched candidate text.
 
-Registered scorers:
+Registered Birbal scorers:
 
 - `enterprise_deployment_scorer`: scores daily candidates with the enterprise daily rubric, persists items and scores, and supports batch scoring.
 
-Registered classifiers:
+Registered Birbal classifiers:
 
 - `enterprise_digest_classifier`: classifies daily scored items into digest categories; falls back deterministically if model classification fails.
 
-Registered structured extractors:
+Registered Birbal structured extractors:
 
 - `enterprise_use_case_extractor`: extracts one or more current `EnterpriseUseCase` records from fetched article text.
 
-Registered selectors:
+Registered Birbal selectors:
 
 - `daily_enterprise_mix_selector`: selects daily digest items using score thresholds, source limits, category slots, and trace output.
 - `enterprise_use_case_selector`: selects high-confidence enterprise use cases with diversity constraints and persists them.
 
-Registered renderers:
+Registered Birbal renderers:
 
 - `daily_markdown_renderer`: renders daily scored candidates to Markdown.
 - `enterprise_use_case_markdown_renderer`: renders current enterprise use-case digest Markdown.
@@ -493,12 +530,15 @@ Tables:
 - `listTopScoredItems()`
 - `listTopScoredItemsByIds()`
 
-`src/framework/pipeline/runs.ts` provides:
+`src/db/pipelineRuns.ts` provides the Birbal SQLite run store:
 
 - `startRun()`
 - `finishRun()`
 - `failRun()`
 - `getRecentRuns()`
+- `sqlitePipelineRunStore`
+
+`src/framework/pipeline/runStore.ts` provides the storage interface, run status helpers, and `createInMemoryPipelineRunStore()`.
 
 ## HTTP, Network, and URL Safety
 
@@ -593,7 +633,7 @@ Logging uses Pino through `src/logging/logger.ts`.
 
 Default logs go to stderr. `LOG_LEVEL` controls severity. `LOG_PRETTY=true` enables `pino-pretty`.
 
-The agent, tools, LLM client, structured repair flow, pipeline runner, selectors, and source collection emit structured events with IDs such as:
+The agent, tools, LLM client, structured repair flow, pipeline orchestrator, selectors, and source collection emit structured events with IDs such as:
 
 - `agent.run.start`
 - `handoff.harness_to_model`
@@ -621,14 +661,15 @@ The test suite uses Node's built-in test runner through `tsx`.
 Current test areas include:
 
 - Agent response parsing and agent run behavior.
-- Tool registry and runner behavior.
+- Framework agent harness behavior with a fake model and fake tool.
+- Tool registry and executor behavior.
 - Llama request/response schemas.
 - Shared LLM repair behavior.
 - HTTP helpers and URL content fetching.
 - Source registry and preferences validation.
 - SQLite item, score, run, and use-case storage behavior.
-- Pipeline config validation, component registry behavior, runner orchestration, and concurrency helpers.
-- Daily collection, scoring, classification, digest writing, digest selection, and older daily job behavior.
+- Pipeline config validation, component registry behavior, pipeline orchestration, and concurrency helpers.
+- Daily collection, scoring, classification, digest writing, and digest selection.
 - Generic rubric scoring.
 - Production use-case scout behavior.
 - Current enterprise use-case schema, extraction, selection, rendering, and storage.
@@ -651,10 +692,10 @@ To add a config-driven pipeline:
 
 1. Define or reuse domain types in a dedicated module.
 2. Add collectors, fetchers, extractors, scorers, classifiers, selectors, renderers, and writers as small focused components.
-3. Register component IDs in `registerDefaultPipelineComponents()` or in a custom registry for tests.
+3. Register generic component IDs with `registerFrameworkPipelineComponents()` and Birbal application component IDs with `registerBirbalPipelineComponents()`, or use a custom registry for tests.
 4. Add a JSON config under `config/pipelines/`.
 5. Validate limits, failure policy, and output path behavior.
-6. Add focused tests for config validation, component resolution, runner behavior, and the new domain logic.
+6. Add focused tests for config validation, component resolution, orchestration behavior, and the new domain logic.
 
 Pipeline output paths should stay relative to the workspace. The built-in filesystem writer rejects absolute paths and path traversal.
 
@@ -663,7 +704,7 @@ Pipeline output paths should stay relative to the workspace. The built-in filesy
 For the daily pipeline:
 
 1. CLI loads `config/pipelines/daily.json`.
-2. Default components are registered.
+2. Framework and Birbal components are registered.
 3. Source registry and preferences are loaded.
 4. `source_domain_collector` delegates to daily collection.
 5. Items are deduped and content is fetched.
@@ -677,7 +718,7 @@ For the daily pipeline:
 For the use-case pipeline:
 
 1. CLI loads `config/pipelines/use-cases.json`.
-2. Default components are registered.
+2. Framework and Birbal components are registered.
 3. Collection methods search source-specific and open-web queries.
 4. Results are deduped, ranked, and content-fetched.
 5. `enterprise_use_case_extractor` prompts the local LLM for structured use cases.
@@ -692,7 +733,7 @@ For the agent CLI:
 1. CLI builds a system prompt from `prompts/system-agent.txt` plus registered tools.
 2. The local LLM emits strict JSON.
 3. The harness validates the response.
-4. Tool calls are executed through the typed tool runner.
+4. Tool calls are executed through the typed tool executor.
 5. Tool results are appended as messages until the model returns `final`, asks to `clarify`, or hits the step limit.
 
 ## Current Design Boundaries

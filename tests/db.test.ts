@@ -19,7 +19,8 @@ import {
   upsertItem,
   upsertScore,
 } from "../src/db/items.js";
-import { failRun, finishRun, getRecentRuns, startRun } from "../src/framework/pipeline/runs.js";
+import { failRun, finishRun, getRecentRuns, startRun } from "../src/db/pipelineRuns.js";
+import { createInMemoryPipelineRunStore } from "../src/framework/pipeline/runStore.js";
 import type { CandidateItem, ItemScore } from "../src/daily/types.js";
 
 function item(overrides: Partial<CandidateItem>): CandidateItem {
@@ -359,5 +360,30 @@ describe("SQLite item persistence", () => {
     assert.equal(recentRuns[0]?.status, "failed");
     assert.equal(recentRuns[0]?.errorSummary, "model unavailable");
     assert.throws(() => getRecentRuns("use_cases", 0), /positive integer/);
+  });
+
+  it("supports an in-memory pipeline run store adapter", () => {
+    const store = createInMemoryPipelineRunStore({
+      now: () => new Date("2026-05-25T08:00:00.000Z"),
+    });
+    const runId = store.startRun("example");
+
+    store.finishRun(runId, {
+      status: "success",
+      itemsCollected: 2,
+      itemsSelected: 1,
+      metadata: {
+        mode: "test",
+      },
+    });
+
+    const [run] = store.getRecentRuns("example", 1);
+    assert.equal(run?.id, runId);
+    assert.equal(run?.status, "success");
+    assert.equal(run?.itemsCollected, 2);
+    assert.equal(run?.itemsSelected, 1);
+    assert.deepEqual(run?.metadata, {
+      mode: "test",
+    });
   });
 });

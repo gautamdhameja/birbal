@@ -1,6 +1,4 @@
-import { z } from "zod";
-
-import { TOOLS } from "../constants/tools.js";
+import { ToolRegistry } from "../framework/tools/registry.js";
 import { fetchUrlTextTool } from "./fetch-url-text.js";
 import { getTimeTool } from "./get-time.js";
 import { searchArxivTool } from "./search-arxiv.js";
@@ -17,40 +15,18 @@ const tools = [
   searchSourceDomainTool,
   fetchUrlTextTool,
 ] satisfies ToolDefinition[];
-const toolsByName = new Map(tools.map((tool) => [tool.name, tool]));
 
-function renderArgsSchema(argsSchema: z.ZodType): string {
-  const { $schema: _schema, ...jsonSchema } = z.toJSONSchema(argsSchema);
-  const objectSchema = jsonSchema as {
-    properties?: Record<string, { default?: unknown }>;
-    required?: string[];
-  };
-
-  if (objectSchema.properties && objectSchema.required) {
-    objectSchema.required = objectSchema.required.filter(
-      (propertyName) => !("default" in (objectSchema.properties?.[propertyName] ?? {})),
-    );
-  }
-
-  return JSON.stringify(jsonSchema);
-}
+export const toolRegistry = new ToolRegistry();
+toolRegistry.registerMany(tools);
 
 export function listTools(): ToolDefinition[] {
-  return [...tools];
+  return toolRegistry.list();
 }
 
 export function getTool(name: string): ToolDefinition | undefined {
-  return toolsByName.get(name);
+  return toolRegistry.get(name);
 }
 
 export function renderToolsForPrompt(): string {
-  return tools
-    .map((tool) =>
-      [
-        `${TOOLS.PROMPT_LABELS.NAME}: ${tool.name}`,
-        `${TOOLS.PROMPT_LABELS.DESCRIPTION}: ${tool.description}`,
-        `${TOOLS.PROMPT_LABELS.ARGS}: ${renderArgsSchema(tool.argsSchema)}`,
-      ].join("\n"),
-    )
-    .join("\n\n");
+  return toolRegistry.renderForPrompt();
 }

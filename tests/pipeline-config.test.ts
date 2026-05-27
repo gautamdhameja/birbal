@@ -35,6 +35,7 @@ describe("pipeline config", () => {
       continueOnSourceFailure: true,
       continueOnContentFetchFailure: true,
       continueOnScoringFailure: true,
+      continueOnStructuredExtractionFailure: true,
       minItemsRequiredForSuccess: 5,
     });
     assert.deepEqual(config.contentFetchPolicy, {
@@ -85,6 +86,7 @@ describe("pipeline config", () => {
       continueOnSourceFailure: true,
       continueOnContentFetchFailure: true,
       continueOnScoringFailure: true,
+      continueOnStructuredExtractionFailure: true,
       minItemsRequiredForSuccess: 1,
     });
     assert.equal(config.limits.maxSearchQueries, 5);

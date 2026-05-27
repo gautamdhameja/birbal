@@ -5,7 +5,9 @@ import { LLAMA } from "../constants/llama.js";
 import { SCORING } from "../constants/scoring.js";
 import { completeStructuredWithRepair, ModelParseError } from "../framework/llm/repair.js";
 import { calculateWeightedFinalScore, type Rubric } from "../framework/scoring/rubric.js";
+import { llamaCppModelAdapter } from "../llama/adapter.js";
 import type { ChatMessage, CompleteOptions } from "../llama/schema.js";
+import { logger } from "../logging/logger.js";
 import type { UserPreferences } from "../memory/types.js";
 import {
   EnterpriseDailyScoreSchema,
@@ -18,6 +20,7 @@ import type { CandidateItem, ItemScore, ScoredCandidateItem } from "./types.js";
 const ScoreResponseSchema = EnterpriseDailyScoreSchema;
 type ScoreResponse = EnterpriseDailyScore;
 type ModelTraceOptions = Pick<CompleteOptions, "traceId" | "traceLabel"> & {
+  completeFn?: typeof llamaCppModelAdapter.complete;
   rubric?: Rubric<EnterpriseDailyScore>;
 };
 const ScoreBatchResponseSchema = z.strictObject({
@@ -273,7 +276,7 @@ export async function scoreItem(
   traceOptions: ModelTraceOptions = {},
 ): Promise<ItemScore> {
   const rubric = traceOptions.rubric ?? enterpriseDailyReadingRubric;
-  const { rubric: _rubric, ...completeTraceOptions } = traceOptions;
+  const { completeFn, rubric: _rubric, ...completeTraceOptions } = traceOptions;
   const messages: ChatMessage[] = [
     {
       role: AGENT.ROLES.SYSTEM,
@@ -288,6 +291,8 @@ export async function scoreItem(
   const result = await completeStructuredWithRepair({
     messages,
     schema: ScoreResponseSchema,
+    completeFn: completeFn ?? llamaCppModelAdapter.complete,
+    logger,
     repairInstructions: SCORING.REPAIR_PROMPT,
     completeOptions: {
       temperature: SCORING.MODEL_TEMPERATURE,
@@ -316,7 +321,7 @@ export async function scoreItems(
   }
 
   const rubric = traceOptions.rubric ?? enterpriseDailyReadingRubric;
-  const { rubric: _rubric, ...completeTraceOptions } = traceOptions;
+  const { completeFn, rubric: _rubric, ...completeTraceOptions } = traceOptions;
   const expectedIds = candidates.map((candidate) => candidate.id);
   const messages: ChatMessage[] = [
     {
@@ -332,6 +337,8 @@ export async function scoreItems(
   const result = await completeStructuredWithRepair({
     messages,
     schema: scoreBatchResponseSchema(expectedIds),
+    completeFn: completeFn ?? llamaCppModelAdapter.complete,
+    logger,
     repairInstructions: SCORING.REPAIR_PROMPT,
     completeOptions: {
       temperature: SCORING.MODEL_TEMPERATURE,

@@ -4,7 +4,9 @@ import { AGENT } from "../../constants/agent.js";
 import { LLAMA } from "../../constants/llama.js";
 import { completeStructuredWithRepair, ModelParseError } from "../../framework/llm/repair.js";
 import type { CandidateItem } from "../../daily/types.js";
+import { llamaCppModelAdapter } from "../../llama/adapter.js";
 import type { ChatMessage, CompleteOptions } from "../../llama/schema.js";
+import { logger } from "../../logging/logger.js";
 import { EnterpriseUseCaseSchema, type EnterpriseUseCase } from "./schema.js";
 
 type CompleteFn = (messages: ChatMessage[], options?: CompleteOptions) => Promise<string>;
@@ -85,7 +87,8 @@ const ExtractedEnterpriseUseCasesSchema = z.preprocess(
   }),
 );
 
-const MAX_CONTENT_CHARS = 12_000;
+const MAX_CONTENT_CHARS = 9_000;
+const MAX_USE_CASES_PER_ARTICLE = 3;
 const MODEL_TEMPERATURE = 0;
 const MODEL_MAX_TOKENS = 3_000;
 
@@ -153,6 +156,7 @@ function buildMessages(candidate: CandidateItem, fetchedContentText: string): Ch
         "Return exactly one valid JSON object and nothing else.",
         "Do not include Markdown, code fences, comments, or prose outside JSON.",
         "The top-level object must contain only a useCases array.",
+        `Extract at most ${MAX_USE_CASES_PER_ARTICLE} use cases from one article. Choose the strongest evidence only.`,
         "Extract only real enterprise use cases with evidence in the article.",
         "Do not extract hypothetical examples, vague vendor claims, trend commentary, or generic product launches.",
         'Use "unknown" for any field that is not available in the article.',
@@ -165,6 +169,8 @@ function buildMessages(candidate: CandidateItem, fetchedContentText: string): Ch
         "Use confidenceScore 5 only for named real deployments with specific workflow detail and measurable outcomes.",
         "Use confidenceScore 3 for plausible but incomplete evidence.",
         "Use confidenceScore 1 or 2 for weak, vague, pilot-only, or thinly supported evidence.",
+        "Keep every string field concise. Prefer one short sentence per field.",
+        "Do not include long quotations, long lists, or multi-paragraph values.",
         "For systemIntegrations, return a comma-separated string, not an array.",
       ].join(" "),
     },
@@ -184,6 +190,7 @@ function buildMessages(candidate: CandidateItem, fetchedContentText: string): Ch
         "- deployment maturity",
         "- evidence quality",
         "- confidenceScore as the final model-owned use-case score for every extracted use case",
+        `- no more than ${MAX_USE_CASES_PER_ARTICLE} strongest use cases from this article`,
         "",
         "Candidate:",
         renderCandidate(candidate),
@@ -193,6 +200,7 @@ function buildMessages(candidate: CandidateItem, fetchedContentText: string): Ch
         "",
         "Set sourceUrl exactly to the candidate URL.",
         "Keep evidenceSummary concise and analytical. Explain why the use case deserves its confidenceScore using only article evidence.",
+        "Keep the full response compact enough to finish. If the article has many examples, pick the best few rather than listing all of them.",
         "",
         "Response shape:",
         responseShape(),
@@ -210,6 +218,8 @@ function buildRepairInstructions(): string {
     "Every item in useCases must match the EnterpriseUseCase schema.",
     "All fields must be strings except confidenceScore, which must be a number from 1 to 5.",
     "Do not omit confidenceScore.",
+    `Keep at most ${MAX_USE_CASES_PER_ARTICLE} use cases.`,
+    "Keep string fields concise so the JSON can complete without truncation.",
     "Use comma-separated strings instead of arrays for list-like fields.",
     'Use "unknown" for unavailable fields.',
     "Do not add use cases or details that are not supported by the article.",
@@ -220,7 +230,7 @@ function useCasesWithTrustedSourceUrl(
   useCases: EnterpriseUseCase[],
   candidate: CandidateItem,
 ): EnterpriseUseCase[] {
-  return useCases.map((useCase) => ({
+  return useCases.slice(0, MAX_USE_CASES_PER_ARTICLE).map((useCase) => ({
     ...useCase,
     sourceUrl: candidate.url,
   }));
@@ -234,7 +244,8 @@ export async function extractEnterpriseUseCases(
   const result = await completeStructuredWithRepair({
     messages: buildMessages(candidate, fetchedContentText),
     schema: ExtractedEnterpriseUseCasesSchema,
-    completeFn: options.completeFn,
+    completeFn: options.completeFn ?? llamaCppModelAdapter.complete,
+    logger,
     repairInstructions: buildRepairInstructions(),
     completeOptions: {
       temperature: MODEL_TEMPERATURE,

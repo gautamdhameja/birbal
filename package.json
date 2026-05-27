@@ -8,6 +8,8 @@
     "run-pipeline": "tsx src/runPipeline.ts",
     "daily": "tsx src/runPipeline.ts daily",
     "use-cases": "tsx src/runPipeline.ts use_cases",
+    "example:agent": "tsx examples/minimal-agent.ts",
+    "example:pipeline": "tsx examples/static-pipeline.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",

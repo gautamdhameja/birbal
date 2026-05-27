@@ -70,6 +70,7 @@ export type PipelineFailurePolicy = {
   continueOnSourceFailure: boolean;
   continueOnContentFetchFailure: boolean;
   continueOnScoringFailure: boolean;
+  continueOnStructuredExtractionFailure: boolean;
   minItemsRequiredForSuccess: number;
 };
 

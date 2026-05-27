@@ -105,7 +105,7 @@ async function main(): Promise<void> {
   if (options.dryRun) {
     const [{ loadSourceRegistry }, { validateConfiguredSourceIds }] = await Promise.all([
       import("./config/sourceRegistry.js"),
-      import("./framework/pipeline/runner.js"),
+      import("./framework/pipeline/orchestrator.js"),
     ]);
     const config = loadConfig(configPathOrId);
     validateConfiguredSourceIds(config, loadSourceRegistry());
@@ -122,14 +122,26 @@ async function main(): Promise<void> {
     return;
   }
 
-  const [{ registerDefaultPipelineComponents }, { runPipeline }] = await Promise.all([
-    import("./framework/pipeline/defaultComponents.js"),
-    import("./framework/pipeline/runner.js"),
+  const [
+    { loadSourceRegistry },
+    { sqlitePipelineRunStore },
+    { logger },
+    { registerBirbalPipelineComponents },
+    { runPipeline },
+  ] = await Promise.all([
+    import("./config/sourceRegistry.js"),
+    import("./db/pipelineRuns.js"),
+    import("./logging/logger.js"),
+    import("./pipelines/register.js"),
+    import("./framework/pipeline/orchestrator.js"),
   ]);
 
-  registerDefaultPipelineComponents();
+  registerBirbalPipelineComponents();
   const result = await runPipeline(configPathOrId, {
     loadConfig,
+    loadSourceRegistry,
+    logger,
+    runStore: sqlitePipelineRunStore,
   });
 
   if (result.status === "failed") {

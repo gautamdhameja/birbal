@@ -1,11 +1,14 @@
 import { z } from "zod";
 
-import { complete } from "../../llama/client.js";
-import type { ChatMessage, CompleteOptions } from "../../llama/schema.js";
-import { logger } from "../../logging/logger.js";
 import { parseJson, parseStrictJson } from "../../utils/json.js";
+import type { ChatMessage, ModelClient, ModelCompleteOptions } from "./types.js";
 
-type CompleteFn = (messages: ChatMessage[], options?: CompleteOptions) => Promise<string>;
+type CompleteFn = ModelClient["complete"];
+
+type StructuredOutputRepairLogger = {
+  debug(payload: Record<string, unknown>, message?: string): void;
+  warn(payload: Record<string, unknown>, message?: string): void;
+};
 
 export type ModelParseErrorDetails = {
   type: "model_parse_error";
@@ -33,8 +36,9 @@ export type StructuredModelOutputResult<T> =
 export type CompleteStructuredWithRepairOptions<T> = {
   messages: ChatMessage[];
   schema: z.ZodType<T>;
-  completeOptions?: CompleteOptions;
-  completeFn?: CompleteFn;
+  completeOptions?: ModelCompleteOptions;
+  completeFn: CompleteFn;
+  logger?: StructuredOutputRepairLogger;
   repairInstructions?: string;
   schemaDescription?: string;
 };
@@ -50,6 +54,11 @@ type ParsedModelOutput<T> =
     };
 
 const MAX_LOGGED_VALIDATION_ERROR_CHARS = 1_000;
+
+const noopLogger: StructuredOutputRepairLogger = {
+  debug: () => undefined,
+  warn: () => undefined,
+};
 
 export class ModelParseError extends Error {
   readonly type = "model_parse_error";
@@ -224,7 +233,8 @@ export async function completeStructuredWithRepair<T>({
   messages,
   schema,
   completeOptions = {},
-  completeFn = complete,
+  completeFn,
+  logger = noopLogger,
   repairInstructions,
   schemaDescription = describeJsonSchema(schema),
 }: CompleteStructuredWithRepairOptions<T>): Promise<StructuredModelOutputResult<T>> {

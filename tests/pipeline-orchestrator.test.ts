@@ -5,11 +5,11 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { PipelineComponentRegistry } from "../src/framework/pipeline/registry.js";
-import { runPipeline } from "../src/framework/pipeline/runner.js";
+import { runPipeline } from "../src/framework/pipeline/orchestrator.js";
 import { ModelParseError } from "../src/framework/llm/repair.js";
-import { registerDefaultPipelineComponents } from "../src/framework/pipeline/defaultComponents.js";
+import { registerFrameworkPipelineComponents } from "../src/framework/pipeline/defaultComponents.js";
 import { HttpStatusError } from "../src/http/client.js";
-import type { PipelineRunItem } from "../src/framework/pipeline/runner.js";
+import type { PipelineRunItem } from "../src/framework/pipeline/orchestrator.js";
 import type {
   PipelineCollectionMethod,
   PipelineConfig,
@@ -21,7 +21,10 @@ type ConfigOverrides = Omit<Partial<PipelineConfig>, "contentFetchPolicy"> & {
 };
 
 function writeConfig(value: PipelineConfig): string {
-  const configPath = join(mkdtempSync(join(tmpdir(), "birbal-pipeline-runner-")), "pipeline.json");
+  const configPath = join(
+    mkdtempSync(join(tmpdir(), "birbal-pipeline-orchestrator-")),
+    "pipeline.json",
+  );
   writeFileSync(configPath, JSON.stringify(value));
   return configPath;
 }
@@ -65,6 +68,7 @@ function config(overrides: ConfigOverrides = {}): PipelineConfig {
       continueOnSourceFailure: true,
       continueOnContentFetchFailure: true,
       continueOnScoringFailure: true,
+      continueOnStructuredExtractionFailure: true,
       minItemsRequiredForSuccess: 1,
     },
   };
@@ -96,7 +100,7 @@ function testSourceRegistry(): { sources: Array<{ id: string }> } {
   };
 }
 
-describe("pipeline runner", () => {
+describe("pipeline orchestrator", () => {
   it("runs configured generic pipeline components in order", async () => {
     const calls: string[] = [];
     const logs: unknown[] = [];
@@ -569,6 +573,7 @@ describe("pipeline runner", () => {
             continueOnSourceFailure: true,
             continueOnContentFetchFailure: true,
             continueOnScoringFailure: true,
+            continueOnStructuredExtractionFailure: true,
             minItemsRequiredForSuccess: 1,
           },
         }),
@@ -625,6 +630,7 @@ describe("pipeline runner", () => {
             continueOnSourceFailure: false,
             continueOnContentFetchFailure: true,
             continueOnScoringFailure: true,
+            continueOnStructuredExtractionFailure: true,
             minItemsRequiredForSuccess: 1,
           },
         }),
@@ -699,6 +705,63 @@ describe("pipeline runner", () => {
     assert.equal(result.counts.collectionErrors, 1);
     assert.equal(result.counts.selected, 1);
     assert.equal(result.errors[0]?.code, "source_collection_failed");
+  });
+
+  it("can stop after the first structured extraction failure", async () => {
+    const registry = new PipelineComponentRegistry();
+
+    registry.registerCollector("collector", {
+      collect: async () => [{ id: "first" }, { id: "second" }],
+    });
+    registry.registerStructuredExtractor("structured_extractor", {
+      extractStructured: async () => {
+        throw new Error("model unavailable");
+      },
+    });
+    registry.registerSelector("selector", {
+      select: async (items) => items,
+    });
+    registry.registerRenderer("renderer", {
+      render: async () => "rendered",
+    });
+    registry.registerArtifactWriter("writer", {
+      write: async () => ({ id: "artifact", type: "markdown" }),
+    });
+
+    const result = await runPipeline(
+      writeConfig(
+        config({
+          contentFetchPolicy: {
+            enabled: false,
+          },
+          scorerId: undefined,
+          classifierId: undefined,
+          failurePolicy: {
+            failFast: false,
+            continueOnSourceFailure: true,
+            continueOnContentFetchFailure: true,
+            continueOnScoringFailure: true,
+            continueOnStructuredExtractionFailure: false,
+            minItemsRequiredForSuccess: 1,
+          },
+        }),
+      ),
+      {
+        startRun: () => "run-structured-failure-stop",
+        finishRun: () => undefined,
+        failRun: () => undefined,
+        loadSourceRegistry: testSourceRegistry,
+        logger: silentLogger(),
+        now: () => new Date("2026-05-23T08:00:00.000Z"),
+        registry,
+      },
+    );
+
+    assert.equal(result.status, "failed");
+    assert.equal(result.counts.structuredExtractionErrors, 1);
+    assert.equal(result.counts.selected, undefined);
+    assert.equal(result.errors[0]?.code, "structured_extraction_failed");
+    assert.equal(result.errors.at(-1)?.code, "failure_policy_abort");
   });
 
   it("rejects pipeline configs that reference unknown source IDs", async () => {
@@ -781,6 +844,7 @@ describe("pipeline runner", () => {
             continueOnSourceFailure: true,
             continueOnContentFetchFailure: true,
             continueOnScoringFailure: true,
+            continueOnStructuredExtractionFailure: true,
             minItemsRequiredForSuccess: 1,
           },
         }),
@@ -903,6 +967,7 @@ describe("pipeline runner", () => {
             continueOnSourceFailure: true,
             continueOnContentFetchFailure: true,
             continueOnScoringFailure: true,
+            continueOnStructuredExtractionFailure: true,
             minItemsRequiredForSuccess: 1,
           },
         }),
@@ -1057,7 +1122,7 @@ describe("pipeline runner", () => {
 
   it("rejects filesystem artifact paths outside the workspace", async () => {
     const registry = new PipelineComponentRegistry();
-    registerDefaultPipelineComponents(registry);
+    registerFrameworkPipelineComponents(registry);
 
     registry.registerCollector("collector", {
       collect: async () => [{ id: "first" }],
@@ -1109,7 +1174,7 @@ describe("pipeline runner", () => {
     const linkName = `.tmp-pipeline-output-link-${Date.now()}`;
     const outsideDirectory = mkdtempSync(join(tmpdir(), "birbal-artifact-outside-"));
 
-    registerDefaultPipelineComponents(registry);
+    registerFrameworkPipelineComponents(registry);
     symlinkSync(outsideDirectory, join(process.cwd(), linkName), "dir");
 
     registry.registerCollector("collector", {

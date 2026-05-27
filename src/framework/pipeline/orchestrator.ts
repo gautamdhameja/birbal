@@ -1,15 +1,13 @@
-import { loadSourceRegistry } from "../../config/sourceRegistry.js";
 import { ModelParseError } from "../llm/repair.js";
 import { isHttpStatusError, summarizeHttpErrorBody } from "../../http/client.js";
-import { logger } from "../../logging/logger.js";
 import { preview } from "../../logging/preview.js";
 import { normalizeUrl } from "../../utils/url.js";
-import { mapBatches, mapLimit } from "./concurrency.js";
+import { chunkItems as chunkPipelineItems, mapBatches, mapLimit } from "./concurrency.js";
 import { loadPipelineConfig } from "./config.js";
 import type { PipelineComponentRegistry } from "./registry.js";
 import { pipelineComponentRegistry } from "./registry.js";
-import { failRun, finishRun, startRun } from "./runs.js";
-import type { RunSummary } from "./runs.js";
+import { createInMemoryPipelineRunStore } from "./runStore.js";
+import type { PipelineRunStore, RunSummary } from "./runStore.js";
 import type {
   ArtifactWriter,
   Classifier,
@@ -44,7 +42,7 @@ export type PipelineRunItem = {
   metadata: PipelineMetadata;
 };
 
-type PipelineRunnerDependencies = {
+export type PipelineOrchestratorDependencies = {
   db: unknown;
   failRun(runId: string, errorSummary: string): void;
   finishRun(runId: string, result: RunSummary): void;
@@ -54,6 +52,7 @@ type PipelineRunnerDependencies = {
   now(): Date;
   registry: PipelineComponentRegistry;
   researchProfile: unknown;
+  runStore: PipelineRunStore;
   startRun(pipelineId: string): string;
 };
 
@@ -85,18 +84,57 @@ class PipelinePolicyAbortError extends Error {
   }
 }
 
-const defaultDependencies: PipelineRunnerDependencies = {
+const noopLogger: PipelineLogger = {
+  debug: () => undefined,
+  info: () => undefined,
+  warn: () => undefined,
+  error: () => undefined,
+};
+
+function missingSourceRegistryLoader(): never {
+  throw new Error(
+    "Pipeline source registry loader was not provided. Pass loadSourceRegistry in runPipeline dependencies.",
+  );
+}
+
+const defaultRunStore = createInMemoryPipelineRunStore();
+
+const defaultDependencies: PipelineOrchestratorDependencies = {
   db: null,
-  failRun,
-  finishRun,
+  failRun: defaultRunStore.failRun,
+  finishRun: defaultRunStore.finishRun,
   loadConfig: loadPipelineConfig,
-  loadSourceRegistry,
-  logger,
+  loadSourceRegistry: missingSourceRegistryLoader,
+  logger: noopLogger,
   now: () => new Date(),
   registry: pipelineComponentRegistry,
   researchProfile: null,
-  startRun,
+  runStore: defaultRunStore,
+  startRun: defaultRunStore.startRun,
 };
+
+function resolveDependencies(
+  dependencies: Partial<PipelineOrchestratorDependencies>,
+): PipelineOrchestratorDependencies {
+  const deps = {
+    ...defaultDependencies,
+    ...dependencies,
+  };
+
+  if (dependencies.runStore && !dependencies.startRun) {
+    deps.startRun = dependencies.runStore.startRun;
+  }
+
+  if (dependencies.runStore && !dependencies.finishRun) {
+    deps.finishRun = dependencies.runStore.finishRun;
+  }
+
+  if (dependencies.runStore && !dependencies.failRun) {
+    deps.failRun = dependencies.runStore.failRun;
+  }
+
+  return deps;
+}
 
 function incrementCount(counts: PipelineCounts, key: string, amount = 1): void {
   counts[key] = (counts[key] ?? 0) + amount;
@@ -397,6 +435,12 @@ function shouldContinueAfterScoringFailure(config: PipelineConfig): boolean {
   return config.failurePolicy.continueOnScoringFailure && !config.failurePolicy.failFast;
 }
 
+function shouldContinueAfterStructuredExtractionFailure(config: PipelineConfig): boolean {
+  return (
+    config.failurePolicy.continueOnStructuredExtractionFailure && !config.failurePolicy.failFast
+  );
+}
+
 function shouldContinueAfterNonPolicyFailure(config: PipelineConfig): boolean {
   return !config.failurePolicy.failFast;
 }
@@ -556,7 +600,7 @@ function failedResult(
 }
 
 function finishSharedRun(
-  deps: PipelineRunnerDependencies,
+  deps: PipelineOrchestratorDependencies,
   runId: string,
   result: PipelineResult,
 ): void {
@@ -577,7 +621,7 @@ function finishSharedRun(
 }
 
 function finishPipelineRun(
-  deps: PipelineRunnerDependencies,
+  deps: PipelineOrchestratorDependencies,
   runId: string,
   result: PipelineResult,
   startedAt: Date,
@@ -589,7 +633,7 @@ function finishPipelineRun(
 }
 
 function failPipelineRun(
-  deps: PipelineRunnerDependencies,
+  deps: PipelineOrchestratorDependencies,
   config: PipelineConfig,
   runId: string,
   startedAt: Date,
@@ -1043,7 +1087,7 @@ async function classifyAndExtractStructured(
           }),
         );
 
-        if (!shouldContinueAfterNonPolicyFailure(context.config)) {
+        if (!shouldContinueAfterStructuredExtractionFailure(context.config)) {
           throw new PipelinePolicyAbortError(
             `Pipeline stopped after structured extraction failure for ${item.id}.`,
           );
@@ -1057,67 +1101,90 @@ async function classifyAndExtractStructured(
       !activeStructuredExtractor.extractStructuredBatch ||
       batchSize(context.config, "structuredExtraction") <= 1
     ) {
+      const continueAfterStructuredExtractionFailure =
+        shouldContinueAfterStructuredExtractionFailure(context.config);
       output = await runTimedStage(
         context,
         "structured_extraction",
         output.length,
-        () =>
-          mapLimit(
+        async () => {
+          if (!continueAfterStructuredExtractionFailure) {
+            const extractedItems: PipelineRunItem[] = [];
+            for (const item of output) {
+              extractedItems.push(await extractOne(item));
+            }
+            return extractedItems;
+          }
+
+          return mapLimit(
             output,
             executionLimit(context.config, "structuredExtractionConcurrency"),
             extractOne,
-          ),
+          );
+        },
         {
           concurrency: executionLimit(context.config, "structuredExtractionConcurrency"),
         },
       );
     } else {
+      const continueAfterStructuredExtractionFailure =
+        shouldContinueAfterStructuredExtractionFailure(context.config);
       output = await runTimedStage(
         context,
         "structured_extraction",
         output.length,
-        () =>
-          mapBatches(
+        async () => {
+          const extractBatch = async (batch: PipelineRunItem[]): Promise<PipelineRunItem[]> => {
+            try {
+              const structuredData = await activeStructuredExtractor.extractStructuredBatch?.(
+                batch,
+                context,
+              );
+              assertBatchResultLength(structuredData ?? [], batch.length, "extractStructuredBatch");
+              incrementCount(counts, "structuredExtracted", batch.length);
+              return batch.map((item, index) => ({
+                ...item,
+                structuredData: structuredData?.[index],
+              }));
+            } catch (error) {
+              incrementCount(counts, "structuredExtractionErrors", batch.length);
+              for (const item of batch) {
+                errors.push(
+                  toPipelineError(error, {
+                    itemId: item.id,
+                    code: "structured_extraction_failed",
+                  }),
+                );
+              }
+
+              if (!shouldContinueAfterStructuredExtractionFailure(context.config)) {
+                throw new PipelinePolicyAbortError(
+                  "Pipeline stopped after batch structured extraction failure.",
+                );
+              }
+
+              return batch;
+            }
+          };
+
+          if (!continueAfterStructuredExtractionFailure) {
+            const extractedItems: PipelineRunItem[] = [];
+            for (const batch of chunkPipelineItems(
+              output,
+              batchSize(context.config, "structuredExtraction"),
+            )) {
+              extractedItems.push(...(await extractBatch(batch)));
+            }
+            return extractedItems;
+          }
+
+          return mapBatches(
             output,
             batchSize(context.config, "structuredExtraction"),
             executionLimit(context.config, "structuredExtractionConcurrency"),
-            async (batch) => {
-              try {
-                const structuredData = await activeStructuredExtractor.extractStructuredBatch?.(
-                  batch,
-                  context,
-                );
-                assertBatchResultLength(
-                  structuredData ?? [],
-                  batch.length,
-                  "extractStructuredBatch",
-                );
-                incrementCount(counts, "structuredExtracted", batch.length);
-                return batch.map((item, index) => ({
-                  ...item,
-                  structuredData: structuredData?.[index],
-                }));
-              } catch (error) {
-                incrementCount(counts, "structuredExtractionErrors", batch.length);
-                for (const item of batch) {
-                  errors.push(
-                    toPipelineError(error, {
-                      itemId: item.id,
-                      code: "structured_extraction_failed",
-                    }),
-                  );
-                }
-
-                if (!shouldContinueAfterNonPolicyFailure(context.config)) {
-                  throw new PipelinePolicyAbortError(
-                    "Pipeline stopped after batch structured extraction failure.",
-                  );
-                }
-
-                return batch;
-              }
-            },
-          ),
+            extractBatch,
+          );
+        },
         {
           concurrency: executionLimit(context.config, "structuredExtractionConcurrency"),
           batchSize: batchSize(context.config, "structuredExtraction"),
@@ -1158,12 +1225,9 @@ async function renderAndWriteArtifact(
 
 export async function runPipeline(
   configPathOrId: string,
-  dependencies: Partial<PipelineRunnerDependencies> = {},
+  dependencies: Partial<PipelineOrchestratorDependencies> = {},
 ): Promise<PipelineResult> {
-  const deps = {
-    ...defaultDependencies,
-    ...dependencies,
-  };
+  const deps = resolveDependencies(dependencies);
   const config = deps.loadConfig(configPathOrId);
   const startedAt = deps.now();
   const runId = deps.startRun(config.pipelineId);

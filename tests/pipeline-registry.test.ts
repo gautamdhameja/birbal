@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { registerDefaultPipelineComponents } from "../src/framework/pipeline/defaultComponents.js";
 import { PipelineComponentRegistry } from "../src/framework/pipeline/registry.js";
+import { registerBirbalPipelineComponents } from "../src/pipelines/register.js";
 import { ENTERPRISE_DAILY_READING_RUBRIC_ID } from "../src/pipelines/daily/rubric.js";
 import type { PipelineConfig } from "../src/framework/pipeline/types.js";
 
@@ -38,6 +38,7 @@ function pipelineConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig
       continueOnSourceFailure: true,
       continueOnContentFetchFailure: true,
       continueOnScoringFailure: true,
+      continueOnStructuredExtractionFailure: true,
       minItemsRequiredForSuccess: 1,
     },
   };
@@ -213,7 +214,7 @@ describe("pipeline component registry", () => {
   it("registers the enterprise daily reading rubric as a default component", () => {
     const registry = new PipelineComponentRegistry();
 
-    registerDefaultPipelineComponents(registry);
+    registerBirbalPipelineComponents(registry);
 
     assert.equal(
       registry.getRubric(ENTERPRISE_DAILY_READING_RUBRIC_ID).id,

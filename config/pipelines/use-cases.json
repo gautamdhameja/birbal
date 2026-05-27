@@ -60,6 +60,7 @@
     "failFast": false,
     "continueOnSourceFailure": true,
     "continueOnContentFetchFailure": true,
+    "continueOnStructuredExtractionFailure": true,
     "minItemsRequiredForSuccess": 1
   }
 }

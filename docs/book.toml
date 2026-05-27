@@ -1,0 +1,13 @@
+[book]
+title = "Birbal"
+authors = ["Gautam Dhameja"]
+language = "en"
+multilingual = false
+src = "."
+
+[build]
+build-dir = "book"
+
+[output.html]
+git-repository-url = "https://github.com/gautamdhameja/birbal"
+edit-url-template = "https://github.com/gautamdhameja/birbal/edit/main/docs/{path}"

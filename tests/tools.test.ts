@@ -12,7 +12,7 @@ import { normalizeHackerNewsHit } from "../src/hackernews/client.js";
 import { searchSourceDomain } from "../src/source-search/domain.js";
 import { formatLocalIsoString } from "../src/tools/get-time.js";
 import { listTools, renderToolsForPrompt } from "../src/tools/registry.js";
-import { runTool } from "../src/tools/runner.js";
+import { runTool } from "../src/tools/executor.js";
 import { fetchUrlText } from "../src/url-text/client.js";
 import { extractUrlText } from "../src/url-text/extract.js";
 

@@ -5,6 +5,7 @@ import { CANDIDATE_CATEGORIES } from "../constants/candidates.js";
 import { CLASSIFICATION } from "../constants/classification.js";
 import { LLAMA } from "../constants/llama.js";
 import { completeStructuredWithRepair, summarizeModelParseError } from "../framework/llm/repair.js";
+import { llamaCppModelAdapter } from "../llama/adapter.js";
 import type { ChatMessage, CompleteOptions } from "../llama/schema.js";
 import { logger } from "../logging/logger.js";
 import { parseJson } from "../utils/json.js";
@@ -22,7 +23,9 @@ type ClassificationInput = {
   candidate: CandidateItem;
   score: ItemScore;
 };
-type ModelTraceOptions = Pick<CompleteOptions, "traceId" | "traceLabel">;
+type ModelTraceOptions = Pick<CompleteOptions, "traceId" | "traceLabel"> & {
+  completeFn?: typeof llamaCppModelAdapter.complete;
+};
 
 function normalizeSearchText(value: string): string {
   return value.replace(/\s+/g, " ").toLocaleLowerCase();
@@ -183,11 +186,13 @@ export async function classifyCandidateCategory(
   const result = await completeStructuredWithRepair({
     messages,
     schema: categoryClassificationSchema(allowedCategories(score)),
+    completeFn: traceOptions.completeFn ?? llamaCppModelAdapter.complete,
+    logger,
     repairInstructions: CLASSIFICATION.REPAIR_PROMPT,
     completeOptions: {
       temperature: CLASSIFICATION.MODEL_TEMPERATURE,
       max_tokens: CLASSIFICATION.MAX_TOKENS,
-      ...traceOptions,
+      traceId: traceOptions.traceId,
       traceLabel: traceOptions.traceLabel ?? "daily.classify_category",
       response_format: {
         type: LLAMA.RESPONSE_FORMATS.JSON_OBJECT,
