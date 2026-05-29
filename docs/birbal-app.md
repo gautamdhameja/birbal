@@ -7,7 +7,7 @@ The Birbal app is the concrete enterprise AI scout built on the framework.
 Command:
 
 ```sh
-npm run daily
+birbal daily
 ```
 
 Purpose:
@@ -24,7 +24,7 @@ Purpose:
 Command:
 
 ```sh
-npm run use-cases
+birbal use-cases
 ```
 
 Purpose:
@@ -38,7 +38,7 @@ Purpose:
 
 ## Component Registration
 
-Birbal registers app components in `src/pipelines/register.ts`.
+Birbal composes app component bundles in `src/pipelines/register.ts`.
 
 This keeps `src/framework/` generic. The framework knows only that a pipeline needs a collector, fetcher, extractor, selector, renderer, and writer. The Birbal app decides what those components mean.
 

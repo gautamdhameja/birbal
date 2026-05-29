@@ -15,8 +15,8 @@ If the endpoint is down, the agent CLI and extraction/scoring stages will fail.
 Use trace mode for detailed handoff logs:
 
 ```sh
-npm run dev -- --trace "Use a tool to get the current time."
-npm run run-pipeline -- use_cases --trace
+birbal agent --trace "Use a tool to get the current time."
+birbal pipeline use_cases --trace
 ```
 
 Logs include:

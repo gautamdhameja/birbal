@@ -11,6 +11,7 @@
 
 ```sh
 npm install
+npm link
 ```
 
 ## Configure
@@ -28,27 +29,31 @@ The llama server must expose an OpenAI-style chat completions endpoint. Birbal d
 ## Run The Agent Harness
 
 ```sh
-npm run dev -- "Use a tool to get the current time and tell me what it is."
+birbal agent "Use a tool to get the current time and tell me what it is."
 ```
 
 With trace logs:
 
 ```sh
-npm run dev -- --trace "Use a tool to get the current time."
+birbal agent --trace "Use a tool to get the current time."
 ```
 
 ## Run The Pipeline App
 
 ```sh
-npm run daily
-npm run use-cases
+birbal daily
+birbal use-cases
 ```
 
 Dry-run a pipeline config without making network or model calls:
 
 ```sh
-npm run run-pipeline -- use_cases --dry-run
+birbal pipeline use_cases --dry-run
 ```
+
+The npm scripts remain available as repo-local wrappers around the same CLI.
+
+For the full command reference, see [CLI](cli.md).
 
 ## Run Framework Examples
 

@@ -68,19 +68,31 @@ Pipeline behavior is data-driven by `config/pipelines/*.json`. Generic framework
 
 ```sh
 npm install
-npm run dev -- "Use a tool to get the current time and tell me what it is."
-npm run daily
-npm run use-cases
+npm link
+birbal agent "Use a tool to get the current time and tell me what it is."
+birbal daily
+birbal use-cases
+birbal use cases
 npm run example:agent
 npm run example:pipeline
 npm run check
 ```
 
+The npm scripts still work for repo-local development:
+
+```sh
+npm run dev -- "Use a tool to get the current time and tell me what it is."
+npm run daily
+npm run use-cases
+```
+
+See [docs/cli.md](docs/cli.md) for the complete command reference.
+
 Use `--trace` with the agent or pipeline commands for debug logs:
 
 ```sh
-npm run dev -- --trace "Use a tool to get the current time."
-npm run run-pipeline -- use_cases --trace
+birbal agent --trace "Use a tool to get the current time."
+birbal pipeline use_cases --trace
 ```
 
 ## Configuration

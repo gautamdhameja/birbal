@@ -47,11 +47,11 @@ Current configs:
 You can dry-run a config:
 
 ```sh
-npm run run-pipeline -- use_cases --dry-run
+birbal pipeline use_cases --dry-run
 ```
 
 You can pass a custom path:
 
 ```sh
-npm run run-pipeline -- --config ./my-pipeline.json --dry-run
+birbal pipeline --config ./my-pipeline.json --dry-run
 ```

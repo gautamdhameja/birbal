@@ -50,7 +50,7 @@ Reference it from pipeline config:
 5. Add tests for config and component behavior.
 
 ```sh
-npm run run-pipeline -- my_pipeline --dry-run
+birbal pipeline my_pipeline --dry-run
 ```
 
 ## Add A Model Adapter

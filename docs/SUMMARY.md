@@ -3,6 +3,7 @@
 [Introduction](index.md)
 
 - [Quickstart](quickstart.md)
+- [CLI](cli.md)
 - [Architecture](architecture.md)
 - [Agent Harness](agent-harness.md)
 - [Tools](tools.md)

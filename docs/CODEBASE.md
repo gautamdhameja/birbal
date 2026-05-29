@@ -6,15 +6,27 @@ The main production-like workflows are:
 
 - A daily enterprise AI reading digest pipeline (`daily`) that collects candidates from configured sources, fetches source text, scores and classifies items with a local LLM, selects a balanced digest mix, persists results, and writes Markdown under `digests/`.
 - An enterprise AI use-case scout pipeline (`use_cases`) that searches web sources, fetches article text, extracts structured enterprise use cases with a local LLM, selects a diverse set, stores them in SQLite, and writes Markdown under `digests/use-cases/`.
-- A lightweight agent CLI (`src/main.ts`) that runs a JSON-protocol chat agent with handwritten tools.
+- A lightweight agent CLI (`src/cli.ts` and `src/main.ts`) that runs a JSON-protocol chat agent with handwritten tools.
 
 The project is intentionally modular. Runtime configuration is loaded from environment variables and JSON config files. Shared shapes are validated with Zod. LLM calls, tool registration, pipeline orchestration, source clients, storage, prompts, constants, and renderers live in separate modules.
 
 ## Runtime Entry Points
 
+### Top-Level CLI
+
+`src/cli.ts` powers the package `birbal` executable and routes:
+
+- `birbal agent [task...]`
+- `birbal daily`
+- `birbal use-cases`
+- `birbal use cases`
+- `birbal pipeline <pipelineId>`
+
+The package binary is `bin/birbal.js`, which launches the TypeScript CLI through the local `tsx` runtime for repo-local use.
+
 ### Agent CLI
 
-`src/main.ts` powers `npm run dev`.
+`src/main.ts` remains the agent-only entry point for compatibility, while `npm run dev` now routes through `src/cli.ts agent`.
 
 It:
 
@@ -28,8 +40,11 @@ The default task is `Say hello through the final response protocol.`
 
 ### Pipeline CLI
 
-`src/runPipeline.ts` powers:
+`src/runPipeline.ts` contains reusable pipeline CLI execution helpers used by:
 
+- `birbal pipeline <pipelineId>`
+- `birbal daily`
+- `birbal use-cases`
 - `npm run run-pipeline -- <pipelineId>`
 - `npm run daily`
 - `npm run use-cases`
@@ -47,10 +62,11 @@ Pipeline IDs are resolved from `config/pipelines/<id>.json`, with underscore-to-
 
 `package.json` defines:
 
-- `npm run dev`: run the agent CLI via `tsx src/main.ts`.
-- `npm run run-pipeline`: run `src/runPipeline.ts`.
-- `npm run daily`: run the `daily` pipeline.
-- `npm run use-cases`: run the `use_cases` pipeline.
+- `npm run cli`: run the top-level CLI via `tsx src/cli.ts`.
+- `npm run dev`: wrapper for `birbal agent`.
+- `npm run run-pipeline`: wrapper for `birbal pipeline`.
+- `npm run daily`: wrapper for `birbal daily`.
+- `npm run use-cases`: wrapper for `birbal use-cases`.
 - `npm run format` / `format:check`: Prettier write/check.
 - `npm run lint` / `lint:fix`: ESLint.
 - `npm run typecheck`: `tsc --noEmit`.

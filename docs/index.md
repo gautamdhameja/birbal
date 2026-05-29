@@ -16,4 +16,4 @@ Birbal currently supports one real model adapter: llama.cpp through an OpenAI-co
 
 ## Documentation Map
 
-Start with [Quickstart](quickstart.md) if you want to run Birbal locally. Read [Architecture](architecture.md) and [Agent Harness](agent-harness.md) if you want to understand the framework. Read [Pipeline Framework](pipelines.md) and [Extension Guide](extension-guide.md) if you want to build your own pipeline or app on top of it.
+Start with [Quickstart](quickstart.md) and [CLI](cli.md) if you want to run Birbal locally. Read [Architecture](architecture.md) and [Agent Harness](agent-harness.md) if you want to understand the framework. Read [Pipeline Framework](pipelines.md) and [Extension Guide](extension-guide.md) if you want to build your own pipeline or app on top of it.

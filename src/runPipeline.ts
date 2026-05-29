@@ -33,9 +33,14 @@ function parsePositiveInteger(value: string): number {
   return parsed;
 }
 
-function parseCliArgs(args: readonly string[]): CliOptions {
+export type PipelineCliOptions = CliOptions;
+
+export function parsePipelineCliArgs(
+  args: readonly string[],
+  commandName = "run-pipeline",
+): PipelineCliOptions {
   const program = new Command()
-    .name("run-pipeline")
+    .name(commandName)
     .argument("[pipelineId]", "pipeline ID to run")
     .option("--trace", "enable debug tracing")
     .option("--dry-run", "print resolved config without running")
@@ -66,7 +71,10 @@ function parseCliArgs(args: readonly string[]): CliOptions {
   return options;
 }
 
-function applyLimit(config: PipelineConfig, limit: number | undefined): PipelineConfig {
+export function applyPipelineCliLimit(
+  config: PipelineConfig,
+  limit: number | undefined,
+): PipelineConfig {
   if (!limit) {
     return config;
   }
@@ -90,8 +98,7 @@ function applyLimit(config: PipelineConfig, limit: number | undefined): Pipeline
   };
 }
 
-async function main(): Promise<void> {
-  const options = parseCliArgs(process.argv.slice(2));
+export async function runPipelineFromCliOptions(options: PipelineCliOptions): Promise<void> {
   if (options.trace) {
     process.env.LOG_LEVEL = LOGGING.DEBUG_LEVEL;
     process.env.LOG_PRETTY = process.env.LOG_PRETTY ?? "true";
@@ -103,7 +110,8 @@ async function main(): Promise<void> {
   }
 
   const { loadPipelineConfig } = await import("./framework/pipeline/config.js");
-  const loadConfig = (value: string) => applyLimit(loadPipelineConfig(value), options.limit);
+  const loadConfig = (value: string) =>
+    applyPipelineCliLimit(loadPipelineConfig(value), options.limit);
 
   if (options.dryRun) {
     const [{ loadSourceRegistry }, { validateConfiguredSourceIds }] = await Promise.all([
@@ -154,6 +162,13 @@ async function main(): Promise<void> {
   console.log(JSON.stringify(result, null, OUTPUT.JSON_INDENT_SPACES));
 }
 
+export async function runPipelineCli(
+  args: readonly string[] = process.argv.slice(2),
+  commandName = "run-pipeline",
+): Promise<void> {
+  await runPipelineFromCliOptions(parsePipelineCliArgs(args, commandName));
+}
+
 if (isMainModule()) {
-  await main();
+  await runPipelineCli();
 }
