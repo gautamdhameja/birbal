@@ -1,3 +1,6 @@
+// Purpose: Implements the llama.cpp model integration: schema.
+// Scope: Adapts the local OpenAI-compatible server to framework model contracts.
+
 import { z } from "zod";
 
 import { AGENT } from "../constants/agent.js";

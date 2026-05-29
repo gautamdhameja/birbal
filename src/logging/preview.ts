@@ -1,3 +1,6 @@
+// Purpose: Implements the structured logging helper: preview.
+// Scope: Keeps runtime trace output consistent and concise.
+
 import { LOGGING } from "../constants/runtime.js";
 
 const REDACTED_VALUE = "[redacted]";

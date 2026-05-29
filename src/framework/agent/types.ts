@@ -1,3 +1,6 @@
+// Purpose: Implements the framework agent types module.
+// Scope: Stays generic so applications can plug in their own components.
+
 import type { ChatMessage, ModelClient, ModelCompleteOptions } from "../llm/types.js";
 import type { ToolRunTraceContext } from "../tools/types.js";
 

@@ -1,3 +1,6 @@
+// Purpose: Exposes the public pipeline framework API.
+// Scope: Keeps imports stable while implementation modules stay focused.
+
 export {
   filesystemArtifactWriter,
   formatPipelineRunDate,
@@ -35,7 +38,6 @@ export type {
   ContentFetcher,
   PipelineArtifact,
   PipelineCollectionMethod,
-  PipelineComponentConfig,
   PipelineConfig,
   PipelineContentFetchPolicy,
   PipelineContext,

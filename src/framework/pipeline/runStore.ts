@@ -1,3 +1,6 @@
+// Purpose: Implements the framework pipeline run Store module.
+// Scope: Stays generic so applications can plug in their own components.
+
 import { randomUUID } from "node:crypto";
 
 import type { PipelineArtifact, PipelineError, PipelineMetadata } from "./types.js";

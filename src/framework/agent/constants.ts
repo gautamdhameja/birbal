@@ -1,3 +1,6 @@
+// Purpose: Implements the framework agent constants module.
+// Scope: Stays generic so applications can plug in their own components.
+
 export const FRAMEWORK_AGENT = {
   DEFAULT_MAX_STEPS: 8,
   MODEL_MAX_TOKENS: 1_000,

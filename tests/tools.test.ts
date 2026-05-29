@@ -1,3 +1,6 @@
+// Purpose: Tests tools behavior.
+// Scope: Covers regressions through the Node.js test runner.
+
 import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
 
@@ -7,7 +10,9 @@ import {
   resetBraveSearchQuotaForTests,
   searchWeb,
 } from "../src/brave-search/client.js";
-import { CONTENT_FETCH_STATUSES, HTTP, SOURCE_REGISTRY } from "../src/constants.js";
+import { CONTENT_FETCH_STATUSES } from "../src/constants/candidates.js";
+import { HTTP } from "../src/constants/runtime.js";
+import { SOURCE_REGISTRY } from "../src/constants/source-registry.js";
 import { normalizeHackerNewsHit } from "../src/hackernews/client.js";
 import { searchSourceDomain } from "../src/source-search/domain.js";
 import { formatLocalIsoString } from "../src/tools/get-time.js";

@@ -1,3 +1,6 @@
+// Purpose: Implements the small shared utility: date.
+// Scope: Holds narrow helpers used across runtime modules.
+
 const DATE_ONLY_PATTERN = /(\d{4}-\d{2}-\d{2})/;
 const DATE_LENGTH = 10;
 const DATE_PART_TYPES = {

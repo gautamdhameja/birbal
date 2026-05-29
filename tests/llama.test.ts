@@ -1,7 +1,11 @@
+// Purpose: Tests llama behavior.
+// Scope: Covers regressions through the Node.js test runner.
+
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { AGENT, LLAMA } from "../src/constants.js";
+import { AGENT } from "../src/constants/agent.js";
+import { LLAMA } from "../src/constants/llama.js";
 import {
   LlamaChatCompletionRequestSchema,
   LlamaConfigSchema,

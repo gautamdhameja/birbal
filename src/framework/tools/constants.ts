@@ -1,3 +1,6 @@
+// Purpose: Implements the framework tools constants module.
+// Scope: Stays generic so applications can plug in their own components.
+
 export const FRAMEWORK_TOOLS = {
   RUN_TIMEOUT_MS: 30_000,
   PROMPT_LABELS: {

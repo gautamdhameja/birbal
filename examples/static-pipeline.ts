@@ -1,3 +1,6 @@
+// Purpose: Demonstrates static pipeline usage for framework adopters.
+// Scope: Keeps the example small enough to copy and adapt.
+
 import {
   createInMemoryPipelineRunStore,
   PipelineComponentRegistry,

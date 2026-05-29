@@ -1,3 +1,6 @@
+// Purpose: Implements the Birbal agent loop: run.
+// Scope: Bridges the application CLI to the generic harness pieces.
+
 import { z } from "zod";
 
 import { AGENT } from "../constants/agent.js";

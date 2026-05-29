@@ -1,16 +1,16 @@
+// Purpose: Tests digest behavior.
+// Scope: Covers regressions through the Node.js test runner.
+
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import {
-  CANDIDATE_CATEGORIES,
-  CONTENT_FETCH_STATUSES,
-  DIGEST,
-  SOURCE_REGISTRY,
-  SOURCES,
-} from "../src/constants.js";
+import { CANDIDATE_CATEGORIES, CONTENT_FETCH_STATUSES } from "../src/constants/candidates.js";
+import { DIGEST } from "../src/constants/digest.js";
+import { SOURCE_REGISTRY } from "../src/constants/source-registry.js";
+import { SOURCES } from "../src/constants/sources.js";
 import { formatDigestDate, saveDigest, writeDigest } from "../src/daily/digest.js";
 import type { ScoredCandidateItem } from "../src/daily/types.js";
 

@@ -1,3 +1,6 @@
+// Purpose: Implements the Birbal pipeline component: schema.
+// Scope: Keeps app-specific pipeline behavior outside the generic framework.
+
 import { z } from "zod";
 
 function normalizeTextField(value: unknown): string {

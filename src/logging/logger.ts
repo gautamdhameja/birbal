@@ -1,3 +1,6 @@
+// Purpose: Implements the structured logging helper: logger.
+// Scope: Keeps runtime trace output consistent and concise.
+
 import { createRequire } from "node:module";
 
 import pino from "pino";

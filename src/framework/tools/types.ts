@@ -1,3 +1,6 @@
+// Purpose: Implements the framework tools types module.
+// Scope: Stays generic so applications can plug in their own components.
+
 import type { z } from "zod";
 
 export type ToolRunContext = {

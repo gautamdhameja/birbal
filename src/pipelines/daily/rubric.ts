@@ -1,3 +1,6 @@
+// Purpose: Implements the Birbal pipeline component: rubric.
+// Scope: Keeps app-specific pipeline behavior outside the generic framework.
+
 import { z } from "zod";
 
 import { SCORING } from "../../constants/scoring.js";

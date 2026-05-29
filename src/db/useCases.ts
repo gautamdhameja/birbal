@@ -1,3 +1,6 @@
+// Purpose: Implements the SQLite persistence module: use Cases.
+// Scope: Owns storage access for one persisted data shape.
+
 import { createHash } from "node:crypto";
 
 import { DATABASE } from "../constants/database.js";

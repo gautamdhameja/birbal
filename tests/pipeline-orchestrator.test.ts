@@ -1,3 +1,6 @@
+// Purpose: Tests pipeline orchestrator behavior.
+// Scope: Covers regressions through the Node.js test runner.
+
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

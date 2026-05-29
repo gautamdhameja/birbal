@@ -1,3 +1,6 @@
+// Purpose: Implements the framework pipeline orchestrator module.
+// Scope: Stays generic so applications can plug in their own components.
+
 import { ModelParseError } from "../llm/repair.js";
 import { isHttpStatusError, summarizeHttpErrorBody } from "../../http/client.js";
 import { preview } from "../../logging/preview.js";

@@ -1,3 +1,6 @@
+// Purpose: Collects shared runtime constants.
+// Scope: Avoids scattering repeated literals across runtime modules.
+
 export const ENV_FILE_PATHS = [".env.local", ".env"];
 
 export const CLI = {

@@ -1,3 +1,6 @@
+// Purpose: Collects shared time constants.
+// Scope: Avoids scattering repeated literals across runtime modules.
+
 export const TIME = {
   DEFAULT_PAD_LENGTH: 2,
   MILLISECOND_PAD_LENGTH: 3,

@@ -1,3 +1,6 @@
+// Purpose: Collects shared classification constants.
+// Scope: Avoids scattering repeated literals across runtime modules.
+
 export const CLASSIFICATION = {
   MODEL_TEMPERATURE: 0,
   MAX_TOKENS: 200,

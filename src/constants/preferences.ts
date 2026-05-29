@@ -1,3 +1,6 @@
+// Purpose: Collects shared preferences constants.
+// Scope: Avoids scattering repeated literals across runtime modules.
+
 export const PREFERENCES = {
   DIRECTORY: "config",
   FILE_NAME: "preferences.json",

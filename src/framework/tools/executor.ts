@@ -1,3 +1,6 @@
+// Purpose: Implements the framework tools executor module.
+// Scope: Stays generic so applications can plug in their own components.
+
 import { z } from "zod";
 
 import { preview } from "../../logging/preview.js";

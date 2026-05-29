@@ -1,3 +1,6 @@
+// Purpose: Implements the research preference memory: preferences.
+// Scope: Loads and validates local preference configuration.
+
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 

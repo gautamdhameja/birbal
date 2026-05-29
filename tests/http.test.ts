@@ -1,15 +1,17 @@
+// Purpose: Tests http behavior.
+// Scope: Covers regressions through the Node.js test runner.
+
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
-  buildHttpStatusError,
+  FetchAbortError,
+  FetchTimeoutError,
   fetchWithRetry,
   fetchWithTimeout,
-  HttpAbortError,
-  HttpTimeoutError,
-  readResponseText,
   RetryableFetchStatusError,
-} from "../src/http/client.js";
+} from "../src/framework/network/fetch.js";
+import { buildHttpStatusError, readResponseText } from "../src/http/client.js";
 import {
   assertSafePublicHttpUrl,
   type HostResolver,
@@ -75,7 +77,7 @@ describe("HTTP client helpers", () => {
     try {
       await assert.rejects(
         fetchWithTimeout("https://example.com", {}, { timeoutMs: 1 }),
-        HttpTimeoutError,
+        FetchTimeoutError,
       );
     } finally {
       globalThis.fetch = originalFetch;
@@ -109,7 +111,7 @@ describe("HTTP client helpers", () => {
 
       assert.notEqual(receivedSignal, controller.signal);
       assert.equal(receivedSignal?.aborted, true);
-      await assert.rejects(request, HttpAbortError);
+      await assert.rejects(request, FetchAbortError);
     } finally {
       globalThis.fetch = originalFetch;
     }

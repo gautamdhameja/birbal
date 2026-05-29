@@ -1,3 +1,6 @@
+// Purpose: Implements the source-domain search helper: domain.
+// Scope: Combines source registry data with web search results.
+
 import type { SourceRegistryItem } from "../config/sourceRegistry.js";
 import { loadSourceRegistry } from "../config/sourceRegistry.js";
 import { searchWeb } from "../brave-search/client.js";

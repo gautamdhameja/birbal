@@ -1,3 +1,6 @@
+// Purpose: Implements the daily reading pipeline support: digest Selection.
+// Scope: Contains Birbal-specific digest scoring, classification, and rendering helpers.
+
 import { CANDIDATE_CATEGORIES, CONTENT_FETCH_STATUSES } from "../constants/candidates.js";
 import { DAILY_READING } from "../constants/daily.js";
 import type { UserPreferences } from "../memory/types.js";

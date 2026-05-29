@@ -1,3 +1,6 @@
+// Purpose: Implements the daily reading pipeline support: scoring.
+// Scope: Contains Birbal-specific digest scoring, classification, and rendering helpers.
+
 import { z } from "zod";
 
 import { AGENT } from "../constants/agent.js";

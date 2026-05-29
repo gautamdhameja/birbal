@@ -1,3 +1,6 @@
+// Purpose: Implements the Birbal tool module: get time.
+// Scope: Defines concrete tools and wires them into the generic tool framework.
+
 import { z } from "zod";
 
 import { TIME } from "../constants/time.js";

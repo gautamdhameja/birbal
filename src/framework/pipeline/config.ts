@@ -1,10 +1,13 @@
+// Purpose: Implements the framework pipeline config module.
+// Scope: Stays generic so applications can plug in their own components.
+
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { z } from "zod";
 
 import { URL_TEXT } from "../../constants/url-text.js";
-import type { PipelineConfig, PipelineComponentConfig } from "./types.js";
+import type { PipelineConfig } from "./types.js";
 
 const PIPELINE_CONFIG_DIRECTORY = "config/pipelines";
 const PIPELINE_CONFIG_EXTENSION = ".json";
@@ -120,31 +123,9 @@ const PipelineConfigFileSchema = z.strictObject({
   metadata: MetadataSchema.optional(),
 });
 
-type PipelineConfigFile = z.infer<typeof PipelineConfigFileSchema>;
-
-const PipelineConfigSchema = PipelineConfigFileSchema.transform((config) => ({
-  ...config,
-  components: buildPipelineComponentConfig(config),
-}));
+const PipelineConfigSchema = PipelineConfigFileSchema;
 
 export type ValidatedPipelineConfig = z.infer<typeof PipelineConfigSchema>;
-
-function buildPipelineComponentConfig(config: PipelineConfigFile): PipelineComponentConfig {
-  return {
-    collectors: config.collectionMethods
-      .filter((method) => method.enabled !== false)
-      .map((method) => method.collectorId),
-    contentFetcher: config.contentFetchPolicy.fetcherId,
-    contentExtractors: config.contentFetchPolicy.extractorIds,
-    scorer: config.scorerId,
-    classifier: config.classifierId,
-    structuredExtractor: config.structuredExtractorId,
-    selector: config.selectorId,
-    renderer: config.rendererId,
-    artifactWriter: config.output.artifactWriterId,
-    rubric: config.rubricId,
-  };
-}
 
 function getDefaultPipelineConfigPath(configName: string): string {
   return join(

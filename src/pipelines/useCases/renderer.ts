@@ -1,3 +1,6 @@
+// Purpose: Implements the Birbal pipeline component: renderer.
+// Scope: Keeps app-specific pipeline behavior outside the generic framework.
+
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 

@@ -1,3 +1,6 @@
+// Purpose: Implements the daily reading pipeline support: pipeline.
+// Scope: Contains Birbal-specific digest scoring, classification, and rendering helpers.
+
 import { searchArxiv } from "../arxiv/client.js";
 import type { ArxivPaper } from "../arxiv/client.js";
 import type { SourceRegistry, SourceRegistryItem } from "../config/sourceRegistry.js";

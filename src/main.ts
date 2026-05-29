@@ -1,3 +1,6 @@
+// Purpose: Runs the Birbal agent CLI entry point.
+// Scope: Parses command-line input and prints the agent result.
+
 import { Command } from "commander";
 import dotenv from "dotenv";
 

@@ -1,3 +1,6 @@
+// Purpose: Implements the Birbal agent loop: prompts.
+// Scope: Bridges the application CLI to the generic harness pieces.
+
 import { readFileSync } from "node:fs";
 
 import { PROMPTS } from "../constants/prompts.js";

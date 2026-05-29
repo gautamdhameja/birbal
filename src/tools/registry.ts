@@ -1,3 +1,6 @@
+// Purpose: Implements the Birbal tool module: registry.
+// Scope: Defines concrete tools and wires them into the generic tool framework.
+
 import { ToolRegistry } from "../framework/tools/registry.js";
 import { fetchUrlTextTool } from "./fetch-url-text.js";
 import { getTimeTool } from "./get-time.js";

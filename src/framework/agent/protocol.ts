@@ -1,3 +1,6 @@
+// Purpose: Implements the framework agent protocol module.
+// Scope: Stays generic so applications can plug in their own components.
+
 import { z } from "zod";
 
 export const FrameworkAgentFinalResponseSchema = z.strictObject({

@@ -1,3 +1,6 @@
+// Purpose: Implements the SQLite persistence module: items.
+// Scope: Owns storage access for one persisted data shape.
+
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 

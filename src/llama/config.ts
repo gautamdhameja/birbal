@@ -1,3 +1,6 @@
+// Purpose: Implements the llama.cpp model integration: config.
+// Scope: Adapts the local OpenAI-compatible server to framework model contracts.
+
 import { LlamaConfigSchema, LlamaEnvSchema } from "./schema.js";
 import type { LlamaConfig } from "./schema.js";
 

@@ -1,8 +1,12 @@
+// Purpose: Implements the llama.cpp model integration: client.
+// Scope: Adapts the local OpenAI-compatible server to framework model contracts.
+
 import { randomUUID } from "node:crypto";
 
 import { LLAMA } from "../constants/llama.js";
 import { HTTP } from "../constants/runtime.js";
-import { buildHttpStatusError, fetchWithTimeout, readResponseJson } from "../http/client.js";
+import { fetchWithTimeout } from "../framework/network/fetch.js";
+import { buildHttpStatusError, readResponseJson } from "../http/client.js";
 import { logger } from "../logging/logger.js";
 import { getLlamaConfig } from "./config.js";
 import {

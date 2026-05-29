@@ -1,3 +1,6 @@
+// Purpose: Collects shared json constants.
+// Scope: Avoids scattering repeated literals across runtime modules.
+
 export const JSON_PARSING = {
   CHARS: {
     BACKSLASH: "\\",

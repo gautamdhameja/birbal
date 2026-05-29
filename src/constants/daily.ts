@@ -1,3 +1,6 @@
+// Purpose: Collects shared daily constants.
+// Scope: Avoids scattering repeated literals across runtime modules.
+
 export const DAILY_READING = {
   MAX_RESULTS_PER_TOPIC: 5,
   MAX_CANDIDATES: 20,

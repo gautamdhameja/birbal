@@ -1,5 +1,9 @@
+// Purpose: Exposes the public framework API surface.
+// Scope: Keeps imports stable while implementation modules stay focused.
+
 export * from "./agent/index.js";
 export * from "./content/fetchUrl.js";
+export * from "./content/status.js";
 export * from "./llm/index.js";
 export * from "./network/fetch.js";
 export * from "./pipeline/index.js";

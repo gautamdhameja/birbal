@@ -1,11 +1,15 @@
+// Purpose: Tests source registry behavior.
+// Scope: Covers regressions through the Node.js test runner.
+
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { SOURCE_REGISTRY, SOURCES } from "../src/constants.js";
 import { loadSourceRegistry } from "../src/config/sourceRegistry.js";
+import { SOURCE_REGISTRY } from "../src/constants/source-registry.js";
+import { SOURCES } from "../src/constants/sources.js";
 
 function writeSourceRegistryConfig(value: unknown): string {
   const configPath = join(

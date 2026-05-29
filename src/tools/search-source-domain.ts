@@ -1,3 +1,6 @@
+// Purpose: Implements the Birbal tool module: search source domain.
+// Scope: Defines concrete tools and wires them into the generic tool framework.
+
 import { z } from "zod";
 
 import { BRAVE_SEARCH } from "../constants/brave-search.js";

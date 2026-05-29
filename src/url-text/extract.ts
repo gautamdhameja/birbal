@@ -1,3 +1,6 @@
+// Purpose: Implements the URL text extraction helper: extract.
+// Scope: Fetches and extracts readable text for tool and pipeline use.
+
 import { load } from "cheerio";
 
 import { URL_TEXT } from "../constants/url-text.js";

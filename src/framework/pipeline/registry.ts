@@ -1,3 +1,6 @@
+// Purpose: Implements the framework pipeline registry module.
+// Scope: Stays generic so applications can plug in their own components.
+
 import type {
   ArtifactWriter,
   Classifier,
@@ -38,6 +41,10 @@ type ComponentKindMap = {
 };
 
 type ComponentBucket<TComponent> = Map<string, TComponent>;
+
+type ComponentBuckets = {
+  [K in ComponentKind]: ComponentBucket<ComponentKindMap[K]>;
+};
 
 export type PipelineComponentRegistryOptions = {
   allowOverwrite?: boolean;
@@ -123,16 +130,18 @@ function enabledContentExtractorIds(config: PipelineConfig): string[] {
 }
 
 export class PipelineComponentRegistry {
-  private readonly collectors: ComponentBucket<SourceCollector> = new Map();
-  private readonly contentFetchers: ComponentBucket<ContentFetcher> = new Map();
-  private readonly contentExtractors: ComponentBucket<ContentExtractor> = new Map();
-  private readonly scorers: ComponentBucket<Scorer> = new Map();
-  private readonly classifiers: ComponentBucket<Classifier> = new Map();
-  private readonly structuredExtractors: ComponentBucket<StructuredExtractor> = new Map();
-  private readonly selectors: ComponentBucket<Selector> = new Map();
-  private readonly renderers: ComponentBucket<Renderer> = new Map();
-  private readonly artifactWriters: ComponentBucket<ArtifactWriter> = new Map();
-  private readonly rubrics: ComponentBucket<Rubric> = new Map();
+  private readonly buckets: ComponentBuckets = {
+    collectors: new Map(),
+    contentFetchers: new Map(),
+    contentExtractors: new Map(),
+    scorers: new Map(),
+    classifiers: new Map(),
+    structuredExtractors: new Map(),
+    selectors: new Map(),
+    renderers: new Map(),
+    artifactWriters: new Map(),
+    rubrics: new Map(),
+  };
 
   constructor(private readonly options: PipelineComponentRegistryOptions = {}) {}
 
@@ -231,130 +240,31 @@ export class PipelineComponentRegistry {
 
   resolveFromConfig(config: PipelineConfig): ResolvedPipelineComponents {
     const resolved = emptyResolvedComponents();
-    const componentConfig = config.components;
-    if (!componentConfig) {
-      resolved.collectors.push(
-        ...resolveMany(uniqueIds(enabledCollectorIds(config)), (id) => this.getCollector(id)),
-      );
-      resolved.contentFetchers.push(
-        ...resolveMany(uniqueIds(enabledContentFetcherIds(config)), (id) =>
-          this.getContentFetcher(id),
-        ),
-      );
-      resolved.contentExtractors.push(
-        ...resolveMany(enabledContentExtractorIds(config), (id) => this.getContentExtractor(id)),
-      );
-      resolved.scorers.push(...resolveSingle(config.scorerId, (id) => this.getScorer(id)));
-      resolved.classifiers.push(
-        ...resolveSingle(config.classifierId, (id) => this.getClassifier(id)),
-      );
-      resolved.structuredExtractors.push(
-        ...resolveSingle(config.structuredExtractorId, (id) => this.getStructuredExtractor(id)),
-      );
-      resolved.selectors.push(...resolveSingle(config.selectorId, (id) => this.getSelector(id)));
-      resolved.renderers.push(...resolveSingle(config.rendererId, (id) => this.getRenderer(id)));
-      resolved.artifactWriters.push(
-        ...resolveSingle(config.output.artifactWriterId, (id) => this.getArtifactWriter(id)),
-      );
-      resolved.rubrics.push(...resolveSingle(config.rubricId, (id) => this.getRubric(id)));
-
-      return resolved;
-    }
 
     resolved.collectors.push(
-      ...resolveMany(
-        uniqueIds([
-          ...enabledCollectorIds(config),
-          componentConfig.collector,
-          ...(componentConfig.collectors ?? []),
-        ]),
-        (id) => this.getCollector(id),
-      ),
+      ...resolveMany(uniqueIds(enabledCollectorIds(config)), (id) => this.getCollector(id)),
     );
     resolved.contentFetchers.push(
-      ...resolveMany(
-        uniqueIds([
-          ...enabledContentFetcherIds(config),
-          ...(config.contentFetchPolicy.enabled
-            ? [componentConfig.contentFetcher, ...(componentConfig.contentFetchers ?? [])]
-            : []),
-        ]),
-        (id) => this.getContentFetcher(id),
+      ...resolveMany(uniqueIds(enabledContentFetcherIds(config)), (id) =>
+        this.getContentFetcher(id),
       ),
     );
     resolved.contentExtractors.push(
-      ...resolveMany(
-        uniqueIds([
-          ...enabledContentExtractorIds(config),
-          ...(config.contentFetchPolicy.enabled
-            ? [componentConfig.contentExtractor, ...(componentConfig.contentExtractors ?? [])]
-            : []),
-        ]),
-        (id) => this.getContentExtractor(id),
-      ),
+      ...resolveMany(enabledContentExtractorIds(config), (id) => this.getContentExtractor(id)),
     );
-    resolved.scorers.push(
-      ...resolveMany(
-        uniqueIds([config.scorerId, componentConfig.scorer, ...(componentConfig.scorers ?? [])]),
-        (id) => this.getScorer(id),
-      ),
-    );
+    resolved.scorers.push(...resolveSingle(config.scorerId, (id) => this.getScorer(id)));
     resolved.classifiers.push(
-      ...resolveMany(
-        uniqueIds([
-          config.classifierId,
-          componentConfig.classifier,
-          ...(componentConfig.classifiers ?? []),
-        ]),
-        (id) => this.getClassifier(id),
-      ),
+      ...resolveSingle(config.classifierId, (id) => this.getClassifier(id)),
     );
     resolved.structuredExtractors.push(
-      ...resolveMany(
-        uniqueIds([
-          config.structuredExtractorId,
-          componentConfig.structuredExtractor,
-          ...(componentConfig.structuredExtractors ?? []),
-        ]),
-        (id) => this.getStructuredExtractor(id),
-      ),
+      ...resolveSingle(config.structuredExtractorId, (id) => this.getStructuredExtractor(id)),
     );
-    resolved.selectors.push(
-      ...resolveMany(
-        uniqueIds([
-          config.selectorId,
-          componentConfig.selector,
-          ...(componentConfig.selectors ?? []),
-        ]),
-        (id) => this.getSelector(id),
-      ),
-    );
-    resolved.renderers.push(
-      ...resolveMany(
-        uniqueIds([
-          config.rendererId,
-          componentConfig.renderer,
-          ...(componentConfig.renderers ?? []),
-        ]),
-        (id) => this.getRenderer(id),
-      ),
-    );
+    resolved.selectors.push(...resolveSingle(config.selectorId, (id) => this.getSelector(id)));
+    resolved.renderers.push(...resolveSingle(config.rendererId, (id) => this.getRenderer(id)));
     resolved.artifactWriters.push(
-      ...resolveMany(
-        uniqueIds([
-          config.output.artifactWriterId,
-          componentConfig.artifactWriter,
-          ...(componentConfig.artifactWriters ?? []),
-        ]),
-        (id) => this.getArtifactWriter(id),
-      ),
+      ...resolveSingle(config.output.artifactWriterId, (id) => this.getArtifactWriter(id)),
     );
-    resolved.rubrics.push(
-      ...resolveMany(
-        uniqueIds([config.rubricId, componentConfig.rubric, ...(componentConfig.rubrics ?? [])]),
-        (id) => this.getRubric(id),
-      ),
-    );
+    resolved.rubrics.push(...resolveSingle(config.rubricId, (id) => this.getRubric(id)));
 
     return resolved;
   }
@@ -395,7 +305,7 @@ export class PipelineComponentRegistry {
   }
 
   private bucket<K extends ComponentKind>(kind: K): ComponentBucket<ComponentKindMap[K]> {
-    return this[kind] as ComponentBucket<ComponentKindMap[K]>;
+    return this.buckets[kind];
   }
 }
 

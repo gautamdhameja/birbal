@@ -1,14 +1,7 @@
+// Purpose: Implements the shared HTTP safety utilities: client.
+// Scope: Centralizes URL validation, fetch limits, and retry behavior.
+
 import { HTTP } from "../constants/runtime.js";
-export {
-  FetchAbortError as HttpAbortError,
-  FetchStructuredError,
-  fetchPublicHttpWithRetry,
-  fetchPublicHttpWithTimeout,
-  FetchTimeoutError as HttpTimeoutError,
-  fetchWithRetry,
-  fetchWithTimeout,
-  RetryableFetchStatusError,
-} from "../framework/network/fetch.js";
 
 export class HttpStatusError extends Error {
   constructor(

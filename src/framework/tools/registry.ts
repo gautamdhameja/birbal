@@ -1,3 +1,6 @@
+// Purpose: Implements the framework tools registry module.
+// Scope: Stays generic so applications can plug in their own components.
+
 import { z } from "zod";
 
 import { FRAMEWORK_TOOLS } from "./constants.js";

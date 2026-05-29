@@ -1,3 +1,6 @@
+// Purpose: Implements framework URL content fetching and HTML extraction.
+// Scope: Stays generic so applications can plug in their own components.
+
 import { HTTP } from "../../constants/runtime.js";
 import { URL_TEXT } from "../../constants/url-text.js";
 import { fetchPublicHttpWithRetry } from "../network/fetch.js";
@@ -11,16 +14,11 @@ import {
 } from "../../http/url.js";
 import { extractUrlText } from "../../url-text/extract.js";
 import { normalizeUrl } from "../../utils/url.js";
+import { CONTENT_FETCH_STATUSES } from "./status.js";
+import type { ContentFetchStatus } from "./status.js";
 
-export const URL_CONTENT_FETCH_STATUSES = {
-  NOT_FETCHED: "not_fetched",
-  FETCHED: "fetched",
-  FAILED: "failed",
-  PAYWALLED: "paywalled",
-} as const;
-
-export type UrlContentFetchStatus =
-  (typeof URL_CONTENT_FETCH_STATUSES)[keyof typeof URL_CONTENT_FETCH_STATUSES];
+export { CONTENT_FETCH_STATUSES, CONTENT_FETCH_STATUSES as URL_CONTENT_FETCH_STATUSES };
+export type UrlContentFetchStatus = ContentFetchStatus;
 
 export type UrlContentFetchError = {
   message: string;
@@ -122,7 +120,7 @@ function errorResult(url: string, error: unknown, contentType = ""): FetchUrlCon
   if (isHttpStatusError(error)) {
     return emptyResult(
       url,
-      URL_CONTENT_FETCH_STATUSES.FAILED,
+      CONTENT_FETCH_STATUSES.FAILED,
       {
         message,
         code: "http_status",
@@ -135,7 +133,7 @@ function errorResult(url: string, error: unknown, contentType = ""): FetchUrlCon
 
   return emptyResult(
     url,
-    URL_CONTENT_FETCH_STATUSES.FAILED,
+    CONTENT_FETCH_STATUSES.FAILED,
     {
       message,
       code: "fetch_failed",
@@ -150,7 +148,7 @@ export async function fetchUrlContent({
   fetchPolicy = {},
 }: FetchUrlContentInput): Promise<FetchUrlContentResult> {
   if (!URL.canParse(url)) {
-    return emptyResult(url, URL_CONTENT_FETCH_STATUSES.FAILED, {
+    return emptyResult(url, CONTENT_FETCH_STATUSES.FAILED, {
       message: httpUrlErrorMessage(),
       code: "invalid_url",
     });
@@ -173,7 +171,7 @@ export async function fetchUrlContent({
     if (!isHtmlContentType(contentType)) {
       return emptyResult(
         finalUrl,
-        URL_CONTENT_FETCH_STATUSES.FAILED,
+        CONTENT_FETCH_STATUSES.FAILED,
         {
           message: `Unsupported content type: ${contentType || "unknown"}.`,
           code: "unsupported_content_type",
@@ -194,8 +192,8 @@ export async function fetchUrlContent({
       url: normalizeUrl(finalUrl),
       contentType,
       fetchStatus: detectedPaywall
-        ? URL_CONTENT_FETCH_STATUSES.PAYWALLED
-        : URL_CONTENT_FETCH_STATUSES.FETCHED,
+        ? CONTENT_FETCH_STATUSES.PAYWALLED
+        : CONTENT_FETCH_STATUSES.FETCHED,
       ...(canonicalUrl ? { canonicalUrl } : {}),
     };
   } catch (error) {

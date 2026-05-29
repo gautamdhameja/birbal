@@ -1,3 +1,6 @@
+// Purpose: Implements the small shared utility: json.
+// Scope: Holds narrow helpers used across runtime modules.
+
 import { JSON_PARSING } from "../constants/json.js";
 
 function extractBalancedJsonObject(raw: string, start: number): string | null {

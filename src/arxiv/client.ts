@@ -1,3 +1,6 @@
+// Purpose: Implements the arXiv search integration: client.
+// Scope: Wraps API configuration and parsing for the arXiv tool.
+
 import { XMLParser } from "fast-xml-parser";
 
 import { ARXIV } from "../constants/arxiv.js";

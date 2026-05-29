@@ -1,3 +1,6 @@
+// Purpose: Runs configured pipelines from the command line.
+// Scope: Parses CLI flags and delegates execution to the generic orchestrator.
+
 import { pathToFileURL } from "node:url";
 
 import { Command, InvalidArgumentError } from "commander";

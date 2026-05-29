@@ -1,3 +1,6 @@
+// Purpose: Implements the Birbal tool module: search hackernews.
+// Scope: Defines concrete tools and wires them into the generic tool framework.
+
 import { z } from "zod";
 
 import { TOOLS } from "../constants/tools.js";

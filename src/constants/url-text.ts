@@ -1,3 +1,6 @@
+// Purpose: Collects shared url text constants.
+// Scope: Avoids scattering repeated literals across runtime modules.
+
 export const URL_TEXT = {
   DEFAULT_MAX_CHARS: 12_000,
   MAX_CHARS_LIMIT: 30_000,

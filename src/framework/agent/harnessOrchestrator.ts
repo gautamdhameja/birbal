@@ -1,3 +1,6 @@
+// Purpose: Implements the framework agent harness orchestrator.
+// Scope: Stays generic so applications can plug in their own components.
+
 import { randomUUID } from "node:crypto";
 
 import { z } from "zod";

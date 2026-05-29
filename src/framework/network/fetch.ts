@@ -1,3 +1,6 @@
+// Purpose: Implements the framework network fetch module.
+// Scope: Stays generic so applications can plug in their own components.
+
 import { request as requestHttp } from "node:http";
 import { request as requestHttps } from "node:https";
 import type { LookupFunction } from "node:net";
@@ -97,6 +100,37 @@ export class RetryableFetchStatusError extends FetchStructuredError {
 
 function retryableStatuses(statusCodes: readonly number[] | undefined): Set<number> {
   return new Set(statusCodes ?? HTTP.RETRYABLE_STATUS_CODES);
+}
+
+async function fetchWithRetryPolicy(
+  init: RequestInit,
+  options: FetchRetryOptions,
+  runAttempt: () => Promise<Response>,
+): Promise<Response> {
+  const retries = options.retries ?? HTTP.DEFAULT_RETRIES;
+  const statuses = retryableStatuses(options.retryStatusCodes);
+
+  return pRetry(
+    async (attemptNumber) => {
+      await options.beforeAttempt?.(attemptNumber);
+      const response = await runAttempt();
+      if (statuses.has(response.status) && attemptNumber <= retries) {
+        await cancelResponseBody(response);
+        throw new RetryableFetchStatusError(response.status, response.statusText, attemptNumber);
+      }
+
+      return response;
+    },
+    {
+      retries,
+      factor: options.factor ?? HTTP.RETRY_FACTOR,
+      minTimeout: options.minTimeoutMs ?? HTTP.RETRY_MIN_TIMEOUT_MS,
+      maxTimeout: options.maxTimeoutMs ?? HTTP.RETRY_MAX_TIMEOUT_MS,
+      randomize: options.jitter ?? true,
+      signal: init.signal ?? undefined,
+      shouldRetry: ({ error }) => error instanceof RetryableFetchStatusError,
+    },
+  );
 }
 
 async function cancelResponseBody(response: Response): Promise<void> {
@@ -293,30 +327,7 @@ export async function fetchWithRetry(
   init: RequestInit = {},
   options: FetchRetryOptions = {},
 ): Promise<Response> {
-  const retries = options.retries ?? HTTP.DEFAULT_RETRIES;
-  const statuses = retryableStatuses(options.retryStatusCodes);
-
-  return pRetry(
-    async (attemptNumber) => {
-      await options.beforeAttempt?.(attemptNumber);
-      const response = await fetchWithTimeout(input, init, options);
-      if (statuses.has(response.status) && attemptNumber <= retries) {
-        await cancelResponseBody(response);
-        throw new RetryableFetchStatusError(response.status, response.statusText, attemptNumber);
-      }
-
-      return response;
-    },
-    {
-      retries,
-      factor: options.factor ?? HTTP.RETRY_FACTOR,
-      minTimeout: options.minTimeoutMs ?? HTTP.RETRY_MIN_TIMEOUT_MS,
-      maxTimeout: options.maxTimeoutMs ?? HTTP.RETRY_MAX_TIMEOUT_MS,
-      randomize: options.jitter ?? true,
-      signal: init.signal ?? undefined,
-      shouldRetry: ({ error }) => error instanceof RetryableFetchStatusError,
-    },
-  );
+  return fetchWithRetryPolicy(init, options, () => fetchWithTimeout(input, init, options));
 }
 
 export async function fetchPublicHttpWithRetry(
@@ -324,28 +335,7 @@ export async function fetchPublicHttpWithRetry(
   init: RequestInit = {},
   options: PublicHttpFetchOptions = {},
 ): Promise<Response> {
-  const retries = options.retries ?? HTTP.DEFAULT_RETRIES;
-  const statuses = retryableStatuses(options.retryStatusCodes);
-
-  return pRetry(
-    async (attemptNumber) => {
-      await options.beforeAttempt?.(attemptNumber);
-      const response = await fetchPublicHttpWithTimeout(input, init, options);
-      if (statuses.has(response.status) && attemptNumber <= retries) {
-        await cancelResponseBody(response);
-        throw new RetryableFetchStatusError(response.status, response.statusText, attemptNumber);
-      }
-
-      return response;
-    },
-    {
-      retries,
-      factor: options.factor ?? HTTP.RETRY_FACTOR,
-      minTimeout: options.minTimeoutMs ?? HTTP.RETRY_MIN_TIMEOUT_MS,
-      maxTimeout: options.maxTimeoutMs ?? HTTP.RETRY_MAX_TIMEOUT_MS,
-      randomize: options.jitter ?? true,
-      signal: init.signal ?? undefined,
-      shouldRetry: ({ error }) => error instanceof RetryableFetchStatusError,
-    },
+  return fetchWithRetryPolicy(init, options, () =>
+    fetchPublicHttpWithTimeout(input, init, options),
   );
 }

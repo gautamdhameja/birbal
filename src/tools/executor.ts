@@ -1,3 +1,6 @@
+// Purpose: Implements the Birbal tool module: executor.
+// Scope: Defines concrete tools and wires them into the generic tool framework.
+
 import { createToolExecutor } from "../framework/tools/executor.js";
 import { logger } from "../logging/logger.js";
 import { toolRegistry } from "./registry.js";

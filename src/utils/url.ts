@@ -1,3 +1,6 @@
+// Purpose: Implements the small shared utility: url.
+// Scope: Holds narrow helpers used across runtime modules.
+
 import normalizeUrlPackage from "normalize-url";
 
 export function normalizeUrl(url: string): string {

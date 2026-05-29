@@ -1,3 +1,6 @@
+// Purpose: Tests pipeline registry behavior.
+// Scope: Covers regressions through the Node.js test runner.
+
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
@@ -128,27 +131,26 @@ describe("pipeline component registry", () => {
     const resolved = registry.resolveFromConfig(
       pipelineConfig({
         rubricId: "rubric",
-        components: undefined,
       }),
     );
 
     assert.deepEqual(resolved.rubrics, [rubric]);
   });
 
-  it("supports registering many components and resolving ordered component arrays", () => {
-    const firstFetcher = {
-      fetch: async () => "first",
+  it("supports registering many components and resolving ordered content extractors", () => {
+    const firstExtractor = {
+      extract: async () => "first",
     };
-    const secondFetcher = {
-      fetch: async () => "second",
+    const secondExtractor = {
+      extract: async () => "second",
     };
     const registry = new PipelineComponentRegistry();
 
     registerRequiredDefaults(registry);
     registry.registerMany({
-      contentFetchers: {
-        first_fetcher: firstFetcher,
-        second_fetcher: secondFetcher,
+      contentExtractors: {
+        first_extractor: firstExtractor,
+        second_extractor: secondExtractor,
       },
     });
 
@@ -157,18 +159,15 @@ describe("pipeline component registry", () => {
         pipelineId: "research",
         contentFetchPolicy: {
           enabled: true,
-          fetcherId: "first_fetcher",
           fetchForTopN: 2,
           maxChars: 12000,
           preferFetchedContent: false,
-        },
-        components: {
-          contentFetchers: ["first_fetcher", "second_fetcher"],
+          extractorIds: ["first_extractor", "second_extractor"],
         },
       }),
     );
 
-    assert.deepEqual(resolved.contentFetchers, [firstFetcher, secondFetcher]);
+    assert.deepEqual(resolved.contentExtractors, [firstExtractor, secondExtractor]);
   });
 
   it("rejects duplicate and unknown component IDs", () => {

@@ -1,3 +1,6 @@
+// Purpose: Collects shared scoring constants.
+// Scope: Avoids scattering repeated literals across runtime modules.
+
 export const SCORING = {
   MODEL_TEMPERATURE: 0,
   MAX_TOKENS: 900,

@@ -1,3 +1,6 @@
+// Purpose: Tests scoring behavior.
+// Scope: Covers regressions through the Node.js test runner.
+
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
@@ -8,7 +11,9 @@ import {
   rankScoredCandidates,
 } from "../src/daily/scoring.js";
 import type { ScoredCandidateItem } from "../src/daily/types.js";
-import { CONTENT_FETCH_STATUSES, SOURCE_REGISTRY, SOURCES } from "../src/constants.js";
+import { CONTENT_FETCH_STATUSES } from "../src/constants/candidates.js";
+import { SOURCE_REGISTRY } from "../src/constants/source-registry.js";
+import { SOURCES } from "../src/constants/sources.js";
 
 function scoredItem(title: string, finalScore: number): ScoredCandidateItem {
   return {

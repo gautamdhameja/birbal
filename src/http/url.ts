@@ -1,3 +1,6 @@
+// Purpose: Implements the shared HTTP safety utilities: url.
+// Scope: Centralizes URL validation, fetch limits, and retry behavior.
+
 import type { LookupAddress } from "node:dns";
 import { lookup } from "node:dns/promises";
 

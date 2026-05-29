@@ -1,3 +1,6 @@
+// Purpose: Implements the SQLite persistence module: pipeline Runs.
+// Scope: Owns storage access for one persisted data shape.
+
 import { randomUUID } from "node:crypto";
 
 import { DATABASE } from "../constants/database.js";

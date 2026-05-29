@@ -1,3 +1,6 @@
+// Purpose: Implements the framework pipeline concurrency module.
+// Scope: Stays generic so applications can plug in their own components.
+
 import pLimit from "p-limit";
 
 export type IndexedResult<TValue> = {

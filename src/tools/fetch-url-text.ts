@@ -1,3 +1,6 @@
+// Purpose: Implements the Birbal tool module: fetch url text.
+// Scope: Defines concrete tools and wires them into the generic tool framework.
+
 import { z } from "zod";
 
 import { TOOLS } from "../constants/tools.js";

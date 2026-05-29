@@ -1,3 +1,6 @@
+// Purpose: Implements the framework pipeline types module.
+// Scope: Stays generic so applications can plug in their own components.
+
 import type { Rubric } from "../scoring/rubric.js";
 
 export type PipelineId = string;
@@ -7,29 +10,6 @@ export type PipelineMetadata = Record<string, unknown>;
 export type PipelineCounts = Record<string, number>;
 
 export type PipelineStatus = "success" | "partial_success" | "failed";
-
-export type PipelineComponentConfig = {
-  collectors?: string[];
-  contentFetchers?: string[];
-  contentExtractors?: string[];
-  scorers?: string[];
-  classifiers?: string[];
-  structuredExtractors?: string[];
-  selectors?: string[];
-  renderers?: string[];
-  artifactWriters?: string[];
-  rubrics?: string[];
-  collector?: string;
-  contentFetcher?: string;
-  contentExtractor?: string;
-  scorer?: string;
-  classifier?: string;
-  structuredExtractor?: string;
-  selector?: string;
-  renderer?: string;
-  artifactWriter?: string;
-  rubric?: string;
-};
 
 export type PipelineCollectionMethod = {
   id: string;
@@ -133,7 +113,6 @@ export interface PipelineConfig<TSettings = PipelineMetadata> {
   execution?: PipelineExecutionConfig;
   failurePolicy: PipelineFailurePolicy;
   schedule?: PipelineScheduleConfig;
-  components?: PipelineComponentConfig;
   settings?: TSettings;
   metadata?: PipelineMetadata;
 }

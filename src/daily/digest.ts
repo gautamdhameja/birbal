@@ -1,3 +1,6 @@
+// Purpose: Implements the daily reading pipeline support: digest.
+// Scope: Contains Birbal-specific digest scoring, classification, and rendering helpers.
+
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 

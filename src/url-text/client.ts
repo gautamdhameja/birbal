@@ -1,3 +1,6 @@
+// Purpose: Implements the URL text extraction helper: client.
+// Scope: Fetches and extracts readable text for tool and pipeline use.
+
 import { CONTENT_FETCH_STATUSES } from "../constants/candidates.js";
 import { URL_TEXT } from "../constants/url-text.js";
 import { fetchUrlContent } from "../framework/content/fetchUrl.js";

@@ -1,3 +1,6 @@
+// Purpose: Implements the Brave Search integration: client.
+// Scope: Contains quota-aware raw HTTP search client behavior.
+
 import { z } from "zod";
 
 import { BRAVE_SEARCH } from "../constants/brave-search.js";

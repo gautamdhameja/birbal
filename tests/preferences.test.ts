@@ -1,10 +1,13 @@
+// Purpose: Tests preferences behavior.
+// Scope: Covers regressions through the Node.js test runner.
+
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
 
-import { PREFERENCES } from "../src/constants.js";
+import { PREFERENCES } from "../src/constants/preferences.js";
 import { loadPreferences } from "../src/memory/preferences.js";
 import type { UserPreferences } from "../src/memory/types.js";
 
