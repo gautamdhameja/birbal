@@ -10,7 +10,11 @@ import type { CandidateItem } from "../../daily/types.js";
 import { llamaCppModelAdapter } from "../../llama/adapter.js";
 import type { ChatMessage, CompleteOptions } from "../../llama/schema.js";
 import { logger } from "../../logging/logger.js";
-import { EnterpriseUseCaseSchema, type EnterpriseUseCase } from "./schema.js";
+import {
+  EnterpriseUseCaseSchema,
+  isEligibleEnterpriseUseCase,
+  type EnterpriseUseCase,
+} from "./schema.js";
 
 type CompleteFn = (messages: ChatMessage[], options?: CompleteOptions) => Promise<string>;
 
@@ -125,26 +129,27 @@ function responseShape(): string {
       {
         id: "stable id for this extracted use case",
         confidenceScore: 1,
-        companyName: "real company or organization name, or unknown",
-        industry: "industry, or unknown",
-        businessFunction: "business function, or unknown",
-        workflowAffected: "workflow affected, or unknown",
-        workflowBefore: "before workflow, or unknown",
-        workflowAfter: "after workflow, or unknown",
-        aiSystemOrCapability: "AI system or capability, or unknown",
-        humanRoleChange: "human role change, or unknown",
-        systemIntegrations: "systems integrated, or unknown",
-        deploymentStage: "deployment maturity or stage, or unknown",
-        roiMetric: "specific ROI metric, or unknown",
-        businessOutcome: "business outcome, or unknown",
-        governanceOrRiskNotes: "governance or risk notes, or unknown",
-        implementationDetails: "implementation details, or unknown",
+        companyName: "real company or organization name; empty string if not stated",
+        industry: "industry; empty string if not stated",
+        businessFunction: "business function; empty string if not stated",
+        workflowAffected: "specific workflow changed; empty string if not stated",
+        workflowBefore: "before workflow from the article; empty string if not stated",
+        workflowAfter: "after workflow from the article; empty string if not stated",
+        aiSystemOrCapability:
+          "AI system or capability used in the workflow; empty string if not stated",
+        humanRoleChange: "human role change from the article; empty string if not stated",
+        systemIntegrations: "systems integrated; empty string if not stated",
+        deploymentStage: "deployment maturity or stage; empty string if not stated",
+        roiMetric: "specific ROI metric; empty string if not stated",
+        businessOutcome: "business outcome; empty string if not stated",
+        governanceOrRiskNotes: "governance or risk notes; empty string if not stated",
+        implementationDetails: "implementation details; empty string if not stated",
         sourceTitle: "source title",
         sourceUrl: "source URL",
         sourceName: "source name",
-        publishDate: "publish date, or unknown",
+        publishDate: "publish date; empty string if not stated",
         evidenceSummary:
-          "short analytical summary that explains the confidenceScore using workflow, deployment, outcome, and source quality evidence",
+          "short evidence-backed summary; empty string if the source has no concrete support",
       },
     ],
   });
@@ -155,22 +160,29 @@ function buildMessages(candidate: CandidateItem, fetchedContentText: string): Ch
     {
       role: AGENT.ROLES.SYSTEM,
       content: [
-        "You extract real enterprise AI use cases from source articles.",
+        "You extract concrete, real enterprise AI deployments from source articles.",
         "Return exactly one valid JSON object and nothing else.",
         "Do not include Markdown, code fences, comments, or prose outside JSON.",
         "The top-level object must contain only a useCases array.",
         `Extract at most ${MAX_USE_CASES_PER_ARTICLE} use cases from one article. Choose the strongest evidence only.`,
-        "Extract only real enterprise use cases with evidence in the article.",
-        "Do not extract hypothetical examples, vague vendor claims, trend commentary, or generic product launches.",
-        'Use "unknown" for any field that is not available in the article.',
+        "A valid use case is a real workflow where an enterprise, customer, public-sector organization, or named team is using AI in an actual business process.",
+        "The article must provide concrete evidence for the workflow, the AI capability, and the operational or business outcome.",
+        "Return an empty useCases array if the article is mainly advice, methodology, best practices, measurement guidance, benchmarking, governance framework, trend commentary, market analysis, or a vendor product launch.",
+        "Return an empty useCases array for articles about how to measure AI agents, how to evaluate agents, or how teams should deploy agents unless the article also describes a specific real organization using AI in a specific workflow.",
+        "Do not convert an audience segment into a company name. Invalid company names include: Any organization, organizations using AI, contact center organizations, companies, enterprises, customers, users, teams, industry leaders.",
+        "If the article only describes a generic audience, a target persona, or a class of organizations, it is not a use case.",
+        "Do not extract hypothetical examples, illustrative scenarios, vague vendor claims, generic productivity claims, trend commentary, or generic product launches.",
+        "For accepted use cases, leave unsupported fields as empty strings. Do not write unknown, not stated, not available, none, N/A, unclear, or generic filler.",
+        "Do not use empty fields to rescue an article that has no concrete use case.",
         "Do not invent missing company names, ROI metrics, integrations, workflow details, or deployment evidence.",
         "Every use case must include every required field.",
         "All use-case fields must be strings except confidenceScore, which must be a number from 1 to 5.",
         "The confidence field name must be exactly confidenceScore and must appear inside every use case object.",
         "Put confidenceScore immediately after id in every use case object.",
         "confidenceScore is your overall score for use-case quality, evidence strength, production relevance, workflow specificity, and business usefulness.",
-        "Use confidenceScore 5 only for named real deployments with specific workflow detail and measurable outcomes.",
-        "Use confidenceScore 3 for plausible but incomplete evidence.",
+        "Use confidenceScore 5 only for named real deployments with specific workflow detail, live or production evidence, and measurable outcomes.",
+        "Use confidenceScore 4 for strong real deployments where one detail, such as a precise metric or integration, is missing.",
+        "Use confidenceScore 3 only for real deployments with incomplete but still concrete evidence.",
         "Use confidenceScore 1 or 2 for weak, vague, pilot-only, or thinly supported evidence.",
         "Keep every string field concise. Prefer one short sentence per field.",
         "Do not include long quotations, long lists, or multi-paragraph values.",
@@ -180,8 +192,21 @@ function buildMessages(candidate: CandidateItem, fetchedContentText: string): Ch
     {
       role: AGENT.ROLES.USER,
       content: [
-        "Prioritize:",
-        "- real company or organization",
+        "Eligibility checklist:",
+        "- Extract a use case only when the article describes a real enterprise AI deployment, rollout, production system, customer story, or live operational usage.",
+        "- The use case must have a concrete workflow, not just a general capability or management concept.",
+        "- The workflow must be specific enough that a reader can understand what changed before and after AI.",
+        "- The AI system or capability must be tied to that workflow.",
+        "- The evidence must come from the article text, not from your assumptions.",
+        "- If the article is a measurement framework, evaluation framework, best-practices guide, thought-leadership piece, or generic methodology article, return an empty useCases array.",
+        "- If the article mentions deployment only as something readers should do in the future, return an empty useCases array.",
+        "- If there is no real company, organization, or clearly deployed internal team, return an empty useCases array unless the article still provides unmistakable live-production evidence for a specific enterprise workflow.",
+        "- Never use a target audience as companyName. Examples to reject: Any organization using contact centers, contact center organizations, companies, enterprises, customers, users.",
+        "- For every extracted field, copy only what the article supports. If the article does not support the field, use an empty string.",
+        "- Do not paraphrase missing details into plausible language. Blank is better than generic.",
+        "",
+        "For each accepted use case, extract:",
+        "- real company or organization when stated",
         "- industry",
         "- business function",
         "- workflow affected",
@@ -218,13 +243,17 @@ function buildRepairInstructions(): string {
   return [
     "Repair the enterprise AI use-case extraction response.",
     "Return exactly one valid JSON object with a useCases array.",
+    "Keep only concrete real enterprise AI deployments or live operational use cases.",
+    "Return an empty useCases array for best-practices, measurement, evaluation, benchmarking, methodology, trend, or framework articles that do not contain a concrete deployed use case.",
+    "Do not use generic audience labels such as Any organization, companies, enterprises, customers, users, teams, or contact center organizations as companyName.",
     "Every item in useCases must match the EnterpriseUseCase schema.",
     "All fields must be strings except confidenceScore, which must be a number from 1 to 5.",
     "Do not omit confidenceScore.",
     `Keep at most ${MAX_USE_CASES_PER_ARTICLE} use cases.`,
     "Keep string fields concise so the JSON can complete without truncation.",
     "Use comma-separated strings instead of arrays for list-like fields.",
-    'Use "unknown" for unavailable fields.',
+    "Use empty strings for unavailable fields.",
+    "Do not replace missing details with vague filler such as unknown, not stated, not available, unclear, generic, or N/A.",
     "Do not add use cases or details that are not supported by the article.",
   ].join(" ");
 }
@@ -265,5 +294,7 @@ export async function extractEnterpriseUseCases(
     throw new ModelParseError(result.error);
   }
 
-  return useCasesWithTrustedSourceUrl(result.value.useCases, candidate);
+  return useCasesWithTrustedSourceUrl(result.value.useCases, candidate).filter(
+    isEligibleEnterpriseUseCase,
+  );
 }

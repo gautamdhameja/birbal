@@ -49,7 +49,15 @@
     "maxUseCasesPerRun": 10,
     "minConfidenceScore": 3,
     "maxPerIndustry": 3,
-    "maxPerSource": 3
+    "maxPerSource": 3,
+    "maxVerificationLinks": 2,
+    "verificationMaxChars": 12000,
+    "minVerificationConfidenceScore": 3
+  },
+  "settings": {
+    "verification": {
+      "enabled": true
+    }
   },
   "execution": {
     "collectionConcurrency": 2,

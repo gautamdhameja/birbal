@@ -31,6 +31,13 @@ Run the enterprise use-case scout:
 birbal use-cases
 ```
 
+Search once, then rerun model processing against the stored URL snapshot:
+
+```sh
+birbal use-cases search
+birbal use-cases process --snapshot latest
+```
+
 Shortcut form:
 
 ```sh

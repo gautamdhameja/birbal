@@ -47,6 +47,25 @@ describe("enterprise use case selector", () => {
     );
   });
 
+  it("filters generic audience pseudo-use cases even with high confidence", () => {
+    const selected = selectEnterpriseUseCases([
+      useCase({
+        id: "generic-measurement-framework",
+        companyName: "Any organization using contact centers",
+        workflowAffected: "AI agent performance evaluation and scaling",
+        aiSystemOrCapability: "AI agent performance measurement framework",
+        evidenceSummary: "The article describes a framework, not a named deployment.",
+        confidenceScore: 5,
+      }),
+      useCase({ id: "real-deployment", confidenceScore: 4 }),
+    ]);
+
+    assert.deepEqual(
+      selected.map((item) => item.id),
+      ["real-deployment"],
+    );
+  });
+
   it("prefers the model-owned confidence score when ranking candidates", () => {
     const selected = selectEnterpriseUseCases(
       [

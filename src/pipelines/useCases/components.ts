@@ -4,6 +4,11 @@
 import { searchWeb } from "../../brave-search/client.js";
 import { CONTENT_FETCH_STATUSES } from "../../constants/candidates.js";
 import type { CandidateItem } from "../../daily/types.js";
+import {
+  getLatestSearchSnapshot,
+  getSearchSnapshot,
+  listSearchSnapshotItems,
+} from "../../db/searchSnapshots.js";
 import { upsertUseCase } from "../../db/useCases.js";
 import type { PipelineRunItem } from "../../framework/pipeline/orchestrator.js";
 import type {
@@ -25,10 +30,12 @@ import {
 } from "../componentHelpers.js";
 import { extractEnterpriseUseCases } from "./extractor.js";
 import { renderEnterpriseUseCaseDigest } from "./renderer.js";
-import { collectUseCaseSearchCandidates } from "./search.js";
+import { collectUseCaseSearchCandidates, searchSnapshotItemToCandidate } from "./search.js";
 import type { UseCaseSearchCandidate } from "./search.js";
 import type { EnterpriseUseCase } from "./schema.js";
 import { selectEnterpriseUseCases } from "./selector.js";
+import { verifySelectedEnterpriseUseCases } from "./verification.js";
+import { normalizeUrl } from "../../utils/url.js";
 
 function asUseCaseCandidate(value: unknown): UseCaseSearchCandidate {
   return asRunItem(value).item as UseCaseSearchCandidate;
@@ -61,6 +68,11 @@ function useCaseQueries(method: PipelineCollectionMethod): readonly string[] {
   return method.queries;
 }
 
+function snapshotIdFromMethod(method: PipelineCollectionMethod): string {
+  const snapshotId = method.metadata?.snapshotId;
+  return typeof snapshotId === "string" && snapshotId.trim() ? snapshotId.trim() : "latest";
+}
+
 function useCaseScoutConfigFromContext(context: PipelineContext, method: PipelineCollectionMethod) {
   const sourceRegistry = scopedSourceRegistry(
     sourceRegistryFromContext(context),
@@ -90,6 +102,36 @@ function useCaseSelectorConfigFromContext(context: PipelineContext) {
       ? { maxPerSource: context.config.limits.maxPerSource }
       : {}),
   };
+}
+
+function verificationEnabled(context: PipelineContext): boolean {
+  const verification = context.config.settings?.verification;
+  if (typeof verification !== "object" || verification === null || Array.isArray(verification)) {
+    return true;
+  }
+
+  return (verification as { enabled?: unknown }).enabled !== false;
+}
+
+function verificationConfigFromContext(context: PipelineContext) {
+  return {
+    maxLinks: context.config.limits.maxVerificationLinks ?? 2,
+    maxChars: context.config.limits.verificationMaxChars ?? 12_000,
+    minVerificationConfidenceScore: context.config.limits.minVerificationConfidenceScore ?? 3,
+  };
+}
+
+function sourceTextByUrlFromItems(items: readonly PipelineRunItem[]): Map<string, string> {
+  const sourceTextByUrl = new Map<string, string>();
+  for (const item of items) {
+    const candidate = asUseCaseCandidate(item);
+    const plainText = fetchedPlainText(item);
+    if (plainText.trim()) {
+      sourceTextByUrl.set(normalizeUrl(candidate.url), plainText);
+    }
+  }
+
+  return sourceTextByUrl;
 }
 
 export const braveWebSearchCollector: SourceCollector = {
@@ -139,6 +181,39 @@ export const braveWebSearchCollector: SourceCollector = {
   },
 };
 
+export const searchSnapshotCollector: SourceCollector = {
+  async collect(method, context) {
+    const collectionMethod = method as PipelineCollectionMethod;
+    const requestedSnapshotId = snapshotIdFromMethod(collectionMethod);
+    const snapshot =
+      requestedSnapshotId === "latest"
+        ? getLatestSearchSnapshot(context.pipelineId)
+        : getSearchSnapshot(requestedSnapshotId);
+
+    if (!snapshot) {
+      throw new Error(`Search snapshot not found: ${requestedSnapshotId}`);
+    }
+
+    if (snapshot.pipelineId !== context.pipelineId) {
+      throw new Error(
+        `Search snapshot ${snapshot.id} belongs to ${snapshot.pipelineId}, not ${context.pipelineId}.`,
+      );
+    }
+
+    const candidates = listSearchSnapshotItems(snapshot.id).map(searchSnapshotItemToCandidate);
+    context.logger.info(
+      {
+        event: "pipeline.use_cases.search_snapshot_loaded",
+        snapshotId: snapshot.id,
+        candidateCount: candidates.length,
+      },
+      "use-case search snapshot loaded",
+    );
+
+    return candidates;
+  },
+};
+
 export const enterpriseUseCaseExtractor: StructuredExtractor = {
   async extractStructured(item, context) {
     const runItem = asRunItem(item);
@@ -160,25 +235,54 @@ export const enterpriseUseCaseExtractor: StructuredExtractor = {
 
 export const enterpriseUseCaseSelector: Selector = {
   async select(items, context) {
-    const extractedUseCases = (items as PipelineRunItem[]).flatMap((item) =>
+    const runItems = items as PipelineRunItem[];
+    const extractedUseCases = runItems.flatMap((item) =>
       Array.isArray(item.structuredData) ? (item.structuredData as EnterpriseUseCase[]) : [],
     );
     const selected = selectEnterpriseUseCases(
       extractedUseCases,
       useCaseSelectorConfigFromContext(context),
     );
+    const verified = verificationEnabled(context)
+      ? await verifySelectedEnterpriseUseCases(selected, {
+          ...verificationConfigFromContext(context),
+          sourceTextByUrl: sourceTextByUrlFromItems(runItems),
+          traceId: context.runId,
+          traceLabel: "pipeline.use_cases.enterprise_use_case_verifier",
+        })
+      : selected.map((useCase) => ({
+          ...useCase,
+          verification: {
+            verified: true,
+            confidenceScore: useCase.confidenceScore,
+            unsupportedFields: [],
+            evidenceLinks: [],
+            notes: "Verification disabled by pipeline config.",
+          },
+        }));
 
-    for (const useCase of selected) {
+    context.logger.info(
+      {
+        event: "pipeline.use_cases.verification",
+        selectedBeforeVerification: selected.length,
+        verified: verified.length,
+        rejectedByVerification: selected.length - verified.length,
+      },
+      "use-case verification completed",
+    );
+
+    for (const useCase of verified) {
       upsertUseCase({
         ...useCase,
         runId: context.runId,
         rawJson: {
           useCase,
+          verification: useCase.verification,
         },
       });
     }
 
-    return selected;
+    return verified;
   },
 };
 
@@ -191,6 +295,7 @@ export const enterpriseUseCaseMarkdownRenderer: Renderer = {
 export const useCasePipelineComponents = {
   collectors: {
     brave_web_search_collector: braveWebSearchCollector,
+    search_snapshot_collector: searchSnapshotCollector,
   },
   structuredExtractors: {
     enterprise_use_case_extractor: enterpriseUseCaseExtractor,

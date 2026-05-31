@@ -12,6 +12,8 @@
     "run-pipeline": "tsx src/cli.ts pipeline",
     "daily": "tsx src/cli.ts daily",
     "use-cases": "tsx src/cli.ts use-cases",
+    "use-cases:search": "tsx src/cli.ts use-cases search",
+    "use-cases:process": "tsx src/cli.ts use-cases process",
     "example:agent": "tsx examples/minimal-agent.ts",
     "example:pipeline": "tsx examples/static-pipeline.ts",
     "format": "prettier --write .",

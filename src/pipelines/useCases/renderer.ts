@@ -25,12 +25,25 @@ function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
-function escapeMarkdownText(value: string): string {
-  return normalizeWhitespace(value).replace(/[\\`*_{}[\]()#+!|>]/g, "\\$&");
+function isMissingValue(value: string): boolean {
+  const normalizedValue = normalizeWhitespace(value).toLowerCase();
+  return (
+    normalizedValue === "" ||
+    normalizedValue === "unknown" ||
+    normalizedValue === "not stated" ||
+    normalizedValue === "not available" ||
+    normalizedValue === "n/a" ||
+    normalizedValue === "none" ||
+    normalizedValue === "unclear"
+  );
 }
 
-function escapeTableCell(value: string): string {
-  return escapeMarkdownText(value).replace(/\n/g, " ");
+function blankIfMissing(value: string): string {
+  return isMissingValue(value) ? "" : value;
+}
+
+function escapeMarkdownText(value: string): string {
+  return normalizeWhitespace(value).replace(/[\\`*_{}[\]()#+!|>]/g, "\\$&");
 }
 
 function sourceLabel(useCase: EnterpriseUseCase): string {
@@ -55,29 +68,7 @@ function renderSourceLink(useCase: EnterpriseUseCase): string {
   return label;
 }
 
-function renderSummaryTable(items: readonly EnterpriseUseCase[]): string {
-  const rows = items.map((useCase) =>
-    [
-      escapeTableCell(useCase.companyName),
-      escapeTableCell(useCase.industry),
-      escapeTableCell(useCase.businessFunction),
-      escapeTableCell(useCase.workflowAffected),
-      escapeTableCell(useCase.aiSystemOrCapability),
-      escapeTableCell(useCase.businessOutcome),
-      renderSourceLink(useCase),
-    ].join(" | "),
-  );
-
-  return [
-    "## Summary Table",
-    "",
-    "| Company | Industry | Business Function | Workflow | AI Capability | Outcome | Source |",
-    "| --- | --- | --- | --- | --- | --- | --- |",
-    ...rows.map((row) => `| ${row} |`),
-  ].join("\n");
-}
-
-function renderPositioningRelevance(useCase: EnterpriseUseCase): string {
+function renderEnterpriseLesson(useCase: EnterpriseUseCase): string {
   const details = [
     useCase.workflowAffected,
     useCase.workflowBefore,
@@ -88,10 +79,10 @@ function renderPositioningRelevance(useCase: EnterpriseUseCase): string {
     useCase.governanceOrRiskNotes,
   ]
     .map(normalizeWhitespace)
-    .filter((value) => value && value.toLowerCase() !== "unknown");
+    .filter((value) => !isMissingValue(value));
 
-  if (details.length === 0) {
-    return "Useful only if follow-up research confirms workflow, implementation, and outcome detail.";
+  if (details.length < 3) {
+    return "";
   }
 
   return "Useful for positioning around practical enterprise AI workflow redesign, deployment evidence, and measurable business change.";
@@ -101,33 +92,50 @@ function renderDetailLine(label: string, value: string): string {
   return `- ${label}: ${escapeMarkdownText(value)}`;
 }
 
-function renderUseCase(useCase: EnterpriseUseCase, index: number): string {
-  const roiAndOutcome = [useCase.roiMetric, useCase.businessOutcome]
-    .filter((value) => normalizeWhitespace(value).toLowerCase() !== "unknown")
-    .join("; ");
+function renderUseCaseSummary(useCase: EnterpriseUseCase): string {
+  const businessFunction = blankIfMissing(useCase.businessFunction);
+  const aiCapability = blankIfMissing(useCase.aiSystemOrCapability);
+  const functionPrefix = businessFunction ? `${businessFunction}: ` : "";
 
+  return `${functionPrefix}${aiCapability}`;
+}
+
+function renderWorkflowChanged(useCase: EnterpriseUseCase): string {
+  const workflow = blankIfMissing(useCase.workflowAffected);
+  const before = blankIfMissing(useCase.workflowBefore);
+  const after = blankIfMissing(useCase.workflowAfter);
+  if (!before && !after) {
+    return workflow;
+  }
+
+  if (!before) {
+    return [workflow, `after AI: ${after}`].filter(Boolean).join("; ");
+  }
+
+  if (!after) {
+    return [workflow, `before AI: ${before}`].filter(Boolean).join("; ");
+  }
+
+  return [workflow, `before: ${before}`, `after: ${after}`].filter(Boolean).join("; ");
+}
+
+function renderBusinessImpact(useCase: EnterpriseUseCase): string {
+  const impact = [useCase.roiMetric, useCase.businessOutcome]
+    .map(normalizeWhitespace)
+    .filter((value) => !isMissingValue(value));
+
+  return impact.length > 0 ? impact.join("; ") : "";
+}
+
+function renderUseCase(useCase: EnterpriseUseCase, index: number): string {
   return [
     `### ${index + 1}. ${escapeMarkdownText(useCase.companyName)}`,
     "",
-    renderDetailLine("Company", useCase.companyName),
-    renderDetailLine("Industry", useCase.industry),
-    renderDetailLine("Business function", useCase.businessFunction),
-    renderDetailLine("Workflow affected", useCase.workflowAffected),
-    renderDetailLine("Before", useCase.workflowBefore),
-    renderDetailLine("After", useCase.workflowAfter),
-    renderDetailLine("AI system or capability", useCase.aiSystemOrCapability),
-    renderDetailLine("Human role change", useCase.humanRoleChange),
-    renderDetailLine("System integrations", useCase.systemIntegrations),
-    renderDetailLine("Deployment stage", useCase.deploymentStage),
-    renderDetailLine(
-      "ROI metric / business outcome",
-      roiAndOutcome || `${useCase.roiMetric}; ${useCase.businessOutcome}`,
-    ),
-    renderDetailLine("Governance or risk notes", useCase.governanceOrRiskNotes),
-    renderDetailLine("Implementation details", useCase.implementationDetails),
-    renderDetailLine("Evidence summary", useCase.evidenceSummary),
+    renderDetailLine("Use case", renderUseCaseSummary(useCase)),
+    renderDetailLine("Workflow changed", renderWorkflowChanged(useCase)),
+    renderDetailLine("Business impact", renderBusinessImpact(useCase)),
+    renderDetailLine("Enterprise lesson", renderEnterpriseLesson(useCase)),
     `- Source: ${renderSourceLink(useCase)}`,
-    renderDetailLine("Why this matters for my positioning", renderPositioningRelevance(useCase)),
   ].join("\n");
 }
 
@@ -139,10 +147,6 @@ export function renderEnterpriseUseCaseDigest(
 
   return [
     `# Enterprise AI Use Cases - ${digestDate}`,
-    "",
-    renderSummaryTable(useCases),
-    "",
-    "## Detailed Use Cases",
     "",
     useCases.map(renderUseCase).join("\n\n"),
     "",

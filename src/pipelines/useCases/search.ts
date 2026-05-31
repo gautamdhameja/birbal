@@ -168,3 +168,26 @@ export async function collectUseCaseSearchCandidates(
     searchErrors,
   };
 }
+
+export function searchSnapshotItemToCandidate(item: {
+  query: string;
+  title: string;
+  url: string;
+  description: string;
+  publishedAt: string;
+  sourceName?: string;
+  raw: unknown;
+}): UseCaseSearchCandidate {
+  const url = normalizeUrl(item.url);
+
+  return {
+    id: `use-case:${url}`,
+    query: item.query,
+    title: item.title,
+    url,
+    description: item.description,
+    publishedAt: item.publishedAt,
+    sourceName: item.sourceName,
+    raw: item.raw,
+  };
+}

@@ -3,7 +3,7 @@
 
 import { pathToFileURL } from "node:url";
 
-import { Command, InvalidArgumentError } from "commander";
+import { Command, InvalidArgumentError, type OptionValues } from "commander";
 import dotenv from "dotenv";
 
 import { CLI, ENV_FILE_PATHS, LOGGING } from "./constants/runtime.js";
@@ -20,6 +20,10 @@ type PipelineCommandOptions = TraceOptions & {
   config?: string;
   dryRun?: boolean;
   limit?: number;
+};
+
+type UseCaseProcessCommandOptions = PipelineCommandOptions & {
+  snapshot?: string;
 };
 
 dotenv.config({ path: ENV_FILE_PATHS, quiet: true });
@@ -64,6 +68,16 @@ function addPipelineOptions(command: Command): Command {
     .option("--dry-run", "print resolved config without running")
     .option("--limit <number>", "limit candidate and output counts", parsePositiveInteger)
     .option("--config <path>", "load pipeline config from a file path");
+}
+
+function commandOptions<TOptions extends OptionValues>(
+  optionsOrCommand: TOptions | Command,
+): TOptions {
+  return optionsOrCommand instanceof Command ? optionsOrCommand.opts<TOptions>() : optionsOrCommand;
+}
+
+function dryRunEnabled(options: PipelineCommandOptions): boolean {
+  return Boolean(options.dryRun) || process.argv.includes("--dry-run");
 }
 
 async function runAgentCommand(
@@ -117,16 +131,95 @@ export async function runBirbalCli(args: readonly string[] = process.argv.slice(
 
   addPipelineOptions(
     program.command("daily").description("run the daily enterprise AI reading pipeline"),
-  ).action(async (options: PipelineCommandOptions) => {
+  ).action(async (optionsOrCommand: PipelineCommandOptions | Command) => {
+    const options = commandOptions<PipelineCommandOptions>(optionsOrCommand);
     await runPipelineFromCliOptions(pipelineOptions(options, "daily", program));
+  });
+
+  const useCasesCommand = addPipelineOptions(
+    program.command("use-cases").alias("use_cases").description("run the full use-case pipeline"),
+  ).action(async (optionsOrCommand: PipelineCommandOptions | Command) => {
+    const options = commandOptions<PipelineCommandOptions>(optionsOrCommand);
+    await runPipelineFromCliOptions(pipelineOptions(options, "use_cases", program));
+  });
+
+  useCasesCommand
+    .command("search")
+    .description("run only use-case web search and store a reusable snapshot")
+    .option("--limit <number>", "limit candidate and output counts", parsePositiveInteger)
+    .option("--config <path>", "load pipeline config from a file path")
+    .action(async (optionsOrCommand: PipelineCommandOptions | Command) => {
+      const options = commandOptions<PipelineCommandOptions>(optionsOrCommand);
+      const { runUseCaseSearchSnapshotCommand } = await import("./pipelines/useCases/commands.js");
+      await runUseCaseSearchSnapshotCommand({
+        configPath: options.config,
+        limit: options.limit,
+      });
+    });
+
+  addPipelineOptions(
+    useCasesCommand
+      .command("process")
+      .description("run model processing from a stored use-case search snapshot"),
+  )
+    .option("--snapshot <id>", "search snapshot id, or latest", "latest")
+    .action(async (optionsOrCommand: UseCaseProcessCommandOptions | Command) => {
+      const options = commandOptions<UseCaseProcessCommandOptions>(optionsOrCommand);
+      if (traceEnabled(options, program)) {
+        process.env.LOG_LEVEL = LOGGING.DEBUG_LEVEL;
+        process.env.LOG_PRETTY = process.env.LOG_PRETTY?.trim() || LOGGING.PRETTY_ENABLED_VALUE;
+      }
+      const { runUseCaseProcessSnapshotCommand } = await import("./pipelines/useCases/commands.js");
+      await runUseCaseProcessSnapshotCommand({
+        configPath: options.config,
+        dryRun: dryRunEnabled(options),
+        limit: options.limit,
+        snapshotId: options.snapshot,
+        trace: traceEnabled(options, program),
+      });
+    });
+
+  addPipelineOptions(
+    program
+      .command("use-cases-process")
+      .description("run use-case model processing from a stored search snapshot"),
+  )
+    .option("--snapshot <id>", "search snapshot id, or latest", "latest")
+    .action(async (optionsOrCommand: UseCaseProcessCommandOptions | Command) => {
+      const options = commandOptions<UseCaseProcessCommandOptions>(optionsOrCommand);
+      if (traceEnabled(options, program)) {
+        process.env.LOG_LEVEL = LOGGING.DEBUG_LEVEL;
+        process.env.LOG_PRETTY = process.env.LOG_PRETTY?.trim() || LOGGING.PRETTY_ENABLED_VALUE;
+      }
+      const { runUseCaseProcessSnapshotCommand } = await import("./pipelines/useCases/commands.js");
+      await runUseCaseProcessSnapshotCommand({
+        configPath: options.config,
+        dryRun: dryRunEnabled(options),
+        limit: options.limit,
+        snapshotId: options.snapshot,
+        trace: traceEnabled(options, program),
+      });
+    });
+
+  addPipelineOptions(
+    program
+      .command("use-cases-search")
+      .description("shortcut for use-cases search snapshot creation"),
+  ).action(async (optionsOrCommand: PipelineCommandOptions | Command) => {
+    const options = commandOptions<PipelineCommandOptions>(optionsOrCommand);
+    const { runUseCaseSearchSnapshotCommand } = await import("./pipelines/useCases/commands.js");
+    await runUseCaseSearchSnapshotCommand({
+      configPath: options.config,
+      limit: options.limit,
+    });
   });
 
   addPipelineOptions(
     program
-      .command("use-cases")
-      .alias("use_cases")
-      .description("run the enterprise AI use-case scout pipeline"),
-  ).action(async (options: PipelineCommandOptions) => {
+      .command("use-cases-full")
+      .description("explicit full use-case run including web search"),
+  ).action(async (optionsOrCommand: PipelineCommandOptions | Command) => {
+    const options = commandOptions<PipelineCommandOptions>(optionsOrCommand);
     await runPipelineFromCliOptions(pipelineOptions(options, "use_cases", program));
   });
 

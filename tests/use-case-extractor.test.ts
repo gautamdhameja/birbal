@@ -78,6 +78,56 @@ describe("enterprise use case extractor", () => {
     assert.deepEqual(useCases, []);
   });
 
+  it("instructs the model to leave unsupported fields blank", async () => {
+    let prompt = "";
+    await extractEnterpriseUseCases(candidate(), "Acme deployed an AI assistant.", {
+      completeFn: async (messages) => {
+        prompt = messages.map((message) => message.content).join("\n");
+        return JSON.stringify({ useCases: [extractedUseCase()] });
+      },
+    });
+
+    assert.match(prompt, /leave unsupported fields as empty strings/i);
+    assert.match(prompt, /Blank is better than generic/i);
+    assert.doesNotMatch(prompt, /Use "unknown" for unavailable fields/);
+  });
+
+  it("drops generic methodology pseudo-use cases even when the model scores them highly", async () => {
+    const useCases = await extractEnterpriseUseCases(
+      candidate({
+        title: "AI agent performance measurement",
+        url: "https://www.microsoft.com/en-us/dynamics-365/blog/it-professional/2026/02/04/ai-agent-performance-measurement/",
+        summary: "Best practices for measuring AI agent performance.",
+      }),
+      "This article explains a framework for measuring AI agent performance in contact centers.",
+      {
+        completeFn: async () =>
+          JSON.stringify({
+            useCases: [
+              extractedUseCase({
+                id: "generic-agent-measurement",
+                companyName: "Any organization using contact centers",
+                industry: "Customer service",
+                businessFunction: "Contact center operations",
+                workflowAffected: "AI agent performance evaluation and scaling",
+                workflowBefore: "Teams manually define metrics for agents.",
+                workflowAfter: "Teams use a measurement framework to evaluate agents.",
+                aiSystemOrCapability: "AI agent performance measurement framework",
+                deploymentStage: "Building, deploying, and scaling AI agents in production",
+                roiMetric: "Improved customer satisfaction",
+                businessOutcome: "Ability to demonstrate ROI.",
+                evidenceSummary:
+                  "The article describes a measurement framework, not a named deployment.",
+                confidenceScore: 5,
+              }),
+            ],
+          }),
+      },
+    );
+
+    assert.deepEqual(useCases, []);
+  });
+
   it("overwrites model-supplied source URLs with the trusted candidate URL", async () => {
     const useCases = await extractEnterpriseUseCases(
       candidate({ url: "https://trusted.example.com/acme-ai-support" }),

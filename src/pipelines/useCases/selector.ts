@@ -1,7 +1,11 @@
 // Purpose: Implements the Birbal pipeline component: selector.
 // Scope: Keeps app-specific pipeline behavior outside the generic framework.
 
-import { EnterpriseUseCaseSchema, type EnterpriseUseCase } from "./schema.js";
+import {
+  EnterpriseUseCaseSchema,
+  isEligibleEnterpriseUseCase,
+  type EnterpriseUseCase,
+} from "./schema.js";
 
 export type EnterpriseUseCaseSelectorConfig = {
   maxUseCasesPerRun?: number;
@@ -79,6 +83,7 @@ export function selectEnterpriseUseCases(
   const candidates = rankedUseCases(
     useCases
       .map((useCase) => EnterpriseUseCaseSchema.parse(useCase))
+      .filter(isEligibleEnterpriseUseCase)
       .filter((useCase) => useCase.confidenceScore >= selectionConfig.minConfidenceScore),
   );
   const selected: EnterpriseUseCase[] = [];

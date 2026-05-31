@@ -25,6 +25,14 @@ import {
   upsertScore,
 } from "../src/db/items.js";
 import { failRun, finishRun, getRecentRuns, startRun } from "../src/db/pipelineRuns.js";
+import {
+  createSearchSnapshot,
+  getLatestSearchSnapshot,
+  listSearchSnapshotItems,
+  listSearchSnapshots,
+  updateSearchSnapshotResultCount,
+  upsertSearchSnapshotItem,
+} from "../src/db/searchSnapshots.js";
 import { createInMemoryPipelineRunStore } from "../src/framework/pipeline/runStore.js";
 import type { CandidateItem, ItemScore } from "../src/daily/types.js";
 
@@ -389,6 +397,46 @@ describe("SQLite item persistence", () => {
     assert.equal(run?.itemsSelected, 1);
     assert.deepEqual(run?.metadata, {
       mode: "test",
+    });
+  });
+
+  it("stores reusable search snapshots and lists their items", () => {
+    const dbPath = join(mkdtempSync(join(tmpdir(), "birbal-db-")), "agent.db");
+    initDb(dbPath);
+
+    const snapshot = createSearchSnapshot({
+      pipelineId: "use_cases",
+      queryCount: 2,
+      metadata: { searchErrors: [] },
+    });
+    upsertSearchSnapshotItem({
+      snapshotId: snapshot.id,
+      rank: 1,
+      query: "enterprise AI customer story",
+      title: "Acme customer story",
+      url: "https://example.com/acme?utm_source=test",
+      description: "Acme deployed AI in support.",
+      publishedAt: "2026-05-30",
+      sourceName: "Example",
+      raw: { rank: 1 },
+    });
+    updateSearchSnapshotResultCount(snapshot.id, 1);
+
+    const snapshotItem = listSearchSnapshotItems(snapshot.id)[0];
+
+    assert.equal(getLatestSearchSnapshot("use_cases")?.id, snapshot.id);
+    assert.equal(listSearchSnapshots("use_cases", 10)[0]?.resultCount, 1);
+    assert.deepEqual(snapshotItem, {
+      snapshotId: snapshot.id,
+      rank: 1,
+      query: "enterprise AI customer story",
+      title: "Acme customer story",
+      url: "https://example.com/acme?utm_source=test",
+      description: "Acme deployed AI in support.",
+      publishedAt: "2026-05-30",
+      sourceName: "Example",
+      raw: { rank: 1 },
+      createdAt: snapshotItem?.createdAt,
     });
   });
 });

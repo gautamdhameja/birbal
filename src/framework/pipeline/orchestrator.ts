@@ -1372,17 +1372,6 @@ export async function runPipeline(
         },
       );
       assertMinimumViableItemCount(config, items.length, "scoring");
-    } else {
-      deps.logger.info(
-        {
-          event: "pipeline.stage.skipped",
-          pipelineId: config.pipelineId,
-          runId,
-          stageId: "scoring",
-          itemCount: items.length,
-        },
-        "pipeline stage skipped",
-      );
     }
 
     items = await classifyAndExtractStructured(

@@ -124,6 +124,15 @@ The important JSON config files are:
 
 Generated runtime data lives in `data/` and `digests/` and is ignored by Git.
 
+For prompt iteration on the use-case scout, search can be separated from model processing:
+
+```sh
+birbal use-cases search
+birbal use-cases process --snapshot latest
+```
+
+The search command stores a reusable URL snapshot in SQLite. The process command reuses that snapshot for fetch, extraction, verification, selection, and rendering without spending additional Brave Search calls.
+
 ## Documentation
 
 The publishable documentation lives in `docs/`. It includes an mdBook-compatible `SUMMARY.md` and `book.toml`, plus pages covering quickstart, architecture, the agent harness, tools, model adapters, pipelines, configuration, security, operations, and framework extension.

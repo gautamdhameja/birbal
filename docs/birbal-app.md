@@ -33,8 +33,18 @@ Purpose:
 - Fetch shortlisted source URLs.
 - Extract structured use-case records with the local model.
 - Select diverse, high-confidence use cases.
+- Verify selected use cases against the source URL and bounded linked evidence.
 - Store use cases in SQLite.
 - Write Markdown under `digests/use-cases/`.
+
+For prompt and model iteration, split search from processing:
+
+```sh
+birbal use-cases search
+birbal use-cases process --snapshot latest
+```
+
+`search` consumes Brave Search quota and stores a reusable snapshot of URLs. `process` uses a stored snapshot and runs fetching, extraction, verification, selection, storage, and rendering without making new Brave Search calls.
 
 ## Component Registration
 

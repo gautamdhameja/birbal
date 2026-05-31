@@ -105,6 +105,35 @@ export const DATABASE_SQL = {
 
       CREATE INDEX IF NOT EXISTS idx_use_cases_run_id
         ON use_cases (run_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS search_snapshots (
+        id TEXT PRIMARY KEY,
+        pipeline_id TEXT NOT NULL,
+        query_count INTEGER NOT NULL,
+        result_count INTEGER NOT NULL DEFAULT 0,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_search_snapshots_pipeline_created_at
+        ON search_snapshots (pipeline_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS search_snapshot_items (
+        snapshot_id TEXT NOT NULL REFERENCES search_snapshots(id) ON DELETE CASCADE,
+        rank INTEGER NOT NULL,
+        query TEXT NOT NULL,
+        title TEXT NOT NULL,
+        url TEXT NOT NULL,
+        description TEXT NOT NULL,
+        published_at TEXT NOT NULL,
+        source_name TEXT,
+        raw_json TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (snapshot_id, url)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_search_snapshot_items_snapshot_rank
+        ON search_snapshot_items (snapshot_id, rank ASC);
     `,
   START_RUN: `
       INSERT INTO runs (
@@ -543,5 +572,112 @@ export const DATABASE_SQL = {
       FROM use_cases
       WHERE run_id = ?
       ORDER BY created_at DESC, company_name ASC, workflow_affected ASC
+    `,
+  CREATE_SEARCH_SNAPSHOT: `
+      INSERT INTO search_snapshots (
+        id,
+        pipeline_id,
+        query_count,
+        result_count,
+        metadata_json
+      )
+      VALUES (
+        @id,
+        @pipelineId,
+        @queryCount,
+        @resultCount,
+        @metadataJson
+      )
+    `,
+  UPDATE_SEARCH_SNAPSHOT_RESULT_COUNT: `
+      UPDATE search_snapshots
+      SET result_count = @resultCount
+      WHERE id = @id
+    `,
+  UPSERT_SEARCH_SNAPSHOT_ITEM: `
+      INSERT INTO search_snapshot_items (
+        snapshot_id,
+        rank,
+        query,
+        title,
+        url,
+        description,
+        published_at,
+        source_name,
+        raw_json
+      )
+      VALUES (
+        @snapshotId,
+        @rank,
+        @query,
+        @title,
+        @url,
+        @description,
+        @publishedAt,
+        @sourceName,
+        @rawJson
+      )
+      ON CONFLICT(snapshot_id, url) DO UPDATE SET
+        rank = excluded.rank,
+        query = excluded.query,
+        title = excluded.title,
+        description = excluded.description,
+        published_at = excluded.published_at,
+        source_name = excluded.source_name,
+        raw_json = excluded.raw_json
+    `,
+  LIST_SEARCH_SNAPSHOTS: `
+      SELECT
+        id,
+        pipeline_id,
+        query_count,
+        result_count,
+        metadata_json,
+        created_at
+      FROM search_snapshots
+      WHERE pipeline_id = ?
+      ORDER BY created_at DESC
+      LIMIT ?
+    `,
+  GET_SEARCH_SNAPSHOT: `
+      SELECT
+        id,
+        pipeline_id,
+        query_count,
+        result_count,
+        metadata_json,
+        created_at
+      FROM search_snapshots
+      WHERE id = ?
+      LIMIT 1
+    `,
+  GET_LATEST_SEARCH_SNAPSHOT: `
+      SELECT
+        id,
+        pipeline_id,
+        query_count,
+        result_count,
+        metadata_json,
+        created_at
+      FROM search_snapshots
+      WHERE pipeline_id = ?
+      ORDER BY created_at DESC
+      LIMIT 1
+    `,
+  LIST_SEARCH_SNAPSHOT_ITEMS: `
+      SELECT
+        snapshot_id,
+        rank,
+        query,
+        title,
+        url,
+        description,
+        published_at,
+        source_name,
+        raw_json,
+        created_at
+      FROM search_snapshot_items
+      WHERE snapshot_id = ?
+      ORDER BY rank ASC, title ASC
     `,
 } as const;

@@ -482,6 +482,12 @@ Candidate collection uses `src/pipelines/useCases/search.ts`:
 - Ranks by prioritized domain order, then recency, then title.
 - Caps extraction candidates.
 
+Use-case search snapshots are stored by `src/db/searchSnapshots.ts`:
+
+- `birbal use-cases search` runs only the Brave Search acquisition step and persists the normalized URL candidates.
+- `birbal use-cases process --snapshot latest` loads stored candidates through `search_snapshot_collector` and runs the model-heavy stages without making new Brave Search calls.
+- Snapshots let prompt, extraction, verification, selection, and renderer changes be tested repeatedly against a stable URL set.
+
 The active enterprise extractor is `src/pipelines/useCases/extractor.ts`.
 
 It:
@@ -497,6 +503,14 @@ It:
 
 The active use-case schema is `src/pipelines/useCases/schema.ts`. It normalizes arrays and empty values into string fields, strips extra keys, normalizes confidence field aliases, and coerces string confidence values to numbers in the 1 to 5 range.
 
+Verification in `src/pipelines/useCases/verification.ts`:
+
+- Runs after initial use-case selection and before storage/rendering.
+- Re-fetches the selected source URL without using web search.
+- Extracts relevant source-page links and follows a small bounded number of supporting links.
+- Asks the local model to verify the selected use case only against the source page and linked evidence.
+- Filters out selected items when the source-grounded evidence does not support a concrete enterprise AI workflow.
+
 Selection in `src/pipelines/useCases/selector.ts`:
 
 - Validates every use case through the schema.
@@ -507,8 +521,8 @@ Selection in `src/pipelines/useCases/selector.ts`:
 Rendering in `src/pipelines/useCases/renderer.ts`:
 
 - Writes a dated enterprise AI use-case digest.
-- Includes a summary table.
-- Includes detailed sections for every selected use case.
+- Uses a compact newsletter-style format for every selected use case.
+- Includes only use case, workflow changed, business impact, enterprise lesson, and source.
 - Escapes Markdown text and renders source links when URLs are valid HTTP(S).
 
 Persistence in `src/db/useCases.ts`:
