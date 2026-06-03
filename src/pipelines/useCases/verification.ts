@@ -5,26 +5,26 @@ import { load } from "cheerio";
 import { z } from "zod";
 
 import { AGENT } from "../../constants/agent.js";
-import { LLAMA } from "../../constants/llama.js";
+import { MODEL_PROVIDERS } from "../../constants/model-providers.js";
 import { HTTP } from "../../constants/runtime.js";
 import { URL_TEXT } from "../../constants/url-text.js";
+import { completeStructuredWithRepair } from "../../framework/llm/repair.js";
+import type { ChatMessage, ModelClient, ModelCompleteOptions } from "../../framework/llm/types.js";
 import { fetchPublicHttpWithRetry } from "../../framework/network/fetch.js";
 import type { PublicHttpFetchOptions } from "../../framework/network/fetch.js";
-import { completeStructuredWithRepair } from "../../framework/llm/repair.js";
 import { buildHttpStatusError, readResponseText } from "../../http/client.js";
 import {
   assertSafePublicHttpUrl,
   type HostResolver,
   unsafeHttpUrlErrorMessage,
 } from "../../http/url.js";
-import { llamaCppModelAdapter } from "../../llama/adapter.js";
-import type { ChatMessage, CompleteOptions } from "../../llama/schema.js";
 import { logger } from "../../logging/logger.js";
+import { getDefaultModelClient } from "../../model-providers/default.js";
 import { extractUrlText } from "../../url-text/extract.js";
 import { normalizeUrl } from "../../utils/url.js";
 import type { EnterpriseUseCase } from "./schema.js";
 
-type CompleteFn = (messages: ChatMessage[], options?: CompleteOptions) => Promise<string>;
+type CompleteFn = ModelClient["complete"];
 
 export type UseCaseVerificationField =
   | "companyName"
@@ -105,7 +105,10 @@ export type FetchVerificationEvidenceOptions = {
   };
 };
 
-export type VerifyEnterpriseUseCaseOptions = Pick<CompleteOptions, "traceId" | "traceLabel"> & {
+export type VerifyEnterpriseUseCaseOptions = Pick<
+  ModelCompleteOptions,
+  "traceId" | "traceLabel"
+> & {
   completeFn?: CompleteFn;
 };
 
@@ -503,7 +506,7 @@ export async function verifyEnterpriseUseCase(
   const result = await completeStructuredWithRepair({
     messages: buildVerificationMessages(useCase, evidence),
     schema: EnterpriseUseCaseVerificationSchema,
-    completeFn: options.completeFn ?? llamaCppModelAdapter.complete,
+    completeFn: options.completeFn ?? getDefaultModelClient().complete,
     logger,
     repairInstructions: buildVerificationRepairInstructions(),
     completeOptions: {
@@ -512,7 +515,7 @@ export async function verifyEnterpriseUseCase(
       traceId: options.traceId,
       traceLabel: options.traceLabel ?? "use_cases.verify_enterprise_use_case",
       response_format: {
-        type: LLAMA.RESPONSE_FORMATS.JSON_OBJECT,
+        type: MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT,
       },
     },
   });

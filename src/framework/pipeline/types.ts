@@ -1,6 +1,7 @@
 // Purpose: Implements the framework pipeline types module.
 // Scope: Stays generic so applications can plug in their own components.
 
+import type { ModelClient } from "../llm/types.js";
 import type { Rubric } from "../scoring/rubric.js";
 
 export type PipelineId = string;
@@ -128,6 +129,7 @@ export interface PipelineContext<
   config: TConfig;
   logger: PipelineLogger;
   db: TDb;
+  modelClient: ModelClient;
   rubric?: Rubric;
   rubrics: readonly Rubric[];
   researchProfile: TResearchProfile;

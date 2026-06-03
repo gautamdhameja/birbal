@@ -2,9 +2,9 @@
 
 Birbal is a local TypeScript agent harness framework with a working enterprise AI research scout built on top of it. The framework exists to make the mechanics of an agent harness explicit: model adapters, strict JSON protocol parsing, tool registration, tool execution, structured output repair, pipeline orchestration, component registries, run metadata, and artifact writing.
 
-The first app built with the framework is an enterprise AI research scout. It can collect web candidates, fetch page text, ask a local model to extract real enterprise AI use cases, select the strongest results, persist run metadata, and write Markdown digests.
+The first app built with the framework is an enterprise AI research scout. It can collect web candidates, fetch page text, ask the configured model provider to extract real enterprise AI use cases, select the strongest results, persist run metadata, and write Markdown digests.
 
-Birbal currently supports one real model adapter: llama.cpp through an OpenAI-compatible local chat completions endpoint. The framework is intentionally adapter-based, but no other production model provider is shipped yet.
+Birbal supports provider-neutral model wiring with llama.cpp as the default local adapter and hosted OpenAI as an optional adapter. Both use the same `ModelClient` contract, so the harness and pipelines do not need provider-specific code.
 
 ## What This Project Includes
 

@@ -4,13 +4,13 @@
 import { z } from "zod";
 
 import { AGENT } from "../constants/agent.js";
-import { LLAMA } from "../constants/llama.js";
+import { MODEL_PROVIDERS } from "../constants/model-providers.js";
 import { SCORING } from "../constants/scoring.js";
 import { completeStructuredWithRepair, ModelParseError } from "../framework/llm/repair.js";
+import type { ChatMessage, ModelClient, ModelCompleteOptions } from "../framework/llm/types.js";
 import { calculateWeightedFinalScore, type Rubric } from "../framework/scoring/rubric.js";
-import { llamaCppModelAdapter } from "../llama/adapter.js";
-import type { ChatMessage, CompleteOptions } from "../llama/schema.js";
 import { logger } from "../logging/logger.js";
+import { getDefaultModelClient } from "../model-providers/default.js";
 import type { UserPreferences } from "../memory/types.js";
 import {
   EnterpriseDailyScoreSchema,
@@ -22,8 +22,8 @@ import type { CandidateItem, ItemScore, ScoredCandidateItem } from "./types.js";
 
 const ScoreResponseSchema = EnterpriseDailyScoreSchema;
 type ScoreResponse = EnterpriseDailyScore;
-type ModelTraceOptions = Pick<CompleteOptions, "traceId" | "traceLabel"> & {
-  completeFn?: typeof llamaCppModelAdapter.complete;
+type ModelTraceOptions = Pick<ModelCompleteOptions, "traceId" | "traceLabel"> & {
+  completeFn?: ModelClient["complete"];
   rubric?: Rubric<EnterpriseDailyScore>;
 };
 const ScoreBatchResponseSchema = z.strictObject({
@@ -294,7 +294,7 @@ export async function scoreItem(
   const result = await completeStructuredWithRepair({
     messages,
     schema: ScoreResponseSchema,
-    completeFn: completeFn ?? llamaCppModelAdapter.complete,
+    completeFn: completeFn ?? getDefaultModelClient().complete,
     logger,
     repairInstructions: SCORING.REPAIR_PROMPT,
     completeOptions: {
@@ -303,7 +303,7 @@ export async function scoreItem(
       ...completeTraceOptions,
       traceLabel: traceOptions.traceLabel ?? "daily.score_item",
       response_format: {
-        type: LLAMA.RESPONSE_FORMATS.JSON_OBJECT,
+        type: MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT,
       },
     },
   });
@@ -340,7 +340,7 @@ export async function scoreItems(
   const result = await completeStructuredWithRepair({
     messages,
     schema: scoreBatchResponseSchema(expectedIds),
-    completeFn: completeFn ?? llamaCppModelAdapter.complete,
+    completeFn: completeFn ?? getDefaultModelClient().complete,
     logger,
     repairInstructions: SCORING.REPAIR_PROMPT,
     completeOptions: {
@@ -349,7 +349,7 @@ export async function scoreItems(
       ...completeTraceOptions,
       traceLabel: traceOptions.traceLabel ?? "daily.score_items",
       response_format: {
-        type: LLAMA.RESPONSE_FORMATS.JSON_OBJECT,
+        type: MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT,
       },
     },
   });

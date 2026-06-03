@@ -1,0 +1,67 @@
+// Purpose: Defines schemas for OpenAI-compatible chat completion providers.
+// Scope: Validates the shared request, response, options, and provider config contract.
+
+import { z } from "zod";
+
+import { AGENT } from "../../constants/agent.js";
+import { MODEL_PROVIDERS } from "../../constants/model-providers.js";
+import { httpUrlErrorMessage, isHttpUrlWithoutCredentials } from "../../http/url.js";
+
+export const ChatMessageSchema = z.strictObject({
+  role: z.enum([AGENT.ROLES.SYSTEM, AGENT.ROLES.USER, AGENT.ROLES.ASSISTANT]),
+  content: z.string(),
+});
+
+export const CompleteOptionsSchema = z.strictObject({
+  temperature: z
+    .number()
+    .min(MODEL_PROVIDERS.TEMPERATURE_MIN)
+    .max(MODEL_PROVIDERS.TEMPERATURE_MAX)
+    .optional(),
+  max_tokens: z.number().int().positive().optional(),
+  response_format: z
+    .strictObject({
+      type: z.literal(MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT),
+    })
+    .optional(),
+  traceId: z.string().trim().min(1).optional(),
+  traceLabel: z.string().trim().min(1).optional(),
+});
+
+export const OpenAICompatibleChatCompletionRequestSchema = z.strictObject({
+  model: z.string().min(1),
+  messages: ChatMessageSchema.array().min(1),
+  temperature: CompleteOptionsSchema.shape.temperature,
+  max_tokens: CompleteOptionsSchema.shape.max_tokens,
+  response_format: CompleteOptionsSchema.shape.response_format,
+});
+
+export const OpenAICompatibleChatCompletionResponseSchema = z.object({
+  choices: z
+    .array(
+      z.object({
+        message: z.object({
+          content: z.string(),
+        }),
+      }),
+    )
+    .min(1),
+});
+
+export const OpenAICompatibleConfigSchema = z.strictObject({
+  providerId: z.string().min(1),
+  serverUrl: z.url().refine(isHttpUrlWithoutCredentials, httpUrlErrorMessage()),
+  model: z.string().min(1),
+  requestTimeoutMs: z.number().int().positive(),
+  apiKey: z.string().min(1).optional(),
+});
+
+export type ChatMessage = z.infer<typeof ChatMessageSchema>;
+export type CompleteOptions = z.infer<typeof CompleteOptionsSchema>;
+export type OpenAICompatibleChatCompletionRequest = z.infer<
+  typeof OpenAICompatibleChatCompletionRequestSchema
+>;
+export type OpenAICompatibleChatCompletionResponse = z.infer<
+  typeof OpenAICompatibleChatCompletionResponseSchema
+>;
+export type OpenAICompatibleConfig = z.infer<typeof OpenAICompatibleConfigSchema>;

@@ -2,7 +2,7 @@
 
 Birbal is a local TypeScript agent harness framework with a working enterprise AI research scout built on top of it. The framework provides reusable primitives for model adapters, strict JSON agent protocols, handwritten tools, tool execution, structured output repair, config-driven pipelines, component registries, run metadata, content fetching, scoring, selection, and artifact writing.
 
-The Birbal app currently ships one real model adapter: `llamaCppModelAdapter`, which targets a local llama.cpp-compatible chat completions server. The app workflows are a daily enterprise AI reading digest and an enterprise AI use-case scout. Runtime configuration comes from environment variables and JSON config files, and schemas are validated with Zod at the boundaries.
+The Birbal app ships provider-neutral model wiring with llama.cpp as the default local adapter and hosted OpenAI as an optional adapter. The app workflows are a daily enterprise AI reading digest and an enterprise AI use-case scout. Runtime configuration comes from environment variables and JSON config files, and schemas are validated with Zod at the boundaries.
 
 ## Harness Flow
 
@@ -21,7 +21,7 @@ User task
            v
 +----------------------+        JSON final answer
 | Model Adapter        |------------------------------+
-| llama.cpp today      |                              |
+| llama.cpp / OpenAI   |                              |
 +----------+-----------+                              |
            |                                          |
            | JSON tool_call                           |
@@ -100,9 +100,18 @@ birbal pipeline use_cases --trace
 Create `.env.local` for local runtime settings:
 
 ```sh
+MODEL_PROVIDER=llama_cpp
 LLAMA_SERVER_URL=http://localhost:8080/v1/chat/completions
 LLAMA_MODEL=local-model
 BRAVE_SEARCH_API_KEY=...
+```
+
+To use the hosted OpenAI API instead of llama.cpp:
+
+```sh
+MODEL_PROVIDER=openai
+OPENAI_API_KEY=...
+OPENAI_MODEL=gpt-...
 ```
 
 The important JSON config files are:
@@ -115,7 +124,8 @@ The important JSON config files are:
 ## Project Layout
 
 - `src/framework/`: reusable harness, tools, LLM, pipeline, content, network, and scoring modules.
-- `src/llama/`: llama.cpp-compatible model client and framework adapter.
+- `src/model-providers/`: provider selection plus OpenAI-compatible model adapters.
+- `src/llama/`: llama.cpp-compatible model adapter.
 - `src/tools/`: Birbal's handwritten agent tools.
 - `src/pipelines/`: Birbal pipeline component registration and use-case/daily modules.
 - `src/db/`: SQLite persistence for items, scores, runs, and extracted use cases.

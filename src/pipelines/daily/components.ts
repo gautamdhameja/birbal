@@ -124,6 +124,7 @@ export const enterpriseDeploymentScorer: Scorer = {
       traceId: context.runId,
       traceLabel: "pipeline.daily.enterprise_deployment_scorer",
       rubric: enterpriseDailyRubricFromContext(context),
+      completeFn: context.modelClient.complete,
     });
     upsertScore(persistedItem.id, score);
 
@@ -159,6 +160,7 @@ export const enterpriseDeploymentScorer: Scorer = {
         traceId: context.runId,
         traceLabel: "pipeline.daily.enterprise_deployment_scorer.batch",
         rubric: enterpriseDailyRubricFromContext(context),
+        completeFn: context.modelClient.complete,
       },
     );
     for (const [index, score] of newScores.entries()) {
@@ -185,6 +187,7 @@ export const enterpriseDigestClassifier: Classifier = {
       return await classifyCandidateCategory(candidate, score, {
         traceId: context.runId,
         traceLabel: "pipeline.daily.enterprise_digest_classifier",
+        completeFn: context.modelClient.complete,
       });
     } catch {
       return fallbackCategoryFromScore(score);

@@ -7,7 +7,7 @@ import { describe, it } from "node:test";
 import { z } from "zod";
 
 import { completeStructuredWithRepair, ModelParseError } from "../src/framework/llm/repair.js";
-import type { ChatMessage, CompleteOptions } from "../src/llama/schema.js";
+import type { ChatMessage, ModelCompleteOptions } from "../src/framework/llm/types.js";
 
 const ExampleSchema = z.strictObject({
   answer: z.string().min(1),
@@ -15,7 +15,7 @@ const ExampleSchema = z.strictObject({
 
 describe("shared LLM output repair", () => {
   it("returns valid structured model output without repair", async () => {
-    const calls: Array<{ messages: ChatMessage[]; options?: CompleteOptions }> = [];
+    const calls: Array<{ messages: ChatMessage[]; options?: ModelCompleteOptions }> = [];
     const result = await completeStructuredWithRepair({
       messages: [{ role: "user", content: "Return JSON." }],
       schema: ExampleSchema,
@@ -37,7 +37,7 @@ describe("shared LLM output repair", () => {
   });
 
   it("repairs invalid structured model output once with schema context", async () => {
-    const calls: Array<{ messages: ChatMessage[]; options?: CompleteOptions }> = [];
+    const calls: Array<{ messages: ChatMessage[]; options?: ModelCompleteOptions }> = [];
     const result = await completeStructuredWithRepair({
       messages: [{ role: "user", content: "Return JSON." }],
       schema: ExampleSchema,

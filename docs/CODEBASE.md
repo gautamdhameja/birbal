@@ -1,11 +1,11 @@
 # Birbal Codebase
 
-Birbal is a TypeScript research and automation harness for local-LLM-assisted enterprise AI scouting. The codebase started as a small agent loop around a llama.cpp-compatible chat completions endpoint, and now also includes a config-driven pipeline framework for collecting, enriching, scoring, extracting, selecting, and rendering research artifacts.
+Birbal is a TypeScript research and automation harness for model-assisted enterprise AI scouting. The codebase started as a small agent loop around a llama.cpp-compatible chat completions endpoint, and now also includes provider-neutral model wiring plus a config-driven pipeline framework for collecting, enriching, scoring, extracting, selecting, and rendering research artifacts.
 
 The main production-like workflows are:
 
-- A daily enterprise AI reading digest pipeline (`daily`) that collects candidates from configured sources, fetches source text, scores and classifies items with a local LLM, selects a balanced digest mix, persists results, and writes Markdown under `digests/`.
-- An enterprise AI use-case scout pipeline (`use_cases`) that searches web sources, fetches article text, extracts structured enterprise use cases with a local LLM, selects a diverse set, stores them in SQLite, and writes Markdown under `digests/use-cases/`.
+- A daily enterprise AI reading digest pipeline (`daily`) that collects candidates from configured sources, fetches source text, scores and classifies items with the configured model provider, selects a balanced digest mix, persists results, and writes Markdown under `digests/`.
+- An enterprise AI use-case scout pipeline (`use_cases`) that searches web sources, fetches article text, extracts structured enterprise use cases with the configured model provider, selects a diverse set, stores them in SQLite, and writes Markdown under `digests/use-cases/`.
 - A lightweight agent CLI (`src/cli.ts` and `src/main.ts`) that runs a JSON-protocol chat agent with handwritten tools.
 
 The project is intentionally modular. Runtime configuration is loaded from environment variables and JSON config files. Shared shapes are validated with Zod. LLM calls, tool registration, pipeline orchestration, source clients, storage, prompts, constants, and renderers live in separate modules.
@@ -103,7 +103,8 @@ Source folders:
 - `src/db/`: SQLite persistence for items, scores, pipeline runs, and enterprise use cases.
 - `src/framework/`: reusable framework modules for agent harness orchestration, tools, model contracts, pipelines, LLM JSON repair, scoring rubrics, content fetching, and network fetch helpers.
 - `src/http/`: HTTP response helpers and URL safety checks.
-- `src/llama/`: llama.cpp-compatible chat completion client, framework adapter, schemas, and env config.
+- `src/model-providers/`: configured model provider selection plus shared OpenAI-compatible HTTP transport and hosted OpenAI adapter.
+- `src/llama/`: llama.cpp-compatible model adapter and env config.
 - `src/logging/`: Pino logger and safe preview helper.
 - `src/memory/`: user preference schema and loader.
 - `src/pipelines/register.ts`: Birbal-specific pipeline component registration.
@@ -132,9 +133,14 @@ Birbal uses two kinds of configuration.
 
 Environment variables configure runtime clients:
 
+- `MODEL_PROVIDER`: active model provider, defaulting to `llama_cpp`; supported values are `llama_cpp` and `openai`.
 - `LLAMA_SERVER_URL`: llama.cpp-compatible chat completions endpoint. Must be HTTP(S), valid, and without credentials.
 - `LLAMA_MODEL`: model name sent in chat completion requests.
 - `LLAMA_REQUEST_TIMEOUT_MS`: optional completion timeout, defaulting to `120000`.
+- `OPENAI_API_KEY`: required when `MODEL_PROVIDER=openai`.
+- `OPENAI_MODEL`: hosted OpenAI model name when `MODEL_PROVIDER=openai`.
+- `OPENAI_SERVER_URL`: optional hosted OpenAI chat completions endpoint override, defaulting to `https://api.openai.com/v1/chat/completions`.
+- `OPENAI_REQUEST_TIMEOUT_MS`: optional hosted OpenAI completion timeout, defaulting to `120000`.
 - `BRAVE_SEARCH_API_KEY`: required for Brave Search.
 - `BRAVE_SEARCH_URL`: optional override for the Brave web search API, restricted to `api.search.brave.com`.
 - `BRAVE_SEARCH_MAX_CALLS_PER_PROCESS`: optional process-level Brave Search call budget, defaulting to `50`.
@@ -163,11 +169,11 @@ type ModelClient = {
 };
 ```
 
-This keeps the harness independent of a specific model provider. The only real runtime adapter today is `llamaCppModelAdapter` in `src/llama/adapter.ts`; it delegates to the llama.cpp-compatible HTTP client in `src/llama/client.ts`.
+This keeps the harness independent of a specific model provider. Runtime provider selection lives in `src/model-providers/default.ts`. The app supports `MODEL_PROVIDER=llama_cpp` by default and `MODEL_PROVIDER=openai` for hosted OpenAI.
 
-The local model integration is in `src/llama/`.
+The shared OpenAI-compatible transport lives in `src/model-providers/openai-compatible/`. The hosted OpenAI adapter adds bearer-token auth through `OPENAI_API_KEY`. The llama.cpp adapter in `src/llama/` delegates to the same transport without auth.
 
-`getLlamaConfig()` reads and validates environment variables. `complete()` builds an OpenAI-style chat completion request:
+Model adapters build an OpenAI-style chat completion request:
 
 ```json
 {
@@ -179,7 +185,7 @@ The local model integration is in `src/llama/`.
 }
 ```
 
-The client posts to `LLAMA_SERVER_URL` using shared HTTP timeout helpers, validates HTTP responses, parses JSON, validates the response shape with Zod, and returns the first choice message content. It logs start, finish, and failure events with trace IDs and labels when supplied.
+The client posts to the configured provider URL using shared HTTP timeout helpers, validates HTTP responses, parses JSON, validates the response shape with Zod, and returns the first choice message content. It logs start, finish, and failure events with trace IDs and labels when supplied.
 
 Structured model calls use `src/framework/llm/repair.ts`.
 
@@ -508,7 +514,7 @@ Verification in `src/pipelines/useCases/verification.ts`:
 - Runs after initial use-case selection and before storage/rendering.
 - Re-fetches the selected source URL without using web search.
 - Extracts relevant source-page links and follows a small bounded number of supporting links.
-- Asks the local model to verify the selected use case only against the source page and linked evidence.
+- Asks the configured model provider to verify the selected use case only against the source page and linked evidence.
 - Filters out selected items when the source-grounded evidence does not support a concrete enterprise AI workflow.
 
 Selection in `src/pipelines/useCases/selector.ts`:
@@ -667,7 +673,7 @@ The agent, tools, LLM client, structured repair flow, pipeline orchestrator, sel
 
 - `agent.run.start`
 - `handoff.harness_to_model`
-- `llama.complete.started`
+- `model.complete.started`
 - `structured_output.validation_failed`
 - `pipeline.run.started`
 - `pipeline.stage.started`
@@ -714,7 +720,7 @@ npm test
 npm run check
 ```
 
-Some tests use dependency injection to avoid live network or live model calls. Runtime pipeline execution requires a reachable llama-compatible server for LLM stages and the relevant API env vars for external search.
+Some tests use dependency injection to avoid live network or live model calls. Runtime pipeline execution requires a configured model provider for LLM stages and the relevant API env vars for external search.
 
 ## Adding or Changing a Pipeline
 
@@ -738,7 +744,7 @@ For the daily pipeline:
 3. Source registry and preferences are loaded.
 4. `source_domain_collector` delegates to daily collection.
 5. Items are deduped and content is fetched.
-6. `enterprise_deployment_scorer` prompts the local LLM and stores scores.
+6. `enterprise_deployment_scorer` prompts the configured model provider and stores scores.
 7. `enterprise_digest_classifier` categorizes items.
 8. `daily_enterprise_mix_selector` picks a balanced digest.
 9. `daily_markdown_renderer` creates Markdown.
@@ -751,7 +757,7 @@ For the use-case pipeline:
 2. Framework and Birbal components are registered.
 3. Collection methods search source-specific and open-web queries.
 4. Results are deduped, ranked, and content-fetched.
-5. `enterprise_use_case_extractor` prompts the local LLM for structured use cases.
+5. `enterprise_use_case_extractor` prompts the configured model provider for structured use cases.
 6. `enterprise_use_case_selector` filters and diversifies extracted records.
 7. Selected records are upserted into SQLite.
 8. `enterprise_use_case_markdown_renderer` creates Markdown.
@@ -761,7 +767,7 @@ For the use-case pipeline:
 For the agent CLI:
 
 1. CLI builds a system prompt from `prompts/system-agent.txt` plus registered tools.
-2. The local LLM emits strict JSON.
+2. The configured model provider emits strict JSON.
 3. The harness validates the response.
 4. Tool calls are executed through the typed tool executor.
 5. Tool results are appended as messages until the model returns `final`, asks to `clarify`, or hits the step limit.
@@ -774,5 +780,5 @@ For the agent CLI:
 - Database SQL lives in `src/constants/database.ts`; DB access functions live under `src/db/`.
 - Prompt text for the agent base prompt lives in `prompts/`; task-specific LLM prompts are colocated with the domain modules that use them.
 - Pipeline orchestration does not know domain shapes. Domain components adapt run items into concrete candidate or use-case types.
-- The local LLM boundary is always schema-validated, with repair where structured output is required.
+- The model-provider boundary is always schema-validated, with repair where structured output is required.
 - Network fetches are bounded, retried where appropriate, and protected by URL/host safety checks.

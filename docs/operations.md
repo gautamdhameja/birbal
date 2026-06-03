@@ -1,14 +1,22 @@
 # Operations
 
-## Local Model Health
+## Model Provider Health
 
-Before running model-backed pipelines, confirm llama.cpp is reachable:
+For the default local provider, confirm llama.cpp is reachable:
 
 ```sh
 curl http://127.0.0.1:8080/v1/models
 ```
 
 If the endpoint is down, the agent CLI and extraction/scoring stages will fail.
+
+For hosted OpenAI, confirm these variables are set:
+
+```sh
+MODEL_PROVIDER=openai
+OPENAI_API_KEY=...
+OPENAI_MODEL=gpt-...
+```
 
 ## Trace Logs
 
@@ -38,15 +46,15 @@ Check `config/pipelines/use-cases.json`:
 
 ## Common Failures
 
-### llama.cpp endpoint is unavailable
+### Model endpoint is unavailable
 
 Symptom:
 
 ```text
-Failed to reach llama-server at http://127.0.0.1:8080/v1/chat/completions
+Failed to reach model provider at http://127.0.0.1:8080/v1/chat/completions
 ```
 
-Fix: start the local llama.cpp server or update `LLAMA_SERVER_URL`.
+Fix: start the local llama.cpp server or update `LLAMA_SERVER_URL`. If using OpenAI, check `OPENAI_API_KEY`, `OPENAI_MODEL`, and network access.
 
 ### Page fetch blocked
 

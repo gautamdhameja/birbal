@@ -228,6 +228,7 @@ export const enterpriseUseCaseExtractor: StructuredExtractor = {
       {
         traceId: context.runId,
         traceLabel: "pipeline.use_cases.enterprise_use_case_extractor",
+        completeFn: context.modelClient.complete,
       },
     );
   },
@@ -249,6 +250,7 @@ export const enterpriseUseCaseSelector: Selector = {
           sourceTextByUrl: sourceTextByUrlFromItems(runItems),
           traceId: context.runId,
           traceLabel: "pipeline.use_cases.enterprise_use_case_verifier",
+          completeFn: context.modelClient.complete,
         })
       : selected.map((useCase) => ({
           ...useCase,

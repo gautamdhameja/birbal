@@ -12,7 +12,8 @@ src/framework/
   network/     retry and timeout helpers
   scoring/     rubric primitives
 
-src/llama/      llama.cpp adapter and HTTP client
+src/model-providers/ provider selection and OpenAI-compatible transport
+src/llama/      llama.cpp adapter
 src/tools/      Birbal tool definitions
 src/pipelines/  Birbal pipeline components
 src/daily/      daily reading app logic

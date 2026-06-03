@@ -4,7 +4,7 @@
 
 - Node.js compatible with the project lockfile.
 - npm.
-- A local llama.cpp-compatible chat completions server.
+- A local llama.cpp-compatible chat completions server, or an OpenAI API key.
 - A Brave Search API key if you want to run the research pipelines.
 
 ## Install
@@ -19,12 +19,22 @@ npm link
 Create `.env.local`:
 
 ```sh
+MODEL_PROVIDER=llama_cpp
 LLAMA_SERVER_URL=http://127.0.0.1:8080/v1/chat/completions
 LLAMA_MODEL=local
 BRAVE_SEARCH_API_KEY=your_key_here
 ```
 
 The llama server must expose an OpenAI-style chat completions endpoint. Birbal does not start llama.cpp for you.
+
+To use hosted OpenAI instead:
+
+```sh
+MODEL_PROVIDER=openai
+OPENAI_API_KEY=your_key_here
+OPENAI_MODEL=gpt-...
+BRAVE_SEARCH_API_KEY=your_key_here
+```
 
 ## Run The Agent Harness
 

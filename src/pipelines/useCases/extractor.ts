@@ -4,21 +4,24 @@
 import { z } from "zod";
 
 import { AGENT } from "../../constants/agent.js";
-import { LLAMA } from "../../constants/llama.js";
-import { completeStructuredWithRepair, ModelParseError } from "../../framework/llm/repair.js";
+import { MODEL_PROVIDERS } from "../../constants/model-providers.js";
 import type { CandidateItem } from "../../daily/types.js";
-import { llamaCppModelAdapter } from "../../llama/adapter.js";
-import type { ChatMessage, CompleteOptions } from "../../llama/schema.js";
+import { completeStructuredWithRepair, ModelParseError } from "../../framework/llm/repair.js";
+import type { ChatMessage, ModelClient, ModelCompleteOptions } from "../../framework/llm/types.js";
 import { logger } from "../../logging/logger.js";
+import { getDefaultModelClient } from "../../model-providers/default.js";
 import {
   EnterpriseUseCaseSchema,
   isEligibleEnterpriseUseCase,
   type EnterpriseUseCase,
 } from "./schema.js";
 
-type CompleteFn = (messages: ChatMessage[], options?: CompleteOptions) => Promise<string>;
+type CompleteFn = ModelClient["complete"];
 
-export type ExtractEnterpriseUseCasesOptions = Pick<CompleteOptions, "traceId" | "traceLabel"> & {
+export type ExtractEnterpriseUseCasesOptions = Pick<
+  ModelCompleteOptions,
+  "traceId" | "traceLabel"
+> & {
   completeFn?: CompleteFn;
 };
 
@@ -276,7 +279,7 @@ export async function extractEnterpriseUseCases(
   const result = await completeStructuredWithRepair({
     messages: buildMessages(candidate, fetchedContentText),
     schema: ExtractedEnterpriseUseCasesSchema,
-    completeFn: options.completeFn ?? llamaCppModelAdapter.complete,
+    completeFn: options.completeFn ?? getDefaultModelClient().complete,
     logger,
     repairInstructions: buildRepairInstructions(),
     completeOptions: {
@@ -285,7 +288,7 @@ export async function extractEnterpriseUseCases(
       traceId: options.traceId,
       traceLabel: options.traceLabel ?? "use_cases.extract_enterprise_use_cases",
       response_format: {
-        type: LLAMA.RESPONSE_FORMATS.JSON_OBJECT,
+        type: MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT,
       },
     },
   });

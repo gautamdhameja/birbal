@@ -1,48 +1,23 @@
-// Purpose: Implements the llama.cpp model integration: schema.
-// Scope: Adapts the local OpenAI-compatible server to framework model contracts.
+// Purpose: Defines llama.cpp model provider schemas.
+// Scope: Validates local llama.cpp env values while reusing the OpenAI-compatible transport shape.
 
 import { z } from "zod";
 
-import { AGENT } from "../constants/agent.js";
 import { LLAMA } from "../constants/llama.js";
+import { MODEL_PROVIDERS } from "../constants/model-providers.js";
 import { httpUrlErrorMessage, isHttpUrlWithoutCredentials } from "../http/url.js";
+import {
+  ChatMessageSchema,
+  CompleteOptionsSchema,
+  OpenAICompatibleChatCompletionRequestSchema,
+  OpenAICompatibleChatCompletionResponseSchema,
+  OpenAICompatibleConfigSchema,
+} from "../model-providers/openai-compatible/schema.js";
 
-export const ChatMessageSchema = z.strictObject({
-  role: z.enum([AGENT.ROLES.SYSTEM, AGENT.ROLES.USER, AGENT.ROLES.ASSISTANT]),
-  content: z.string(),
-});
+export { ChatMessageSchema, CompleteOptionsSchema };
 
-export const CompleteOptionsSchema = z.strictObject({
-  temperature: z.number().min(LLAMA.TEMPERATURE_MIN).max(LLAMA.TEMPERATURE_MAX).optional(),
-  max_tokens: z.number().int().positive().optional(),
-  response_format: z
-    .strictObject({
-      type: z.literal(LLAMA.RESPONSE_FORMATS.JSON_OBJECT),
-    })
-    .optional(),
-  traceId: z.string().trim().min(1).optional(),
-  traceLabel: z.string().trim().min(1).optional(),
-});
-
-export const LlamaChatCompletionRequestSchema = z.strictObject({
-  model: z.string().min(1),
-  messages: ChatMessageSchema.array().min(1),
-  temperature: CompleteOptionsSchema.shape.temperature,
-  max_tokens: CompleteOptionsSchema.shape.max_tokens,
-  response_format: CompleteOptionsSchema.shape.response_format,
-});
-
-export const LlamaChatCompletionResponseSchema = z.object({
-  choices: z
-    .array(
-      z.object({
-        message: z.object({
-          content: z.string(),
-        }),
-      }),
-    )
-    .min(1),
-});
+export const LlamaChatCompletionRequestSchema = OpenAICompatibleChatCompletionRequestSchema;
+export const LlamaChatCompletionResponseSchema = OpenAICompatibleChatCompletionResponseSchema;
 
 export const LlamaEnvSchema = z.strictObject({
   LLAMA_SERVER_URL: z.url().refine(isHttpUrlWithoutCredentials, httpUrlErrorMessage()),
@@ -54,10 +29,8 @@ export const LlamaEnvSchema = z.strictObject({
     .default(LLAMA.DEFAULT_REQUEST_TIMEOUT_MS),
 });
 
-export const LlamaConfigSchema = z.strictObject({
-  serverUrl: z.url().refine(isHttpUrlWithoutCredentials, httpUrlErrorMessage()),
-  model: z.string().min(1),
-  requestTimeoutMs: z.number().int().positive(),
+export const LlamaConfigSchema = OpenAICompatibleConfigSchema.extend({
+  providerId: z.literal(MODEL_PROVIDERS.PROVIDERS.LLAMA_CPP),
 });
 
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;

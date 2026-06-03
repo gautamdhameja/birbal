@@ -15,6 +15,7 @@ import { loadPipelineConfig } from "../../framework/pipeline/config.js";
 import { runPipeline } from "../../framework/pipeline/orchestrator.js";
 import type { PipelineConfig, PipelineCollectionMethod } from "../../framework/pipeline/types.js";
 import { logger } from "../../logging/logger.js";
+import { getDefaultModelClient } from "../../model-providers/default.js";
 import { registerBirbalPipelineComponents } from "../register.js";
 import { applyPipelineCliLimit } from "../../runPipeline.js";
 import { collectUseCaseSearchCandidates } from "./search.js";
@@ -166,6 +167,7 @@ export async function runUseCaseProcessSnapshotCommand(
     loadConfig,
     loadSourceRegistry,
     logger,
+    modelClient: getDefaultModelClient(),
     runStore: sqlitePipelineRunStore,
   });
 

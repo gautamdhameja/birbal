@@ -7,6 +7,7 @@ Birbal uses environment variables for runtime clients and JSON files for app beh
 Common local variables:
 
 ```sh
+MODEL_PROVIDER=llama_cpp
 LLAMA_SERVER_URL=http://127.0.0.1:8080/v1/chat/completions
 LLAMA_MODEL=local
 LLAMA_REQUEST_TIMEOUT_MS=120000
@@ -16,6 +17,15 @@ LOG_PRETTY=true
 ```
 
 Environment variables are loaded from `.env.local` and `.env`.
+
+Use hosted OpenAI instead of the local model with:
+
+```sh
+MODEL_PROVIDER=openai
+OPENAI_API_KEY=...
+OPENAI_MODEL=gpt-...
+OPENAI_REQUEST_TIMEOUT_MS=120000
+```
 
 ## Source Registry
 

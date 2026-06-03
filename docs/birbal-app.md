@@ -31,7 +31,7 @@ Purpose:
 
 - Search for real enterprise AI deployments.
 - Fetch shortlisted source URLs.
-- Extract structured use-case records with the local model.
+- Extract structured use-case records with the configured model provider.
 - Select diverse, high-confidence use cases.
 - Verify selected use cases against the source URL and bounded linked evidence.
 - Store use cases in SQLite.

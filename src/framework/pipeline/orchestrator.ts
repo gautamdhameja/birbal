@@ -2,6 +2,7 @@
 // Scope: Stays generic so applications can plug in their own components.
 
 import { ModelParseError } from "../llm/repair.js";
+import type { ModelClient } from "../llm/types.js";
 import { isHttpStatusError, summarizeHttpErrorBody } from "../../http/client.js";
 import { preview } from "../../logging/preview.js";
 import { normalizeUrl } from "../../utils/url.js";
@@ -11,6 +12,7 @@ import type { PipelineComponentRegistry } from "./registry.js";
 import { pipelineComponentRegistry } from "./registry.js";
 import { createInMemoryPipelineRunStore } from "./runStore.js";
 import type { PipelineRunStore, RunSummary } from "./runStore.js";
+import { getDefaultModelClient } from "../../model-providers/default.js";
 import type {
   ArtifactWriter,
   Classifier,
@@ -52,6 +54,7 @@ export type PipelineOrchestratorDependencies = {
   loadConfig(configPathOrId: string): PipelineConfig;
   loadSourceRegistry(): unknown;
   logger: PipelineLogger;
+  modelClient: ModelClient;
   now(): Date;
   registry: PipelineComponentRegistry;
   researchProfile: unknown;
@@ -109,6 +112,7 @@ const defaultDependencies: PipelineOrchestratorDependencies = {
   loadConfig: loadPipelineConfig,
   loadSourceRegistry: missingSourceRegistryLoader,
   logger: noopLogger,
+  modelClient: getDefaultModelClient(),
   now: () => new Date(),
   registry: pipelineComponentRegistry,
   researchProfile: null,
@@ -1297,6 +1301,7 @@ export async function runPipeline(
     config,
     logger: deps.logger,
     db: deps.db,
+    modelClient: deps.modelClient,
     rubric: components.rubrics[0],
     rubrics: components.rubrics,
     researchProfile: deps.researchProfile,

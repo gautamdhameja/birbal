@@ -137,12 +137,14 @@ export async function runPipelineFromCliOptions(options: PipelineCliOptions): Pr
     { loadSourceRegistry },
     { sqlitePipelineRunStore },
     { logger },
+    { getDefaultModelClient },
     { registerBirbalPipelineComponents },
     { runPipeline },
   ] = await Promise.all([
     import("./config/sourceRegistry.js"),
     import("./db/pipelineRuns.js"),
     import("./logging/logger.js"),
+    import("./model-providers/default.js"),
     import("./pipelines/register.js"),
     import("./framework/pipeline/orchestrator.js"),
   ]);
@@ -152,6 +154,7 @@ export async function runPipelineFromCliOptions(options: PipelineCliOptions): Pr
     loadConfig,
     loadSourceRegistry,
     logger,
+    modelClient: getDefaultModelClient(),
     runStore: sqlitePipelineRunStore,
   });
 

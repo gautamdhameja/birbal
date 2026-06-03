@@ -6,11 +6,11 @@ import { z } from "zod";
 import { AGENT } from "../constants/agent.js";
 import { CANDIDATE_CATEGORIES } from "../constants/candidates.js";
 import { CLASSIFICATION } from "../constants/classification.js";
-import { LLAMA } from "../constants/llama.js";
+import { MODEL_PROVIDERS } from "../constants/model-providers.js";
 import { completeStructuredWithRepair, summarizeModelParseError } from "../framework/llm/repair.js";
-import { llamaCppModelAdapter } from "../llama/adapter.js";
-import type { ChatMessage, CompleteOptions } from "../llama/schema.js";
+import type { ChatMessage, ModelClient, ModelCompleteOptions } from "../framework/llm/types.js";
 import { logger } from "../logging/logger.js";
+import { getDefaultModelClient } from "../model-providers/default.js";
 import { parseJson } from "../utils/json.js";
 import type { CandidateCategory, CandidateItem, ItemScore } from "./types.js";
 
@@ -26,8 +26,8 @@ type ClassificationInput = {
   candidate: CandidateItem;
   score: ItemScore;
 };
-type ModelTraceOptions = Pick<CompleteOptions, "traceId" | "traceLabel"> & {
-  completeFn?: typeof llamaCppModelAdapter.complete;
+type ModelTraceOptions = Pick<ModelCompleteOptions, "traceId" | "traceLabel"> & {
+  completeFn?: ModelClient["complete"];
 };
 
 function normalizeSearchText(value: string): string {
@@ -189,7 +189,7 @@ export async function classifyCandidateCategory(
   const result = await completeStructuredWithRepair({
     messages,
     schema: categoryClassificationSchema(allowedCategories(score)),
-    completeFn: traceOptions.completeFn ?? llamaCppModelAdapter.complete,
+    completeFn: traceOptions.completeFn ?? getDefaultModelClient().complete,
     logger,
     repairInstructions: CLASSIFICATION.REPAIR_PROMPT,
     completeOptions: {
@@ -198,7 +198,7 @@ export async function classifyCandidateCategory(
       traceId: traceOptions.traceId,
       traceLabel: traceOptions.traceLabel ?? "daily.classify_category",
       response_format: {
-        type: LLAMA.RESPONSE_FORMATS.JSON_OBJECT,
+        type: MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT,
       },
     },
   });

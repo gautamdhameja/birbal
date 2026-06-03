@@ -10,19 +10,29 @@ export type ModelClient = {
 
 The harness only needs a model client that returns text. It does not know which provider produced that text.
 
-## llama.cpp Adapter
+## Configured Provider
 
-Birbal currently ships one real adapter:
+Birbal chooses the active provider from environment variables:
 
-```ts
-import { llamaCppModelAdapter } from "./src/llama/index.js";
+```sh
+MODEL_PROVIDER=llama_cpp
 ```
 
-The adapter delegates to the llama.cpp-compatible HTTP client in `src/llama/client.ts`.
+Supported provider IDs:
+
+- `llama_cpp`: local llama.cpp server, default.
+- `openai`: hosted OpenAI API using `OPENAI_API_KEY`.
+
+The selected provider is exposed through `getDefaultModelClient()` in `src/model-providers/default.ts`.
+
+## llama.cpp Adapter
+
+The llama.cpp adapter delegates to the shared OpenAI-compatible HTTP transport.
 
 Required environment:
 
 ```sh
+MODEL_PROVIDER=llama_cpp
 LLAMA_SERVER_URL=http://127.0.0.1:8080/v1/chat/completions
 LLAMA_MODEL=local
 ```
@@ -31,6 +41,25 @@ The local server must support OpenAI-style chat completions. When structured out
 
 ```json
 { "response_format": { "type": "json_object" } }
+```
+
+## OpenAI Adapter
+
+The hosted OpenAI adapter uses the same `ModelClient` contract and the same raw HTTP OpenAI-compatible transport, with bearer-token auth.
+
+Required environment:
+
+```sh
+MODEL_PROVIDER=openai
+OPENAI_API_KEY=...
+OPENAI_MODEL=gpt-...
+```
+
+Optional environment:
+
+```sh
+OPENAI_SERVER_URL=https://api.openai.com/v1/chat/completions
+OPENAI_REQUEST_TIMEOUT_MS=120000
 ```
 
 ## Adding Another Adapter Later
