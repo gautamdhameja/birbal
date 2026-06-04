@@ -17,6 +17,12 @@ import {
 } from "./schema.js";
 import type { ChatMessage, CompleteOptions, OpenAICompatibleConfig } from "./schema.js";
 
+type TokenUsage = {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+};
+
 const MODEL_LOG_EVENTS = {
   STARTED: "model.complete.started",
   FINISHED: "model.complete.finished",
@@ -62,6 +68,7 @@ function logCompletionFinished(
   options: CompleteOptions,
   startedAt: Date,
   output: string,
+  usage?: TokenUsage,
 ): void {
   const finishedAt = new Date();
   logger.debug(
@@ -75,6 +82,13 @@ function logCompletionFinished(
       finishedAt: finishedAt.toISOString(),
       durationMs: finishedAt.getTime() - startedAt.getTime(),
       outputChars: output.length,
+      ...(usage
+        ? {
+            promptTokens: usage.prompt_tokens,
+            completionTokens: usage.completion_tokens,
+            totalTokens: usage.total_tokens,
+          }
+        : {}),
     },
     MODEL_LOG_MESSAGES.FINISHED,
   );
@@ -197,7 +211,14 @@ export function createOpenAICompatibleModelClient(
       }
 
       const output = firstChoice.message.content;
-      logCompletionFinished(modelCallId, config, parsedOptions, startedAt, output);
+      logCompletionFinished(
+        modelCallId,
+        config,
+        parsedOptions,
+        startedAt,
+        output,
+        parsedPayload.data.usage,
+      );
 
       return output;
     },

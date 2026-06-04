@@ -74,8 +74,8 @@ describe("pipeline config", () => {
     assert.deepEqual(config.contentFetchPolicy, {
       enabled: true,
       fetcherId: "url_text_fetcher",
-      fetchForTopN: 30,
-      maxChars: 24000,
+      fetchForTopN: 20,
+      maxChars: 16000,
       maxResponseBytes: 8000000,
       preferFetchedContent: true,
     });
@@ -87,8 +87,11 @@ describe("pipeline config", () => {
       continueOnStructuredExtractionFailure: true,
       minItemsRequiredForSuccess: 1,
     });
+    assert.equal(config.limits.extractionMaxContentChars, 6000);
     assert.equal(config.limits.maxSearchQueries, 5);
     assert.equal(config.limits.maxSearchResultsPerQuery, 20);
+    assert.equal(config.limits.verificationBatchSize, 5);
+    assert.equal(config.limits.maxVerificationLinks, 0);
     assert.equal(config.collectionMethods[0]?.collectorId, "brave_web_search_collector");
   });
 

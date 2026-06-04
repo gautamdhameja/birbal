@@ -8,6 +8,15 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { initDb } from "../src/db/items.js";
+import {
+  contentHash,
+  evidenceHash,
+  getCachedUseCaseExtraction,
+  getCachedUseCaseVerification,
+  upsertUseCaseExtractionCache,
+  upsertUseCaseVerificationCache,
+  useCaseHash,
+} from "../src/db/useCaseModelCache.js";
 import { listRecentUseCases, listUseCasesByRun, upsertUseCase } from "../src/db/useCases.js";
 import type { EnterpriseUseCaseStorageInput } from "../src/db/useCases.js";
 
@@ -132,5 +141,78 @@ describe("enterprise use case storage", () => {
     initDb(dbPath());
 
     assert.throws(() => listRecentUseCases(0), /positive integer/);
+  });
+
+  it("caches extracted use cases by source URL, content hash, and extractor version", () => {
+    initDb(dbPath());
+    const extracted = [useCase()];
+    const hashedContent = contentHash("article text");
+
+    upsertUseCaseExtractionCache({
+      contentHash: hashedContent,
+      extractorVersion: "extractor:v1",
+      sourceUrl: "https://example.com/acme-support",
+      useCases: extracted,
+    });
+
+    assert.deepEqual(
+      getCachedUseCaseExtraction({
+        contentHash: hashedContent,
+        extractorVersion: "extractor:v1",
+        sourceUrl: "https://example.com/acme-support",
+      }),
+      extracted,
+    );
+    assert.equal(
+      getCachedUseCaseExtraction({
+        contentHash: hashedContent,
+        extractorVersion: "extractor:v2",
+        sourceUrl: "https://example.com/acme-support",
+      }),
+      null,
+    );
+  });
+
+  it("caches use-case verification by use case, evidence, and verifier version", () => {
+    initDb(dbPath());
+    const cachedUseCase = useCase();
+    const hashedUseCase = useCaseHash(cachedUseCase);
+    const hashedEvidence = evidenceHash({
+      source: {
+        url: cachedUseCase.sourceUrl,
+        plainText: "Acme deployed an AI assistant.",
+      },
+    });
+    const verification = {
+      verified: true,
+      confidenceScore: 4,
+      unsupportedFields: [],
+      evidenceLinks: [cachedUseCase.sourceUrl],
+      notes: "Supported by source evidence.",
+    };
+
+    upsertUseCaseVerificationCache({
+      evidenceHash: hashedEvidence,
+      useCaseHash: hashedUseCase,
+      verification,
+      verifierVersion: "verifier:v1",
+    });
+
+    assert.deepEqual(
+      getCachedUseCaseVerification({
+        evidenceHash: hashedEvidence,
+        useCaseHash: hashedUseCase,
+        verifierVersion: "verifier:v1",
+      }),
+      verification,
+    );
+    assert.equal(
+      getCachedUseCaseVerification({
+        evidenceHash: hashedEvidence,
+        useCaseHash: hashedUseCase,
+        verifierVersion: "verifier:v2",
+      }),
+      null,
+    );
   });
 });

@@ -27,8 +27,8 @@
   "contentFetchPolicy": {
     "enabled": true,
     "fetcherId": "url_text_fetcher",
-    "fetchForTopN": 30,
-    "maxChars": 24000,
+    "fetchForTopN": 20,
+    "maxChars": 16000,
     "maxResponseBytes": 8000000,
     "preferFetchedContent": true
   },
@@ -42,18 +42,22 @@
     "artifactWriterId": "filesystem_artifact_writer"
   },
   "limits": {
-    "maxCandidates": 30,
+    "maxCandidates": 20,
     "maxSearchQueries": 5,
     "maxSearchResultsPerQuery": 20,
-    "maxCandidatesForExtraction": 30,
+    "maxCandidatesForExtraction": 20,
     "maxResults": 10,
     "maxUseCasesPerRun": 10,
     "minConfidenceScore": 3,
     "maxPerIndustry": 3,
     "maxPerSource": 3,
-    "verificationCandidateMultiplier": 3,
-    "maxVerificationLinks": 2,
-    "verificationMaxChars": 12000,
+    "extractionMaxContentChars": 6000,
+    "verificationBatchSize": 5,
+    "verificationCandidateMultiplier": 2,
+    "maxVerificationLinks": 0,
+    "verificationMaxChars": 8000,
+    "verificationPromptLinkedMaxChars": 1500,
+    "verificationPromptSourceMaxChars": 5000,
     "minVerificationConfidenceScore": 3
   },
   "settings": {

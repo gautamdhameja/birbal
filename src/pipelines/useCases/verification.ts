@@ -96,6 +96,8 @@ export type VerificationEvidence = {
 export type FetchVerificationEvidenceOptions = {
   maxLinks?: number;
   maxChars?: number;
+  promptSourceMaxChars?: number;
+  promptLinkedMaxChars?: number;
   sourceTextByUrl?: ReadonlyMap<string, string>;
   fetchPolicy?: {
     hostResolver?: HostResolver;
@@ -125,7 +127,16 @@ export type VerifySelectedEnterpriseUseCasesOptions = VerifyEnterpriseUseCaseOpt
       useCase: EnterpriseUseCase,
       options: FetchVerificationEvidenceOptions,
     ): Promise<VerificationEvidence>;
+    getCachedVerification?(
+      useCase: EnterpriseUseCase,
+      evidence: VerificationEvidence,
+    ): EnterpriseUseCaseVerification | null;
     minVerificationConfidenceScore?: number;
+    upsertVerificationCache?(
+      useCase: EnterpriseUseCase,
+      evidence: VerificationEvidence,
+      verification: EnterpriseUseCaseVerification,
+    ): void;
   };
 
 type FetchedVerificationPage = VerificationEvidenceDocument & {
@@ -134,10 +145,13 @@ type FetchedVerificationPage = VerificationEvidenceDocument & {
 };
 
 const DEFAULT_MAX_LINKS = 2;
-const DEFAULT_MAX_CHARS = 12_000;
+const DEFAULT_MAX_CHARS = 8_000;
+const DEFAULT_PROMPT_SOURCE_MAX_CHARS = 5_000;
+const DEFAULT_PROMPT_LINKED_MAX_CHARS = 1_500;
 const MODEL_TEMPERATURE = 0;
 const MODEL_MAX_TOKENS = 1_200;
 const DEFAULT_MIN_VERIFICATION_CONFIDENCE_SCORE = 3;
+export const ENTERPRISE_USE_CASE_VERIFIER_VERSION = "enterprise-use-case-verifier:v2";
 const CRITICAL_UNSUPPORTED_FIELDS = new Set<UseCaseVerificationField>([
   "companyName",
   "aiSystemOrCapability",
@@ -370,6 +384,18 @@ export async function fetchEnterpriseUseCaseEvidence(
   options: FetchVerificationEvidenceOptions = {},
 ): Promise<VerificationEvidence> {
   const fallbackSourceText = sourceTextForUrl(useCase.sourceUrl, options.sourceTextByUrl);
+  const maxLinks = options.maxLinks ?? DEFAULT_MAX_LINKS;
+  if (fallbackSourceText && maxLinks === 0) {
+    return {
+      source: {
+        url: normalizeUrl(useCase.sourceUrl),
+        title: useCase.sourceTitle,
+        plainText: fallbackSourceText,
+      },
+      linkedEvidence: [],
+    };
+  }
+
   let sourcePage: FetchedVerificationPage;
   try {
     sourcePage = await fetchVerificationPage(useCase.sourceUrl, useCase, options);
@@ -436,19 +462,23 @@ function renderUseCaseForVerification(useCase: EnterpriseUseCase): string {
   });
 }
 
-function renderEvidence(evidence: VerificationEvidence): string {
+function renderEvidence(
+  evidence: VerificationEvidence,
+  promptSourceMaxChars = DEFAULT_PROMPT_SOURCE_MAX_CHARS,
+  promptLinkedMaxChars = DEFAULT_PROMPT_LINKED_MAX_CHARS,
+): string {
   const linked = evidence.linkedEvidence.map((document, index) => ({
     index: index + 1,
     url: document.url,
     title: document.title,
-    plainText: truncate(document.plainText, 3_000),
+    plainText: truncate(document.plainText, promptLinkedMaxChars),
   }));
 
   return JSON.stringify({
     source: {
       url: evidence.source.url,
       title: evidence.source.title,
-      plainText: truncate(evidence.source.plainText, 8_000),
+      plainText: truncate(evidence.source.plainText, promptSourceMaxChars),
     },
     linkedEvidence: linked,
   });
@@ -457,29 +487,22 @@ function renderEvidence(evidence: VerificationEvidence): string {
 function buildVerificationMessages(
   useCase: EnterpriseUseCase,
   evidence: VerificationEvidence,
+  options: Pick<FetchVerificationEvidenceOptions, "promptLinkedMaxChars" | "promptSourceMaxChars">,
 ): ChatMessage[] {
   return [
     {
       role: AGENT.ROLES.SYSTEM,
       content: [
         "You verify extracted enterprise AI use cases against source-grounded evidence.",
-        "Use only the provided source page and linked evidence. Do not use web search or outside knowledge.",
+        "Use only the provided source and linked evidence. Do not use outside knowledge.",
         "Return exactly one valid JSON object and nothing else.",
-        "Do not include Markdown, code fences, comments, or prose outside JSON.",
-        "Mark verified true only when the evidence supports a concrete real enterprise workflow using AI.",
-        "A concrete use case must have a supported workflow, supported AI capability, and supported organization or deployment context.",
-        "Verification is not an extraction-completeness audit. A use case can be verified even when non-critical fields such as integrations, governance notes, implementation details, before state, or after state are thin.",
-        "Do not require the source to use the exact extracted workflowAffected phrase. Treat workflowAffected as a summary label; it is supported when the evidence describes the same process, function, or work area semantically.",
-        "Do not mark workflowAffected unsupported only because it is broad, paraphrased, or not named as a formal workflow artifact.",
-        "Mark verified true when the source supports a named organization, an AI system or capability, a real workflow/process area, and either production/deployment evidence or a concrete business outcome.",
-        "confidenceScore is the strength of this verification, not the attractiveness of the use case.",
-        "Use confidenceScore 4 or 5 only when the source evidence clearly supports the company, workflow, AI capability, deployment context, and outcome.",
-        "Use confidenceScore 3 when the use case is real but some non-critical details such as integrations, governance, or before/after workflow are thin.",
-        "Use confidenceScore 1 or 2 only when evidence is weak; if confidenceScore is 1 or 2, verified must be false.",
-        "Empty or unknown extracted fields do not count as unsupported. Non-empty fields that contradict evidence or add material unsupported specifics must be listed in unsupportedFields.",
+        "verified=true only when evidence supports a named organization, AI capability, real workflow/process area, and deployment evidence or business outcome.",
+        "Treat workflowAffected as a semantic summary label; exact wording is not required.",
+        "Thin non-critical fields can still verify. Contradictory or material unsupported specifics must be listed in unsupportedFields.",
+        "confidenceScore measures verification strength: 4-5 clear evidence, 3 real but thin details, 1-2 weak and verified must be false.",
+        "Empty or unknown extracted fields do not count as unsupported.",
         `unsupportedFields may only contain these field names: ${USE_CASE_VERIFICATION_FIELDS.join(", ")}.`,
-        "If the evidence is mainly a framework, best-practices guide, methodology article, product launch, or measurement article without a real workflow deployment, mark verified false.",
-        "Use semantic support. Exact wording is not required, but plausible inference is not enough.",
+        "Reject framework, best-practices, methodology, launch, or measurement articles without a real workflow deployment.",
       ].join(" "),
     },
     {
@@ -489,7 +512,7 @@ function buildVerificationMessages(
         renderUseCaseForVerification(useCase),
         "",
         "Evidence:",
-        renderEvidence(evidence),
+        renderEvidence(evidence, options.promptSourceMaxChars, options.promptLinkedMaxChars),
         "",
         "Return JSON with this exact shape:",
         JSON.stringify({
@@ -520,10 +543,11 @@ function buildVerificationRepairInstructions(): string {
 export async function verifyEnterpriseUseCase(
   useCase: EnterpriseUseCase,
   evidence: VerificationEvidence,
-  options: VerifyEnterpriseUseCaseOptions = {},
+  options: VerifyEnterpriseUseCaseOptions &
+    Pick<FetchVerificationEvidenceOptions, "promptLinkedMaxChars" | "promptSourceMaxChars"> = {},
 ): Promise<EnterpriseUseCaseVerification> {
   const result = await completeStructuredWithRepair({
-    messages: buildVerificationMessages(useCase, evidence),
+    messages: buildVerificationMessages(useCase, evidence, options),
     schema: EnterpriseUseCaseVerificationSchema,
     completeFn: options.completeFn ?? getDefaultModelClient().complete,
     logger,
@@ -677,7 +701,23 @@ export async function verifySelectedEnterpriseUseCases(
   for (const useCase of useCases) {
     try {
       const evidence = await fetchEvidence(useCase, options);
-      const originalVerification = await verifyEnterpriseUseCase(useCase, evidence, options);
+      const cachedVerification = options.getCachedVerification?.(useCase, evidence) ?? null;
+      if (cachedVerification) {
+        logger.debug(
+          {
+            event: "pipeline.use_cases.verification_cache_hit",
+            companyName: useCase.companyName,
+            workflowAffected: useCase.workflowAffected,
+            sourceUrl: useCase.sourceUrl,
+          },
+          "use-case verification cache hit",
+        );
+      }
+      const originalVerification =
+        cachedVerification ?? (await verifyEnterpriseUseCase(useCase, evidence, options));
+      if (!cachedVerification) {
+        options.upsertVerificationCache?.(useCase, evidence, originalVerification);
+      }
       const verification = normalizeVerificationForAcceptance(
         useCase,
         originalVerification,

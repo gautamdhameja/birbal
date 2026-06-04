@@ -23,6 +23,7 @@ export type ExtractEnterpriseUseCasesOptions = Pick<
   "traceId" | "traceLabel"
 > & {
   completeFn?: CompleteFn;
+  maxContentChars?: number;
 };
 
 function normalizeExtractionEnvelope(value: unknown): unknown {
@@ -97,18 +98,19 @@ const ExtractedEnterpriseUseCasesSchema = z.preprocess(
   }),
 );
 
-const MAX_CONTENT_CHARS = 9_000;
+export const ENTERPRISE_USE_CASE_EXTRACTOR_VERSION = "enterprise-use-case-extractor:v2";
+const DEFAULT_MAX_CONTENT_CHARS = 6_000;
 const MAX_USE_CASES_PER_ARTICLE = 3;
 const MODEL_TEMPERATURE = 0;
 const MODEL_MAX_TOKENS = 3_000;
 
-function truncateContent(content: string): string {
-  if (content.length <= MAX_CONTENT_CHARS) {
+function truncateContent(content: string, maxContentChars: number): string {
+  if (content.length <= maxContentChars) {
     return content;
   }
 
-  return `${content.slice(0, MAX_CONTENT_CHARS)}\n\n[truncated ${
-    content.length - MAX_CONTENT_CHARS
+  return `${content.slice(0, maxContentChars)}\n\n[truncated ${
+    content.length - maxContentChars
   } characters]`;
 }
 
@@ -158,38 +160,25 @@ function responseShape(): string {
   });
 }
 
-function buildMessages(candidate: CandidateItem, fetchedContentText: string): ChatMessage[] {
+function buildMessages(
+  candidate: CandidateItem,
+  fetchedContentText: string,
+  maxContentChars: number,
+): ChatMessage[] {
   return [
     {
       role: AGENT.ROLES.SYSTEM,
       content: [
         "You extract concrete, real enterprise AI deployments from source articles.",
-        "Return exactly one valid JSON object and nothing else.",
-        "Do not include Markdown, code fences, comments, or prose outside JSON.",
-        "The top-level object must contain only a useCases array.",
+        "Return exactly one valid JSON object with a useCases array and nothing else.",
         `Extract at most ${MAX_USE_CASES_PER_ARTICLE} use cases from one article. Choose the strongest evidence only.`,
-        "A valid use case is a real workflow where an enterprise, customer, public-sector organization, or named team is using AI in an actual business process.",
-        "The article must provide concrete evidence for the workflow, the AI capability, and the operational or business outcome.",
-        "Return an empty useCases array if the article is mainly advice, methodology, best practices, measurement guidance, benchmarking, governance framework, trend commentary, market analysis, or a vendor product launch.",
-        "Return an empty useCases array for articles about how to measure AI agents, how to evaluate agents, or how teams should deploy agents unless the article also describes a specific real organization using AI in a specific workflow.",
-        "Do not convert an audience segment into a company name. Invalid company names include: Any organization, organizations using AI, contact center organizations, companies, enterprises, customers, users, teams, industry leaders.",
-        "If the article only describes a generic audience, a target persona, or a class of organizations, it is not a use case.",
-        "Do not extract hypothetical examples, illustrative scenarios, vague vendor claims, generic productivity claims, trend commentary, or generic product launches.",
-        "For accepted use cases, leave unsupported fields as empty strings. Do not write unknown, not stated, not available, none, N/A, unclear, or generic filler.",
-        "Do not use empty fields to rescue an article that has no concrete use case.",
-        "Do not invent missing company names, ROI metrics, integrations, workflow details, or deployment evidence.",
-        "Every use case must include every required field.",
-        "All use-case fields must be strings except confidenceScore, which must be a number from 1 to 5.",
-        "The confidence field name must be exactly confidenceScore and must appear inside every use case object.",
-        "Put confidenceScore immediately after id in every use case object.",
-        "confidenceScore is your overall score for use-case quality, evidence strength, production relevance, workflow specificity, and business usefulness.",
-        "Use confidenceScore 5 only for named real deployments with specific workflow detail, live or production evidence, and measurable outcomes.",
-        "Use confidenceScore 4 for strong real deployments where one detail, such as a precise metric or integration, is missing.",
-        "Use confidenceScore 3 only for real deployments with incomplete but still concrete evidence.",
-        "Use confidenceScore 1 or 2 for weak, vague, pilot-only, or thinly supported evidence.",
-        "Keep every string field concise. Prefer one short sentence per field.",
-        "Do not include long quotations, long lists, or multi-paragraph values.",
-        "For systemIntegrations, return a comma-separated string, not an array.",
+        "Accept only real deployed or live operational enterprise workflows using AI.",
+        "Reject advice, measurement/evaluation frameworks, best practices, trend pieces, product launches, hypothetical examples, and generic vendor claims.",
+        "Never use generic audience labels as companyName, such as companies, enterprises, customers, users, teams, or contact center organizations.",
+        "Leave unsupported fields as empty strings. Do not invent missing company names, metrics, integrations, workflow details, or deployment evidence.",
+        "All fields are strings except confidenceScore, which is 1-5 and must appear inside every use case.",
+        "Score 5 for named production deployments with workflow detail and measurable outcomes; 4 for strong deployments with one thin detail; 3 for concrete but incomplete deployments; 1-2 for weak evidence.",
+        "Keep values concise. Use comma-separated strings instead of arrays.",
       ].join(" "),
     },
     {
@@ -227,7 +216,7 @@ function buildMessages(candidate: CandidateItem, fetchedContentText: string): Ch
         renderCandidate(candidate),
         "",
         "Fetched content text:",
-        truncateContent(fetchedContentText),
+        truncateContent(fetchedContentText, maxContentChars),
         "",
         "Set sourceUrl exactly to the candidate URL.",
         "Keep evidenceSummary concise and analytical. Explain why the use case deserves its confidenceScore using only article evidence.",
@@ -276,8 +265,9 @@ export async function extractEnterpriseUseCases(
   fetchedContentText: string,
   options: ExtractEnterpriseUseCasesOptions = {},
 ): Promise<EnterpriseUseCase[]> {
+  const maxContentChars = options.maxContentChars ?? DEFAULT_MAX_CONTENT_CHARS;
   const result = await completeStructuredWithRepair({
-    messages: buildMessages(candidate, fetchedContentText),
+    messages: buildMessages(candidate, fetchedContentText, maxContentChars),
     schema: ExtractedEnterpriseUseCasesSchema,
     completeFn: options.completeFn ?? getDefaultModelClient().complete,
     logger,

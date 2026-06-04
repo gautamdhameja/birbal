@@ -51,6 +51,14 @@ export const OpenAICompatibleChatCompletionResponseSchema = z.object({
       }),
     )
     .min(1),
+  usage: z
+    .object({
+      prompt_tokens: z.number().int().nonnegative().optional(),
+      completion_tokens: z.number().int().nonnegative().optional(),
+      total_tokens: z.number().int().nonnegative().optional(),
+    })
+    .passthrough()
+    .optional(),
 });
 
 export const OpenAICompatibleConfigSchema = z.strictObject({

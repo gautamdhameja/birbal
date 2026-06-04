@@ -134,6 +134,34 @@ export const DATABASE_SQL = {
 
       CREATE INDEX IF NOT EXISTS idx_search_snapshot_items_snapshot_rank
         ON search_snapshot_items (snapshot_id, rank ASC);
+
+      CREATE TABLE IF NOT EXISTS use_case_extraction_cache (
+        cache_key TEXT PRIMARY KEY,
+        source_url TEXT NOT NULL,
+        content_hash TEXT NOT NULL,
+        extractor_version TEXT NOT NULL,
+        use_cases_json TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(source_url, content_hash, extractor_version)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_use_case_extraction_cache_source
+        ON use_case_extraction_cache (source_url, extractor_version);
+
+      CREATE TABLE IF NOT EXISTS use_case_verification_cache (
+        cache_key TEXT PRIMARY KEY,
+        use_case_hash TEXT NOT NULL,
+        evidence_hash TEXT NOT NULL,
+        verifier_version TEXT NOT NULL,
+        verification_json TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(use_case_hash, evidence_hash, verifier_version)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_use_case_verification_cache_use_case
+        ON use_case_verification_cache (use_case_hash, verifier_version);
     `,
   START_RUN: `
       INSERT INTO runs (
@@ -679,5 +707,59 @@ export const DATABASE_SQL = {
       FROM search_snapshot_items
       WHERE snapshot_id = ?
       ORDER BY rank ASC, title ASC
+    `,
+  GET_USE_CASE_EXTRACTION_CACHE: `
+      SELECT use_cases_json
+      FROM use_case_extraction_cache
+      WHERE source_url = ?
+        AND content_hash = ?
+        AND extractor_version = ?
+      LIMIT 1
+    `,
+  UPSERT_USE_CASE_EXTRACTION_CACHE: `
+      INSERT INTO use_case_extraction_cache (
+        cache_key,
+        source_url,
+        content_hash,
+        extractor_version,
+        use_cases_json
+      )
+      VALUES (
+        @cacheKey,
+        @sourceUrl,
+        @contentHash,
+        @extractorVersion,
+        @useCasesJson
+      )
+      ON CONFLICT(source_url, content_hash, extractor_version) DO UPDATE SET
+        use_cases_json = excluded.use_cases_json,
+        updated_at = CURRENT_TIMESTAMP
+    `,
+  GET_USE_CASE_VERIFICATION_CACHE: `
+      SELECT verification_json
+      FROM use_case_verification_cache
+      WHERE use_case_hash = ?
+        AND evidence_hash = ?
+        AND verifier_version = ?
+      LIMIT 1
+    `,
+  UPSERT_USE_CASE_VERIFICATION_CACHE: `
+      INSERT INTO use_case_verification_cache (
+        cache_key,
+        use_case_hash,
+        evidence_hash,
+        verifier_version,
+        verification_json
+      )
+      VALUES (
+        @cacheKey,
+        @useCaseHash,
+        @evidenceHash,
+        @verifierVersion,
+        @verificationJson
+      )
+      ON CONFLICT(use_case_hash, evidence_hash, verifier_version) DO UPDATE SET
+        verification_json = excluded.verification_json,
+        updated_at = CURRENT_TIMESTAMP
     `,
 } as const;

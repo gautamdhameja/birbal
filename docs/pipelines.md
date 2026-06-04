@@ -53,8 +53,8 @@ Pipeline config lives in `config/pipelines/*.json`.
   "contentFetchPolicy": {
     "enabled": true,
     "fetcherId": "url_text_fetcher",
-    "fetchForTopN": 30,
-    "maxChars": 24000,
+    "fetchForTopN": 20,
+    "maxChars": 16000,
     "maxResponseBytes": 8000000,
     "preferFetchedContent": true
   },
@@ -67,6 +67,15 @@ Pipeline config lives in `config/pipelines/*.json`.
 `maxResponseBytes` caps the raw downloaded page body. It is useful for article and report
 pages that include large HTML, scripts, or embedded page data. `maxChars` is separate: it
 caps the extracted plain text passed to later model or renderer stages.
+
+Pipeline-specific `limits` can further control model cost. The use-cases pipeline uses:
+
+- `extractionMaxContentChars`: caps article text included in each extraction prompt.
+- `verificationBatchSize`: verifies candidates in batches and stops once enough are accepted.
+- `verificationCandidateMultiplier`: controls the maximum over-selected verification pool.
+- `maxVerificationLinks`: controls linked evidence fetched and included for verification.
+- `verificationPromptSourceMaxChars` and `verificationPromptLinkedMaxChars`: cap evidence text
+  included in verification prompts.
 
 ## Failure Policy
 

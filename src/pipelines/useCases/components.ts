@@ -9,9 +9,18 @@ import {
   getSearchSnapshot,
   listSearchSnapshotItems,
 } from "../../db/searchSnapshots.js";
+import {
+  contentHash,
+  evidenceHash,
+  getCachedUseCaseExtraction,
+  getCachedUseCaseVerification,
+  upsertUseCaseExtractionCache,
+  upsertUseCaseVerificationCache,
+  useCaseHash,
+} from "../../db/useCaseModelCache.js";
 import { upsertUseCase } from "../../db/useCases.js";
 import type { PipelineRunItem } from "../../framework/pipeline/orchestrator.js";
-import { selectWithAcceptanceBackfill } from "../../framework/pipeline/selection.js";
+import { selectWithIncrementalAcceptance } from "../../framework/pipeline/selection.js";
 import type {
   PipelineCollectionMethod,
   PipelineContext,
@@ -29,13 +38,18 @@ import {
   scopedSourceRegistry,
   sourceRegistryFromContext,
 } from "../componentHelpers.js";
-import { extractEnterpriseUseCases } from "./extractor.js";
+import { ENTERPRISE_USE_CASE_EXTRACTOR_VERSION, extractEnterpriseUseCases } from "./extractor.js";
 import { renderEnterpriseUseCaseDigest } from "./renderer.js";
 import { collectUseCaseSearchCandidates, searchSnapshotItemToCandidate } from "./search.js";
 import type { UseCaseSearchCandidate } from "./search.js";
 import type { EnterpriseUseCase } from "./schema.js";
 import { selectEnterpriseUseCaseItems, selectEnterpriseUseCases } from "./selector.js";
-import { verifySelectedEnterpriseUseCases } from "./verification.js";
+import {
+  ENTERPRISE_USE_CASE_VERIFIER_VERSION,
+  verifySelectedEnterpriseUseCases,
+  type EnterpriseUseCaseVerification,
+  type VerificationEvidence,
+} from "./verification.js";
 import { normalizeUrl } from "../../utils/url.js";
 
 function asUseCaseCandidate(value: unknown): UseCaseSearchCandidate {
@@ -119,6 +133,15 @@ function verificationCandidatePoolSize(context: PipelineContext, targetCount: nu
   return Math.max(targetCount, Math.ceil(targetCount * multiplier));
 }
 
+function verificationBatchSize(context: PipelineContext, targetCount: number): number {
+  const configuredLimit = context.config.limits.verificationBatchSize;
+  if (typeof configuredLimit === "number" && Number.isInteger(configuredLimit)) {
+    return Math.max(1, configuredLimit);
+  }
+
+  return Math.max(1, Math.ceil(targetCount / 2));
+}
+
 function verificationEnabled(context: PipelineContext): boolean {
   const verification = context.config.settings?.verification;
   if (typeof verification !== "object" || verification === null || Array.isArray(verification)) {
@@ -132,8 +155,15 @@ function verificationConfigFromContext(context: PipelineContext) {
   return {
     maxLinks: context.config.limits.maxVerificationLinks ?? 2,
     maxChars: context.config.limits.verificationMaxChars ?? 12_000,
+    promptLinkedMaxChars: context.config.limits.verificationPromptLinkedMaxChars ?? 1_500,
+    promptSourceMaxChars: context.config.limits.verificationPromptSourceMaxChars ?? 5_000,
     minVerificationConfidenceScore: context.config.limits.minVerificationConfidenceScore ?? 3,
   };
+}
+
+function extractionMaxContentChars(context: PipelineContext): number | undefined {
+  const value = context.config.limits.extractionMaxContentChars;
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
 }
 
 function sourceTextByUrlFromItems(items: readonly PipelineRunItem[]): Map<string, string> {
@@ -147,6 +177,27 @@ function sourceTextByUrlFromItems(items: readonly PipelineRunItem[]): Map<string
   }
 
   return sourceTextByUrl;
+}
+
+function cachedVerification(useCase: EnterpriseUseCase, evidence: VerificationEvidence) {
+  return getCachedUseCaseVerification({
+    evidenceHash: evidenceHash(evidence),
+    useCaseHash: useCaseHash(useCase),
+    verifierVersion: ENTERPRISE_USE_CASE_VERIFIER_VERSION,
+  });
+}
+
+function cacheVerification(
+  useCase: EnterpriseUseCase,
+  evidence: VerificationEvidence,
+  verification: EnterpriseUseCaseVerification,
+): void {
+  upsertUseCaseVerificationCache({
+    evidenceHash: evidenceHash(evidence),
+    useCaseHash: useCaseHash(useCase),
+    verification,
+    verifierVersion: ENTERPRISE_USE_CASE_VERIFIER_VERSION,
+  });
 }
 
 export const braveWebSearchCollector: SourceCollector = {
@@ -237,15 +288,40 @@ export const enterpriseUseCaseExtractor: StructuredExtractor = {
       return [];
     }
 
-    return extractEnterpriseUseCases(
-      useCaseCandidateToCandidateItem(asUseCaseCandidate(item), context),
-      contentText,
-      {
-        traceId: context.runId,
-        traceLabel: "pipeline.use_cases.enterprise_use_case_extractor",
-        completeFn: context.modelClient.complete,
-      },
-    );
+    const candidate = useCaseCandidateToCandidateItem(asUseCaseCandidate(item), context);
+    const hashedContent = contentHash(contentText);
+    const cached = getCachedUseCaseExtraction({
+      contentHash: hashedContent,
+      extractorVersion: ENTERPRISE_USE_CASE_EXTRACTOR_VERSION,
+      sourceUrl: candidate.url,
+    });
+    if (cached) {
+      context.logger.debug(
+        {
+          event: "pipeline.use_cases.extraction_cache_hit",
+          sourceUrl: candidate.url,
+          useCaseCount: cached.length,
+        },
+        "use-case extraction cache hit",
+      );
+      return cached;
+    }
+
+    const useCases = await extractEnterpriseUseCases(candidate, contentText, {
+      traceId: context.runId,
+      traceLabel: "pipeline.use_cases.enterprise_use_case_extractor",
+      completeFn: context.modelClient.complete,
+      maxContentChars: extractionMaxContentChars(context),
+    });
+
+    upsertUseCaseExtractionCache({
+      contentHash: hashedContent,
+      extractorVersion: ENTERPRISE_USE_CASE_EXTRACTOR_VERSION,
+      sourceUrl: candidate.url,
+      useCases,
+    });
+
+    return useCases;
   },
 };
 
@@ -258,8 +334,9 @@ export const enterpriseUseCaseSelector: Selector = {
     const selectorConfig = useCaseSelectorConfigFromContext(context);
     const targetCount = selectorConfig.maxUseCasesPerRun ?? 10;
     const verified = verificationEnabled(context)
-      ? await selectWithAcceptanceBackfill({
+      ? await selectWithIncrementalAcceptance({
           candidates: extractedUseCases,
+          batchSize: verificationBatchSize(context, targetCount),
           candidatePoolSize: verificationCandidatePoolSize(context, targetCount),
           targetCount,
           selectCandidates: (candidates, limit) =>
@@ -274,6 +351,8 @@ export const enterpriseUseCaseSelector: Selector = {
               traceId: context.runId,
               traceLabel: "pipeline.use_cases.enterprise_use_case_verifier",
               completeFn: context.modelClient.complete,
+              getCachedVerification: cachedVerification,
+              upsertVerificationCache: cacheVerification,
             }),
           selectAccepted: (candidates, limit) =>
             selectEnterpriseUseCaseItems(candidates, {
@@ -284,6 +363,7 @@ export const enterpriseUseCaseSelector: Selector = {
       : {
           candidatePool: selectEnterpriseUseCases(extractedUseCases, selectorConfig),
           acceptedPool: selectEnterpriseUseCases(extractedUseCases, selectorConfig),
+          processedCandidateCount: 0,
           selected: selectEnterpriseUseCases(extractedUseCases, selectorConfig).map((useCase) => ({
             ...useCase,
             verification: {
@@ -303,6 +383,7 @@ export const enterpriseUseCaseSelector: Selector = {
         verifiedBeforeFinalSelection: verified.acceptedPool.length,
         verified: verified.selected.length,
         rejectedByVerification: verified.candidatePool.length - verified.acceptedPool.length,
+        processedForVerification: verified.processedCandidateCount,
       },
       "use-case verification completed",
     );
