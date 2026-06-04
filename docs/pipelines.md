@@ -55,6 +55,7 @@ Pipeline config lives in `config/pipelines/*.json`.
     "fetcherId": "url_text_fetcher",
     "fetchForTopN": 30,
     "maxChars": 24000,
+    "maxResponseBytes": 8000000,
     "preferFetchedContent": true
   },
   "structuredExtractorId": "enterprise_use_case_extractor",
@@ -62,6 +63,10 @@ Pipeline config lives in `config/pipelines/*.json`.
   "rendererId": "enterprise_use_case_markdown_renderer"
 }
 ```
+
+`maxResponseBytes` caps the raw downloaded page body. It is useful for article and report
+pages that include large HTML, scripts, or embedded page data. `maxChars` is separate: it
+caps the extracted plain text passed to later model or renderer stages.
 
 ## Failure Policy
 

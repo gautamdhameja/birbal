@@ -79,6 +79,40 @@ describe("framework URL content fetcher", () => {
     );
   });
 
+  it("uses a content-specific raw response size cap when configured", async () => {
+    const largeHtml = `<html><body><main>${"x".repeat(1_000_010)}</main></body></html>`;
+    const transport = async (): Promise<Response> =>
+      new Response(largeHtml, {
+        status: 200,
+        headers: {
+          "content-type": "text/html",
+          "content-length": String(largeHtml.length),
+        },
+      });
+
+    const defaultResult = await fetchUrlContent({
+      url: "https://example.com/large-report",
+      fetchPolicy: {
+        hostResolver: publicHostResolver,
+        transport,
+      },
+    });
+    assert.equal(defaultResult.fetchStatus, CONTENT_FETCH_STATUSES.FAILED);
+    assert.match(defaultResult.error?.message ?? "", /exceeded maximum allowed size/);
+
+    const largerCapResult = await fetchUrlContent({
+      url: "https://example.com/large-report",
+      maxChars: 20,
+      fetchPolicy: {
+        hostResolver: publicHostResolver,
+        maxResponseBytes: 2_000_000,
+        transport,
+      },
+    });
+    assert.equal(largerCapResult.fetchStatus, CONTENT_FETCH_STATUSES.FETCHED);
+    assert.equal(largerCapResult.contentLength, 20);
+  });
+
   it("revalidates host DNS during the actual content fetch connection", async () => {
     let resolutionCount = 0;
     const rebindingResolver = async () => {

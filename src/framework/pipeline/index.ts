@@ -17,6 +17,8 @@ export type {
 } from "./registry.js";
 export { runPipeline, validateConfiguredSourceIds } from "./orchestrator.js";
 export type { PipelineOrchestratorDependencies, PipelineRunItem } from "./orchestrator.js";
+export { selectWithAcceptanceBackfill } from "./selection.js";
+export type { BackfillSelectionResult, SelectWithAcceptanceBackfillOptions } from "./selection.js";
 export {
   createInMemoryPipelineRunStore,
   normalizeRunStatus,

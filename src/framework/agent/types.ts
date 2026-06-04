@@ -65,6 +65,7 @@ export type AgentHarnessConfig<TParsedResponse extends AgentResponse = AgentResp
   logger?: AgentLogger;
   hooks?: AgentLifecycleHooks<TParsedResponse>;
   defaultMaxSteps: number;
+  maxParseRepairAttempts?: number;
   modelOptions?: ModelCompleteOptions;
   roles?: {
     system: ChatMessage["role"];

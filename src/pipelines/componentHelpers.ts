@@ -142,6 +142,9 @@ export const urlTextFetcher: ContentFetcher = {
     const fetched = await fetchUrlContent({
       url: candidate.url,
       maxChars: context.config.contentFetchPolicy.maxChars,
+      fetchPolicy: {
+        maxResponseBytes: context.config.contentFetchPolicy.maxResponseBytes,
+      },
     });
     if (isCandidateItem(runItem.item) && fetched.fetchStatus !== CONTENT_FETCH_STATUSES.FAILED) {
       upsertItem({

@@ -571,7 +571,7 @@ export const DATABASE_SQL = {
         raw_json
       FROM use_cases
       WHERE run_id = ?
-      ORDER BY created_at DESC, company_name ASC, workflow_affected ASC
+      ORDER BY created_at ASC, rowid ASC
     `,
   CREATE_SEARCH_SNAPSHOT: `
       INSERT INTO search_snapshots (

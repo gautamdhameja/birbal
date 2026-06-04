@@ -11,6 +11,7 @@ import {
 } from "../../db/searchSnapshots.js";
 import { upsertUseCase } from "../../db/useCases.js";
 import type { PipelineRunItem } from "../../framework/pipeline/orchestrator.js";
+import { selectWithAcceptanceBackfill } from "../../framework/pipeline/selection.js";
 import type {
   PipelineCollectionMethod,
   PipelineContext,
@@ -33,7 +34,7 @@ import { renderEnterpriseUseCaseDigest } from "./renderer.js";
 import { collectUseCaseSearchCandidates, searchSnapshotItemToCandidate } from "./search.js";
 import type { UseCaseSearchCandidate } from "./search.js";
 import type { EnterpriseUseCase } from "./schema.js";
-import { selectEnterpriseUseCases } from "./selector.js";
+import { selectEnterpriseUseCaseItems, selectEnterpriseUseCases } from "./selector.js";
 import { verifySelectedEnterpriseUseCases } from "./verification.js";
 import { normalizeUrl } from "../../utils/url.js";
 
@@ -88,7 +89,7 @@ function useCaseScoutConfigFromContext(context: PipelineContext, method: Pipelin
 }
 
 function useCaseSelectorConfigFromContext(context: PipelineContext) {
-  const maxUseCasesPerRun = context.config.limits.maxUseCasesPerRun ?? outputLimit(context);
+  const maxUseCasesPerRun = outputLimit(context) ?? context.config.limits.maxUseCasesPerRun;
 
   return {
     ...(typeof maxUseCasesPerRun === "number" ? { maxUseCasesPerRun } : {}),
@@ -102,6 +103,20 @@ function useCaseSelectorConfigFromContext(context: PipelineContext) {
       ? { maxPerSource: context.config.limits.maxPerSource }
       : {}),
   };
+}
+
+function verificationCandidatePoolSize(context: PipelineContext, targetCount: number): number {
+  const configuredLimit = context.config.limits.verificationCandidatePoolSize;
+  if (typeof configuredLimit === "number") {
+    return configuredLimit;
+  }
+
+  const multiplier =
+    typeof context.config.limits.verificationCandidateMultiplier === "number"
+      ? context.config.limits.verificationCandidateMultiplier
+      : 3;
+
+  return Math.max(targetCount, Math.ceil(targetCount * multiplier));
 }
 
 function verificationEnabled(context: PipelineContext): boolean {
@@ -240,40 +255,59 @@ export const enterpriseUseCaseSelector: Selector = {
     const extractedUseCases = runItems.flatMap((item) =>
       Array.isArray(item.structuredData) ? (item.structuredData as EnterpriseUseCase[]) : [],
     );
-    const selected = selectEnterpriseUseCases(
-      extractedUseCases,
-      useCaseSelectorConfigFromContext(context),
-    );
+    const selectorConfig = useCaseSelectorConfigFromContext(context);
+    const targetCount = selectorConfig.maxUseCasesPerRun ?? 10;
     const verified = verificationEnabled(context)
-      ? await verifySelectedEnterpriseUseCases(selected, {
-          ...verificationConfigFromContext(context),
-          sourceTextByUrl: sourceTextByUrlFromItems(runItems),
-          traceId: context.runId,
-          traceLabel: "pipeline.use_cases.enterprise_use_case_verifier",
-          completeFn: context.modelClient.complete,
+      ? await selectWithAcceptanceBackfill({
+          candidates: extractedUseCases,
+          candidatePoolSize: verificationCandidatePoolSize(context, targetCount),
+          targetCount,
+          selectCandidates: (candidates, limit) =>
+            selectEnterpriseUseCases(candidates, {
+              ...selectorConfig,
+              maxUseCasesPerRun: limit,
+            }),
+          acceptCandidates: (candidates) =>
+            verifySelectedEnterpriseUseCases(candidates, {
+              ...verificationConfigFromContext(context),
+              sourceTextByUrl: sourceTextByUrlFromItems(runItems),
+              traceId: context.runId,
+              traceLabel: "pipeline.use_cases.enterprise_use_case_verifier",
+              completeFn: context.modelClient.complete,
+            }),
+          selectAccepted: (candidates, limit) =>
+            selectEnterpriseUseCaseItems(candidates, {
+              ...selectorConfig,
+              maxUseCasesPerRun: limit,
+            }),
         })
-      : selected.map((useCase) => ({
-          ...useCase,
-          verification: {
-            verified: true,
-            confidenceScore: useCase.confidenceScore,
-            unsupportedFields: [],
-            evidenceLinks: [],
-            notes: "Verification disabled by pipeline config.",
-          },
-        }));
+      : {
+          candidatePool: selectEnterpriseUseCases(extractedUseCases, selectorConfig),
+          acceptedPool: selectEnterpriseUseCases(extractedUseCases, selectorConfig),
+          selected: selectEnterpriseUseCases(extractedUseCases, selectorConfig).map((useCase) => ({
+            ...useCase,
+            verification: {
+              verified: true,
+              confidenceScore: useCase.confidenceScore,
+              unsupportedFields: [],
+              evidenceLinks: [],
+              notes: "Verification disabled by pipeline config.",
+            },
+          })),
+        };
 
     context.logger.info(
       {
         event: "pipeline.use_cases.verification",
-        selectedBeforeVerification: selected.length,
-        verified: verified.length,
-        rejectedByVerification: selected.length - verified.length,
+        selectedBeforeVerification: verified.candidatePool.length,
+        verifiedBeforeFinalSelection: verified.acceptedPool.length,
+        verified: verified.selected.length,
+        rejectedByVerification: verified.candidatePool.length - verified.acceptedPool.length,
       },
       "use-case verification completed",
     );
 
-    for (const useCase of verified) {
+    for (const useCase of verified.selected) {
       upsertUseCase({
         ...useCase,
         runId: context.runId,
@@ -284,7 +318,7 @@ export const enterpriseUseCaseSelector: Selector = {
       });
     }
 
-    return verified;
+    return verified.selected;
   },
 };
 

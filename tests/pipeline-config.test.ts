@@ -76,6 +76,7 @@ describe("pipeline config", () => {
       fetcherId: "url_text_fetcher",
       fetchForTopN: 30,
       maxChars: 24000,
+      maxResponseBytes: 8000000,
       preferFetchedContent: true,
     });
     assert.deepEqual(config.failurePolicy, {

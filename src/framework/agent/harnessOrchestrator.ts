@@ -39,6 +39,21 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function buildProtocolRepairMessage(error: string): ChatMessage {
+  return {
+    role: FRAMEWORK_AGENT.ROLES.USER,
+    content: [
+      `Your previous response was invalid: ${error}`,
+      "Return exactly one valid JSON object and no surrounding text.",
+      "Use exactly one of these shapes:",
+      '{"type":"final","answer":"..."}',
+      '{"type":"tool_call","tool":"...","args":{}}',
+      '{"type":"clarify","question":"..."}',
+      "If you intended to call a tool, return only the tool_call object.",
+    ].join("\n"),
+  };
+}
+
 export function createAgentHarness<TParsedResponse extends AgentResponse = AgentResponse>(
   config: AgentHarnessConfig<TParsedResponse>,
 ): (task: string, options?: AgentRunOptions) => Promise<string> {
@@ -57,6 +72,8 @@ export function createAgentHarness<TParsedResponse extends AgentResponse = Agent
   return async (task, options = {}) => {
     const parsedOptions = AgentRunOptionsSchema.parse(options);
     const maxSteps = parsedOptions.maxSteps ?? config.defaultMaxSteps;
+    const maxParseRepairAttempts = config.maxParseRepairAttempts ?? 0;
+    let parseRepairAttempts = 0;
     const traceId = randomUUID();
     const history: ChatMessage[] = [
       {
@@ -148,6 +165,30 @@ export function createAgentHarness<TParsedResponse extends AgentResponse = Agent
           raw,
           error: message,
         });
+
+        if (parseRepairAttempts < maxParseRepairAttempts) {
+          parseRepairAttempts += 1;
+          history.push({
+            role: roles.assistant,
+            content: raw,
+          });
+          history.push(buildProtocolRepairMessage(message));
+
+          config.logger?.debug(
+            {
+              event: FRAMEWORK_AGENT.LOG_EVENTS.RESPONSE_PARSE_REPAIR,
+              traceId,
+              modelPassId,
+              step,
+              parseRepairAttempts,
+              maxParseRepairAttempts,
+              rawPreview: preview(raw),
+            },
+            FRAMEWORK_AGENT.LOG_MESSAGES.RESPONSE_PARSE_REPAIR,
+          );
+
+          continue;
+        }
 
         parsed = { error: message };
       }

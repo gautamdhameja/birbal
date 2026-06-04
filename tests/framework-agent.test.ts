@@ -105,6 +105,44 @@ describe("framework agent harness", () => {
     );
   });
 
+  it("repairs one invalid protocol response before continuing the agent loop", async () => {
+    const responses = [
+      '{"type":"tool_call","tool":"echo","args":{"value":"framework"}}\n{"type":"final","answer":"bad"}',
+      JSON.stringify({
+        type: "tool_call",
+        tool: "echo",
+        args: {
+          value: "framework",
+        },
+      }),
+      JSON.stringify({
+        type: "final",
+        answer: "framework",
+      }),
+    ];
+    const seenMessages: ChatMessage[][] = [];
+
+    const runHarness = createAgentHarness({
+      modelClient: {
+        complete: async (messages) => {
+          seenMessages.push([...messages]);
+          return responses.shift() ?? "";
+        },
+      },
+      toolRunner: async (_tool, args) => args,
+      buildSystemPrompt: () => "system",
+      renderToolsForPrompt: () => "",
+      parseResponse: parseJsonAgentResponse,
+      defaultMaxSteps: 4,
+      maxParseRepairAttempts: 1,
+    });
+
+    assert.equal(await runHarness("use echo"), "framework");
+    assert.equal(seenMessages.length, 3);
+    assert.match(seenMessages[1]?.at(-1)?.content ?? "", /previous response was invalid/);
+    assert.match(seenMessages[1]?.at(-1)?.content ?? "", /exactly one valid JSON object/);
+  });
+
   it("emits lifecycle hooks around model and tool handoffs", async () => {
     const events: string[] = [];
     const runHarness = createAgentHarness({

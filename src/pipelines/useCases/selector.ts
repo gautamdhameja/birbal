@@ -54,7 +54,9 @@ function similarityKey(useCase: EnterpriseUseCase): string {
   ].join("|");
 }
 
-function rankedUseCases(useCases: readonly EnterpriseUseCase[]): EnterpriseUseCase[] {
+function rankedUseCases<TUseCase extends EnterpriseUseCase>(
+  useCases: readonly TUseCase[],
+): TUseCase[] {
   return [...useCases].sort((left, right) => {
     const confidenceDifference = right.confidenceScore - left.confidenceScore;
     if (confidenceDifference !== 0) {
@@ -79,14 +81,25 @@ export function selectEnterpriseUseCases(
   useCases: readonly EnterpriseUseCase[],
   config: EnterpriseUseCaseSelectorConfig = {},
 ): EnterpriseUseCase[] {
+  return selectEnterpriseUseCaseItems(useCases, config);
+}
+
+export function selectEnterpriseUseCaseItems<TUseCase extends EnterpriseUseCase>(
+  useCases: readonly TUseCase[],
+  config: EnterpriseUseCaseSelectorConfig = {},
+): TUseCase[] {
   const selectionConfig = resolvedConfig(config);
   const candidates = rankedUseCases(
-    useCases
-      .map((useCase) => EnterpriseUseCaseSchema.parse(useCase))
-      .filter(isEligibleEnterpriseUseCase)
-      .filter((useCase) => useCase.confidenceScore >= selectionConfig.minConfidenceScore),
+    useCases.filter((useCase) => {
+      const parsed = EnterpriseUseCaseSchema.safeParse(useCase);
+      return (
+        parsed.success &&
+        isEligibleEnterpriseUseCase(parsed.data) &&
+        parsed.data.confidenceScore >= selectionConfig.minConfidenceScore
+      );
+    }),
   );
-  const selected: EnterpriseUseCase[] = [];
+  const selected: TUseCase[] = [];
   const industryCounts = new Map<string, number>();
   const sourceCounts = new Map<string, number>();
   const selectedSimilarityKeys = new Set<string>();

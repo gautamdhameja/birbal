@@ -25,6 +25,7 @@ export type PipelineContentFetchPolicy = {
   enabled: boolean;
   fetchForTopN: number;
   maxChars: number;
+  maxResponseBytes?: number;
   preferFetchedContent: boolean;
   fetcherId?: string;
   extractorIds?: string[];

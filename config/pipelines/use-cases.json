@@ -29,6 +29,7 @@
     "fetcherId": "url_text_fetcher",
     "fetchForTopN": 30,
     "maxChars": 24000,
+    "maxResponseBytes": 8000000,
     "preferFetchedContent": true
   },
   "structuredExtractorId": "enterprise_use_case_extractor",
@@ -50,6 +51,7 @@
     "minConfidenceScore": 3,
     "maxPerIndustry": 3,
     "maxPerSource": 3,
+    "verificationCandidateMultiplier": 3,
     "maxVerificationLinks": 2,
     "verificationMaxChars": 12000,
     "minVerificationConfidenceScore": 3

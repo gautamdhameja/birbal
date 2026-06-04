@@ -4,6 +4,7 @@
 import { z } from "zod";
 
 import { AGENT } from "../constants/agent.js";
+import { MODEL_PROVIDERS } from "../constants/model-providers.js";
 import { createAgentHarness } from "../framework/agent/harnessOrchestrator.js";
 import { logger } from "../logging/logger.js";
 import { getDefaultModelClient } from "../model-providers/default.js";
@@ -26,8 +27,13 @@ const runBirbalAgent = createAgentHarness({
   parseResponse: parseAgentResponse,
   logger,
   defaultMaxSteps: AGENT.DEFAULT_MAX_STEPS,
+  maxParseRepairAttempts: 1,
   modelOptions: {
+    temperature: 0,
     maxOutputTokens: AGENT.MODEL_MAX_TOKENS,
+    response_format: {
+      type: MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT,
+    },
   },
 });
 

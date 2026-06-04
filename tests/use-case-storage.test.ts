@@ -83,7 +83,16 @@ describe("enterprise use case storage", () => {
   it("lists use cases by run ID", () => {
     initDb(dbPath());
 
-    upsertUseCase(useCase({ id: "run-1-case", runId: "run-1" }));
+    upsertUseCase(useCase({ id: "run-1-case", runId: "run-1", companyName: "First" }));
+    upsertUseCase(
+      useCase({
+        id: "run-1-case-2",
+        runId: "run-1",
+        companyName: "Second",
+        sourceUrl: "https://example.com/second",
+        workflowAffected: "Procurement intake",
+      }),
+    );
     upsertUseCase(
       useCase({
         id: "run-2-case",
@@ -94,7 +103,10 @@ describe("enterprise use case storage", () => {
       }),
     );
 
-    assert.equal(listUseCasesByRun("run-1").length, 1);
+    assert.deepEqual(
+      listUseCasesByRun("run-1").map((storedUseCase) => storedUseCase.companyName),
+      ["First", "Second"],
+    );
   });
 
   it("does not trust duplicate model-generated IDs as persistent IDs", () => {

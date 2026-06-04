@@ -4,7 +4,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { selectEnterpriseUseCases } from "../src/pipelines/useCases/selector.js";
+import {
+  selectEnterpriseUseCaseItems,
+  selectEnterpriseUseCases,
+} from "../src/pipelines/useCases/selector.js";
 import type { EnterpriseUseCase } from "../src/pipelines/useCases/schema.js";
 
 function useCase(overrides: Partial<EnterpriseUseCase> = {}): EnterpriseUseCase {
@@ -183,5 +186,22 @@ describe("enterprise use case selector", () => {
     );
 
     assert.equal(selected.length, 1);
+  });
+
+  it("preserves enriched item metadata while applying selection rules", () => {
+    const enriched = {
+      ...useCase({ id: "verified" }),
+      verification: {
+        verified: true,
+        confidenceScore: 4,
+        unsupportedFields: [],
+        evidenceLinks: [],
+        notes: "Verified against source evidence.",
+      },
+    };
+
+    const selected = selectEnterpriseUseCaseItems([enriched]);
+
+    assert.equal(selected[0]?.verification.notes, "Verified against source evidence.");
   });
 });

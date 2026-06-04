@@ -50,10 +50,7 @@ describe("enterprise use case renderer", () => {
       markdown,
       /- Workflow changed: Support ticket triage; before: Agents manually read and route incoming tickets\.; after: AI drafts responses and routes escalations\./,
     );
-    assert.match(
-      markdown,
-      /- Business impact: 20% faster response time; Reduced support backlog\./,
-    );
+    assert.match(markdown, /- Business impact: 20% faster response time/);
     assert.match(markdown, /- Enterprise lesson:/);
     assert.match(markdown, /- Source: \[Example\]\(https:\/\/example\.com\/acme-support\)/);
     assert.doesNotMatch(markdown, /## Summary Table/);
@@ -66,6 +63,7 @@ describe("enterprise use case renderer", () => {
         useCase({
           companyName: "Acme [spoof](https://evil.example)",
           workflowAffected: "Support #1",
+          roiMetric: "unknown",
           businessOutcome: "Reduced *manual* work.",
           sourceName: "Example | Source",
         }),

@@ -42,6 +42,10 @@ function blankIfMissing(value: string): string {
   return isMissingValue(value) ? "" : value;
 }
 
+function stripTrailingPunctuation(value: string): string {
+  return normalizeWhitespace(value).replace(/[.;:]+$/g, "");
+}
+
 function escapeMarkdownText(value: string): string {
   return normalizeWhitespace(value).replace(/[\\`*_{}[\]()#+!|>]/g, "\\$&");
 }
@@ -69,23 +73,20 @@ function renderSourceLink(useCase: EnterpriseUseCase): string {
 }
 
 function renderEnterpriseLesson(useCase: EnterpriseUseCase): string {
-  const details = [
-    useCase.workflowAffected,
-    useCase.workflowBefore,
-    useCase.workflowAfter,
-    useCase.roiMetric,
-    useCase.businessOutcome,
-    useCase.systemIntegrations,
-    useCase.governanceOrRiskNotes,
-  ]
-    .map(normalizeWhitespace)
-    .filter((value) => !isMissingValue(value));
+  const workflow = blankIfMissing(useCase.workflowAffected);
+  const impact = renderBusinessImpact(useCase);
 
-  if (details.length < 3) {
+  if (!workflow) {
     return "";
   }
 
-  return "Useful for positioning around practical enterprise AI workflow redesign, deployment evidence, and measurable business change.";
+  if (impact) {
+    return `The reusable pattern is a specific workflow change measured through ${stripTrailingPunctuation(
+      impact,
+    )}.`;
+  }
+
+  return "";
 }
 
 function renderDetailLine(label: string, value: string): string {
@@ -120,11 +121,14 @@ function renderWorkflowChanged(useCase: EnterpriseUseCase): string {
 }
 
 function renderBusinessImpact(useCase: EnterpriseUseCase): string {
-  const impact = [useCase.roiMetric, useCase.businessOutcome]
-    .map(normalizeWhitespace)
-    .filter((value) => !isMissingValue(value));
+  const roiMetric = normalizeWhitespace(useCase.roiMetric);
+  if (!isMissingValue(roiMetric)) {
+    return roiMetric;
+  }
 
-  return impact.length > 0 ? impact.join("; ") : "";
+  const businessOutcome = normalizeWhitespace(useCase.businessOutcome);
+
+  return isMissingValue(businessOutcome) ? "" : businessOutcome;
 }
 
 function renderUseCase(useCase: EnterpriseUseCase, index: number): string {

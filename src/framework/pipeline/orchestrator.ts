@@ -1353,6 +1353,7 @@ export async function runPipeline(
         concurrency: executionLimit(config, "contentFetchConcurrency"),
         fetchForTopN: config.contentFetchPolicy.fetchForTopN,
         maxChars: config.contentFetchPolicy.maxChars,
+        maxResponseBytes: config.contentFetchPolicy.maxResponseBytes,
         preferFetchedContent: config.contentFetchPolicy.preferFetchedContent,
       },
     );

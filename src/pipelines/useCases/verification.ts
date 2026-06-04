@@ -26,23 +26,7 @@ import type { EnterpriseUseCase } from "./schema.js";
 
 type CompleteFn = ModelClient["complete"];
 
-export type UseCaseVerificationField =
-  | "companyName"
-  | "businessFunction"
-  | "workflowAffected"
-  | "workflowBefore"
-  | "workflowAfter"
-  | "aiSystemOrCapability"
-  | "humanRoleChange"
-  | "systemIntegrations"
-  | "deploymentStage"
-  | "roiMetric"
-  | "businessOutcome"
-  | "governanceOrRiskNotes"
-  | "implementationDetails"
-  | "evidenceSummary";
-
-const UseCaseVerificationFieldSchema = z.enum([
+const USE_CASE_VERIFICATION_FIELDS = [
   "companyName",
   "businessFunction",
   "workflowAffected",
@@ -57,13 +41,36 @@ const UseCaseVerificationFieldSchema = z.enum([
   "governanceOrRiskNotes",
   "implementationDetails",
   "evidenceSummary",
-]);
+] as const;
+
+export type UseCaseVerificationField = (typeof USE_CASE_VERIFICATION_FIELDS)[number];
+
+const UseCaseVerificationFieldSchema = z.enum(USE_CASE_VERIFICATION_FIELDS);
+const useCaseVerificationFieldSet = new Set<string>(USE_CASE_VERIFICATION_FIELDS);
+
+function normalizeUnsupportedFields(value: unknown): UseCaseVerificationField[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      value.filter(
+        (field): field is UseCaseVerificationField =>
+          typeof field === "string" && useCaseVerificationFieldSet.has(field),
+      ),
+    ),
+  );
+}
 
 export const EnterpriseUseCaseVerificationSchema = z
   .object({
     verified: z.boolean(),
     confidenceScore: z.number().min(1).max(5),
-    unsupportedFields: z.array(UseCaseVerificationFieldSchema),
+    unsupportedFields: z.preprocess(
+      normalizeUnsupportedFields,
+      z.array(UseCaseVerificationFieldSchema),
+    ),
     evidenceLinks: z.array(z.string()),
     notes: z.string(),
   })
@@ -133,9 +140,16 @@ const MODEL_MAX_TOKENS = 1_200;
 const DEFAULT_MIN_VERIFICATION_CONFIDENCE_SCORE = 3;
 const CRITICAL_UNSUPPORTED_FIELDS = new Set<UseCaseVerificationField>([
   "companyName",
-  "workflowAffected",
   "aiSystemOrCapability",
 ]);
+const UNKNOWN_FIELD_VALUES = new Set(["", "unknown", "n/a", "na", "not available"]);
+const MATERIAL_VERIFICATION_FAILURE_PATTERNS = [
+  /\bcannot be verified from (?:the )?(?:provided|supplied) (?:source|evidence|content|text)\b/i,
+  /\bdoes not include any specific mention\b/i,
+  /\bdoes not mention\b/i,
+  /\bnot supported by (?:the )?(?:provided|supplied) (?:source|evidence|content|text)\b/i,
+  /\bno evidence\b/i,
+];
 const VERIFICATION_LINK_TERMS = [
   "ai",
   "agent",
@@ -454,11 +468,16 @@ function buildVerificationMessages(
         "Do not include Markdown, code fences, comments, or prose outside JSON.",
         "Mark verified true only when the evidence supports a concrete real enterprise workflow using AI.",
         "A concrete use case must have a supported workflow, supported AI capability, and supported organization or deployment context.",
+        "Verification is not an extraction-completeness audit. A use case can be verified even when non-critical fields such as integrations, governance notes, implementation details, before state, or after state are thin.",
+        "Do not require the source to use the exact extracted workflowAffected phrase. Treat workflowAffected as a summary label; it is supported when the evidence describes the same process, function, or work area semantically.",
+        "Do not mark workflowAffected unsupported only because it is broad, paraphrased, or not named as a formal workflow artifact.",
+        "Mark verified true when the source supports a named organization, an AI system or capability, a real workflow/process area, and either production/deployment evidence or a concrete business outcome.",
         "confidenceScore is the strength of this verification, not the attractiveness of the use case.",
         "Use confidenceScore 4 or 5 only when the source evidence clearly supports the company, workflow, AI capability, deployment context, and outcome.",
-        "Use confidenceScore 3 when the use case is real but some non-critical details are thin.",
+        "Use confidenceScore 3 when the use case is real but some non-critical details such as integrations, governance, or before/after workflow are thin.",
         "Use confidenceScore 1 or 2 only when evidence is weak; if confidenceScore is 1 or 2, verified must be false.",
-        "Empty or unknown extracted fields do not count as unsupported. Non-empty fields that are not supported by evidence must be listed in unsupportedFields.",
+        "Empty or unknown extracted fields do not count as unsupported. Non-empty fields that contradict evidence or add material unsupported specifics must be listed in unsupportedFields.",
+        `unsupportedFields may only contain these field names: ${USE_CASE_VERIFICATION_FIELDS.join(", ")}.`,
         "If the evidence is mainly a framework, best-practices guide, methodology article, product launch, or measurement article without a real workflow deployment, mark verified false.",
         "Use semantic support. Exact wording is not required, but plausible inference is not enough.",
       ].join(" "),
@@ -492,7 +511,7 @@ function buildVerificationRepairInstructions(): string {
     "The object must include verified, confidenceScore, unsupportedFields, evidenceLinks, and notes.",
     "verified must be boolean.",
     "confidenceScore must be a number from 1 to 5.",
-    "unsupportedFields must be an array of valid extracted use-case field names.",
+    `unsupportedFields must be an array containing only these valid extracted use-case field names: ${USE_CASE_VERIFICATION_FIELDS.join(", ")}.`,
     "evidenceLinks must be an array of source-grounded URLs from the provided evidence.",
     "notes must be a concise string.",
   ].join(" ");
@@ -544,6 +563,108 @@ export function isAcceptedEnterpriseUseCaseVerification(
   return !verification.unsupportedFields.some((field) => CRITICAL_UNSUPPORTED_FIELDS.has(field));
 }
 
+function hasKnownValue(value: string): boolean {
+  return !UNKNOWN_FIELD_VALUES.has(value.trim().toLowerCase());
+}
+
+function hasOnlyNonCriticalWorkflowLabelIssue(
+  verification: EnterpriseUseCaseVerification,
+): boolean {
+  return (
+    verification.unsupportedFields.length > 0 &&
+    verification.unsupportedFields.every((field) => field === "workflowAffected")
+  );
+}
+
+function hasMaterialVerificationFailureNotes(notes: string): boolean {
+  return MATERIAL_VERIFICATION_FAILURE_PATTERNS.some((pattern) => pattern.test(notes));
+}
+
+function acceptedByWorkflowLabelPolicy(
+  useCase: EnterpriseUseCase,
+  verification: EnterpriseUseCaseVerification,
+): boolean {
+  return (
+    !verification.verified &&
+    hasOnlyNonCriticalWorkflowLabelIssue(verification) &&
+    !hasMaterialVerificationFailureNotes(verification.notes) &&
+    verification.evidenceLinks.length > 0 &&
+    hasKnownValue(useCase.companyName) &&
+    hasKnownValue(useCase.workflowAffected) &&
+    hasKnownValue(useCase.aiSystemOrCapability) &&
+    useCase.confidenceScore >= DEFAULT_MIN_VERIFICATION_CONFIDENCE_SCORE
+  );
+}
+
+function normalizeVerificationForAcceptance(
+  useCase: EnterpriseUseCase,
+  verification: EnterpriseUseCaseVerification,
+  minVerificationConfidenceScore: number,
+): EnterpriseUseCaseVerification {
+  if (!acceptedByWorkflowLabelPolicy(useCase, verification)) {
+    return verification;
+  }
+
+  const confidenceScore = Math.max(
+    minVerificationConfidenceScore,
+    Math.min(useCase.confidenceScore, 3),
+  );
+
+  return {
+    ...verification,
+    verified: true,
+    confidenceScore,
+    notes: [
+      "Accepted by workflow-label policy: the verifier only objected to the summarized workflow label, while the extracted use case has a named company, AI capability, source evidence, and sufficient extraction confidence.",
+      `Original verifier notes: ${verification.notes}`,
+    ].join(" "),
+  };
+}
+
+function logVerificationDecision({
+  accepted,
+  minVerificationConfidenceScore,
+  originalVerification,
+  sourceUrl,
+  useCase,
+  verification,
+}: {
+  accepted: boolean;
+  minVerificationConfidenceScore: number;
+  originalVerification?: EnterpriseUseCaseVerification;
+  sourceUrl: string;
+  useCase: EnterpriseUseCase;
+  verification: EnterpriseUseCaseVerification;
+}): void {
+  logger.info(
+    {
+      event: "pipeline.use_cases.verification_decision",
+      accepted,
+      companyName: useCase.companyName,
+      workflowAffected: useCase.workflowAffected,
+      sourceUrl,
+      verified: verification.verified,
+      confidenceScore: verification.confidenceScore,
+      minVerificationConfidenceScore,
+      unsupportedFields: verification.unsupportedFields,
+      evidenceLinkCount: verification.evidenceLinks.length,
+      notes: verification.notes,
+      policyAdjusted:
+        originalVerification !== undefined &&
+        (originalVerification.verified !== verification.verified ||
+          originalVerification.confidenceScore !== verification.confidenceScore ||
+          originalVerification.notes !== verification.notes),
+      ...(originalVerification
+        ? {
+            originalVerified: originalVerification.verified,
+            originalConfidenceScore: originalVerification.confidenceScore,
+          }
+        : {}),
+    },
+    "use-case verification decision",
+  );
+}
+
 export async function verifySelectedEnterpriseUseCases(
   useCases: readonly EnterpriseUseCase[],
   options: VerifySelectedEnterpriseUseCasesOptions = {},
@@ -556,8 +677,26 @@ export async function verifySelectedEnterpriseUseCases(
   for (const useCase of useCases) {
     try {
       const evidence = await fetchEvidence(useCase, options);
-      const verification = await verifyEnterpriseUseCase(useCase, evidence, options);
-      if (isAcceptedEnterpriseUseCaseVerification(verification, minVerificationConfidenceScore)) {
+      const originalVerification = await verifyEnterpriseUseCase(useCase, evidence, options);
+      const verification = normalizeVerificationForAcceptance(
+        useCase,
+        originalVerification,
+        minVerificationConfidenceScore,
+      );
+      const accepted = isAcceptedEnterpriseUseCaseVerification(
+        verification,
+        minVerificationConfidenceScore,
+      );
+      logVerificationDecision({
+        accepted,
+        minVerificationConfidenceScore,
+        originalVerification,
+        sourceUrl: useCase.sourceUrl,
+        useCase,
+        verification,
+      });
+
+      if (accepted) {
         verifiedUseCases.push({
           ...useCase,
           verification,

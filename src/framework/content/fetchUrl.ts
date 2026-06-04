@@ -36,6 +36,7 @@ export type UrlContentFetchPolicy = {
     options?: PublicHttpFetchOptions,
   ): Promise<Response>;
   maxRedirects?: number;
+  maxResponseBytes?: number;
   timeoutMs?: number;
   retries?: number;
   minTimeoutMs?: number;
@@ -88,6 +89,12 @@ function emptyResult(
 function assertValidMaxChars(maxChars: number): void {
   if (!Number.isInteger(maxChars) || maxChars < 1 || maxChars > URL_TEXT.MAX_CHARS_LIMIT) {
     throw new Error(URL_TEXT.ERRORS.INVALID_MAX_CHARS);
+  }
+}
+
+function assertValidMaxResponseBytes(maxResponseBytes: number): void {
+  if (!Number.isInteger(maxResponseBytes) || maxResponseBytes < 1) {
+    throw new Error("maxResponseBytes must be a positive integer.");
   }
 }
 
@@ -156,6 +163,9 @@ export async function fetchUrlContent({
 
   try {
     assertValidMaxChars(maxChars);
+    if (fetchPolicy.maxResponseBytes !== undefined) {
+      assertValidMaxResponseBytes(fetchPolicy.maxResponseBytes);
+    }
     await assertSafePublicHttpUrl(url, fetchPolicy.hostResolver);
     const { response, finalUrl } = await fetchUrlResponse(url, fetchPolicy);
     const contentType = responseContentType(response);
@@ -184,7 +194,7 @@ export async function fetchUrlContent({
       canonicalUrl: extractedCanonicalUrl,
       detectedPaywall,
       ...extracted
-    } = extractUrlText(await readResponseText(response), maxChars);
+    } = extractUrlText(await readResponseText(response, fetchPolicy.maxResponseBytes), maxChars);
     const canonicalUrl = resolveCanonicalUrl(extractedCanonicalUrl, finalUrl);
 
     return {

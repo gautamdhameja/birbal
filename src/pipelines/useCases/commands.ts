@@ -36,8 +36,29 @@ const USE_CASES_PIPELINE_ID = "use_cases";
 const SNAPSHOT_COLLECTION_METHOD_ID = "search_snapshot";
 const SNAPSHOT_COLLECTOR_ID = "search_snapshot_collector";
 
-function useCaseConfig(configPath?: string, limit?: number): PipelineConfig {
+function useCaseSearchConfig(configPath?: string, limit?: number): PipelineConfig {
   return applyPipelineCliLimit(loadPipelineConfig(configPath ?? USE_CASES_PIPELINE_ID), limit);
+}
+
+function useCaseProcessConfig(configPath?: string, limit?: number): PipelineConfig {
+  const config = loadPipelineConfig(configPath ?? USE_CASES_PIPELINE_ID);
+  if (!limit) {
+    return config;
+  }
+
+  return {
+    ...config,
+    limits: {
+      ...config.limits,
+      limit,
+      maxResults: limit,
+      maxUseCasesPerRun: limit,
+    },
+    metadata: {
+      ...config.metadata,
+      cliLimit: limit,
+    },
+  };
 }
 
 function enabledUseCaseQueries(config: PipelineConfig): string[] {
@@ -90,7 +111,7 @@ function processConfigFromSnapshot(config: PipelineConfig, snapshotId: string): 
 export async function runUseCaseSearchSnapshotCommand(
   options: UseCaseSearchCommandOptions = {},
 ): Promise<void> {
-  const config = useCaseConfig(options.configPath, options.limit);
+  const config = useCaseSearchConfig(options.configPath, options.limit);
   const queries = enabledUseCaseQueries(config);
   const result = await collectUseCaseSearchCandidates(
     searchConfig(config),
@@ -141,7 +162,7 @@ export async function runUseCaseProcessSnapshotCommand(
   const snapshotId = options.snapshotId ?? "latest";
   const loadConfig = (value: string) =>
     processConfigFromSnapshot(
-      useCaseConfig(options.configPath ?? value, options.limit),
+      useCaseProcessConfig(options.configPath ?? value, options.limit),
       snapshotId,
     );
 

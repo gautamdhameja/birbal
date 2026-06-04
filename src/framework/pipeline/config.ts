@@ -45,6 +45,7 @@ const PipelineContentFetchPolicySchema = z.strictObject({
   enabled: z.boolean(),
   fetchForTopN: NonNegativeIntegerSchema,
   maxChars: PositiveIntegerSchema.max(URL_TEXT.MAX_CHARS_LIMIT),
+  maxResponseBytes: PositiveIntegerSchema.optional(),
   preferFetchedContent: z.boolean(),
   fetcherId: NonEmptyStringSchema.optional(),
   extractorIds: z.array(NonEmptyStringSchema).optional(),

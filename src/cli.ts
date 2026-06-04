@@ -72,8 +72,18 @@ function addPipelineOptions(command: Command): Command {
 
 function commandOptions<TOptions extends OptionValues>(
   optionsOrCommand: TOptions | Command,
+  command?: Command,
 ): TOptions {
-  return optionsOrCommand instanceof Command ? optionsOrCommand.opts<TOptions>() : optionsOrCommand;
+  const inheritedOptions = command?.optsWithGlobals<TOptions>() ?? {};
+  const localOptions =
+    optionsOrCommand instanceof Command
+      ? optionsOrCommand.optsWithGlobals<TOptions>()
+      : optionsOrCommand;
+
+  return {
+    ...inheritedOptions,
+    ...localOptions,
+  } as TOptions;
 }
 
 function dryRunEnabled(options: PipelineCommandOptions): boolean {
@@ -114,6 +124,7 @@ function pipelineIdFromUseShortcut(target: string): string {
 }
 
 export async function runBirbalCli(args: readonly string[] = process.argv.slice(2)): Promise<void> {
+  const normalizedArgs = args.filter((arg) => arg !== "--");
   const program = new Command()
     .name("birbal")
     .description("Local agent harness and enterprise AI research scout")
@@ -148,8 +159,8 @@ export async function runBirbalCli(args: readonly string[] = process.argv.slice(
     .description("run only use-case web search and store a reusable snapshot")
     .option("--limit <number>", "limit candidate and output counts", parsePositiveInteger)
     .option("--config <path>", "load pipeline config from a file path")
-    .action(async (optionsOrCommand: PipelineCommandOptions | Command) => {
-      const options = commandOptions<PipelineCommandOptions>(optionsOrCommand);
+    .action(async (optionsOrCommand: PipelineCommandOptions | Command, command?: Command) => {
+      const options = commandOptions<PipelineCommandOptions>(optionsOrCommand, command);
       const { runUseCaseSearchSnapshotCommand } = await import("./pipelines/useCases/commands.js");
       await runUseCaseSearchSnapshotCommand({
         configPath: options.config,
@@ -163,8 +174,8 @@ export async function runBirbalCli(args: readonly string[] = process.argv.slice(
       .description("run model processing from a stored use-case search snapshot"),
   )
     .option("--snapshot <id>", "search snapshot id, or latest", "latest")
-    .action(async (optionsOrCommand: UseCaseProcessCommandOptions | Command) => {
-      const options = commandOptions<UseCaseProcessCommandOptions>(optionsOrCommand);
+    .action(async (optionsOrCommand: UseCaseProcessCommandOptions | Command, command?: Command) => {
+      const options = commandOptions<UseCaseProcessCommandOptions>(optionsOrCommand, command);
       if (traceEnabled(options, program)) {
         process.env.LOG_LEVEL = LOGGING.DEBUG_LEVEL;
         process.env.LOG_PRETTY = process.env.LOG_PRETTY?.trim() || LOGGING.PRETTY_ENABLED_VALUE;
@@ -185,8 +196,8 @@ export async function runBirbalCli(args: readonly string[] = process.argv.slice(
       .description("run use-case model processing from a stored search snapshot"),
   )
     .option("--snapshot <id>", "search snapshot id, or latest", "latest")
-    .action(async (optionsOrCommand: UseCaseProcessCommandOptions | Command) => {
-      const options = commandOptions<UseCaseProcessCommandOptions>(optionsOrCommand);
+    .action(async (optionsOrCommand: UseCaseProcessCommandOptions | Command, command?: Command) => {
+      const options = commandOptions<UseCaseProcessCommandOptions>(optionsOrCommand, command);
       if (traceEnabled(options, program)) {
         process.env.LOG_LEVEL = LOGGING.DEBUG_LEVEL;
         process.env.LOG_PRETTY = process.env.LOG_PRETTY?.trim() || LOGGING.PRETTY_ENABLED_VALUE;
@@ -250,7 +261,7 @@ export async function runBirbalCli(args: readonly string[] = process.argv.slice(
       await runAgentCommand(taskParts, options, program);
     });
 
-  await program.parseAsync(args, { from: "user" });
+  await program.parseAsync(normalizedArgs, { from: "user" });
 }
 
 if (isMainModule()) {

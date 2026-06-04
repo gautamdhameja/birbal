@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  EnterpriseUseCaseVerificationSchema,
   extractVerificationLinks,
   isAcceptedEnterpriseUseCaseVerification,
   verifyEnterpriseUseCase,
@@ -133,6 +134,43 @@ describe("enterprise use case verification", () => {
     assert.equal(selected[0]?.verification.verified, true);
   });
 
+  it("accepts otherwise grounded use cases when only the workflow summary label is disputed", async () => {
+    const selected = await verifySelectedEnterpriseUseCases([useCase()], {
+      fetchEvidence: async () => evidence(),
+      completeFn: async () =>
+        JSON.stringify({
+          verified: false,
+          confidenceScore: 1,
+          unsupportedFields: ["workflowAffected"],
+          evidenceLinks: ["https://example.com/acme-support"],
+          notes:
+            "The evidence supports the company, AI assistant, deployment, and outcome, but the workflow label is broad.",
+        }),
+    });
+
+    assert.equal(selected.length, 1);
+    assert.equal(selected[0]?.verification.verified, true);
+    assert.equal(selected[0]?.verification.confidenceScore, 3);
+    assert.match(selected[0]?.verification.notes ?? "", /Accepted by workflow-label policy/);
+  });
+
+  it("does not apply workflow-label policy when the verifier says the source lacks the claimed evidence", async () => {
+    const selected = await verifySelectedEnterpriseUseCases([useCase()], {
+      fetchEvidence: async () => evidence(),
+      completeFn: async () =>
+        JSON.stringify({
+          verified: false,
+          confidenceScore: 1,
+          unsupportedFields: ["workflowAffected"],
+          evidenceLinks: ["https://example.com/acme-support"],
+          notes:
+            "The provided source text does not include any specific mention of Acme, the AI assistant, or the claimed workflow.",
+        }),
+    });
+
+    assert.deepEqual(selected, []);
+  });
+
   it("rejects true verification flags when confidence is too low", () => {
     assert.equal(
       isAcceptedEnterpriseUseCaseVerification({
@@ -151,11 +189,37 @@ describe("enterprise use case verification", () => {
       isAcceptedEnterpriseUseCaseVerification({
         verified: true,
         confidenceScore: 5,
-        unsupportedFields: ["workflowAffected"],
+        unsupportedFields: ["aiSystemOrCapability"],
         evidenceLinks: [],
-        notes: "Workflow was not supported.",
+        notes: "AI system was not supported.",
       }),
       false,
+    );
+  });
+
+  it("does not reject otherwise verified use cases for non-critical workflow label issues", () => {
+    assert.equal(
+      isAcceptedEnterpriseUseCaseVerification({
+        verified: true,
+        confidenceScore: 3,
+        unsupportedFields: ["workflowAffected"],
+        evidenceLinks: [],
+        notes: "The workflow label is broad, but the use case is real.",
+      }),
+      true,
+    );
+  });
+
+  it("drops model-invented unsupported field names during verification parsing", () => {
+    assert.deepEqual(
+      EnterpriseUseCaseVerificationSchema.parse({
+        verified: true,
+        confidenceScore: 4,
+        unsupportedFields: ["workflowAffected", "sourceUrl", "publishDate"],
+        evidenceLinks: ["https://example.com/source"],
+        notes: "The source supports the workflow but not every detail.",
+      }).unsupportedFields,
+      ["workflowAffected"],
     );
   });
 });
