@@ -4,7 +4,7 @@ Birbal is local-first, but it still touches external URLs, local files, model ou
 
 ## Dependency Policy
 
-Before installing or upgrading npm packages:
+Before installing or upgrading registry packages:
 
 - Check for known supply-chain attacks.
 - Check for malicious releases or typosquats.

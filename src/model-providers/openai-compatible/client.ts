@@ -48,7 +48,8 @@ function logCompletionStarted(
       messageCount: messages.length,
       inputChars: messages.reduce((sum, message) => sum + message.content.length, 0),
       temperature: options.temperature,
-      maxTokens: options.max_tokens,
+      maxOutputTokens: options.maxOutputTokens,
+      outputTokenParameter: config.outputTokenParameter,
       responseFormat: options.response_format?.type,
     },
     MODEL_LOG_MESSAGES.STARTED,
@@ -110,6 +111,24 @@ function requestHeaders(config: OpenAICompatibleConfig): Record<string, string> 
   };
 }
 
+export function chatCompletionsUrl(config: OpenAICompatibleConfig): string {
+  return new URL(config.chatCompletionsPath, config.baseUrl).toString();
+}
+
+function buildChatCompletionRequest(
+  config: OpenAICompatibleConfig,
+  messages: ChatMessage[],
+  options: CompleteOptions,
+) {
+  return OpenAICompatibleChatCompletionRequestSchema.parse({
+    model: config.model,
+    messages,
+    temperature: options.temperature,
+    ...(options.maxOutputTokens ? { [config.outputTokenParameter]: options.maxOutputTokens } : {}),
+    response_format: options.response_format,
+  });
+}
+
 export function createOpenAICompatibleModelClient(
   loadConfig: () => OpenAICompatibleConfig,
 ): ModelClient {
@@ -121,18 +140,13 @@ export function createOpenAICompatibleModelClient(
       const startedAt = new Date();
       logCompletionStarted(modelCallId, config, messages, parsedOptions, startedAt);
 
-      const requestBody = OpenAICompatibleChatCompletionRequestSchema.parse({
-        model: config.model,
-        messages,
-        temperature: parsedOptions.temperature,
-        max_tokens: parsedOptions.max_tokens,
-        response_format: parsedOptions.response_format,
-      });
+      const requestBody = buildChatCompletionRequest(config, messages, parsedOptions);
+      const endpointUrl = chatCompletionsUrl(config);
 
       let response: Response;
       try {
         response = await fetchWithTimeout(
-          config.serverUrl,
+          endpointUrl,
           {
             method: HTTP.POST_METHOD,
             headers: requestHeaders(config),
@@ -144,7 +158,7 @@ export function createOpenAICompatibleModelClient(
         logCompletionFailed(modelCallId, config, parsedOptions, startedAt, error);
         const message = error instanceof Error ? error.message : String(error);
         throw new Error(
-          `${MODEL_PROVIDERS.ERRORS.REQUEST_FAILED_PREFIX} ${config.serverUrl}: ${message}`,
+          `${MODEL_PROVIDERS.ERRORS.REQUEST_FAILED_PREFIX} ${endpointUrl}: ${message}`,
         );
       }
 

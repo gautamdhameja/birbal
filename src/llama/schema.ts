@@ -3,9 +3,7 @@
 
 import { z } from "zod";
 
-import { LLAMA } from "../constants/llama.js";
 import { MODEL_PROVIDERS } from "../constants/model-providers.js";
-import { httpUrlErrorMessage, isHttpUrlWithoutCredentials } from "../http/url.js";
 import {
   ChatMessageSchema,
   CompleteOptionsSchema,
@@ -18,16 +16,6 @@ export { ChatMessageSchema, CompleteOptionsSchema };
 
 export const LlamaChatCompletionRequestSchema = OpenAICompatibleChatCompletionRequestSchema;
 export const LlamaChatCompletionResponseSchema = OpenAICompatibleChatCompletionResponseSchema;
-
-export const LlamaEnvSchema = z.strictObject({
-  LLAMA_SERVER_URL: z.url().refine(isHttpUrlWithoutCredentials, httpUrlErrorMessage()),
-  LLAMA_MODEL: z.string().min(1),
-  LLAMA_REQUEST_TIMEOUT_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(LLAMA.DEFAULT_REQUEST_TIMEOUT_MS),
-});
 
 export const LlamaConfigSchema = OpenAICompatibleConfigSchema.extend({
   providerId: z.literal(MODEL_PROVIDERS.PROVIDERS.LLAMA_CPP),

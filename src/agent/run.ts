@@ -27,7 +27,7 @@ const runBirbalAgent = createAgentHarness({
   logger,
   defaultMaxSteps: AGENT.DEFAULT_MAX_STEPS,
   modelOptions: {
-    max_tokens: AGENT.MODEL_MAX_TOKENS,
+    maxOutputTokens: AGENT.MODEL_MAX_TOKENS,
   },
 });
 

@@ -194,7 +194,7 @@ export async function classifyCandidateCategory(
     repairInstructions: CLASSIFICATION.REPAIR_PROMPT,
     completeOptions: {
       temperature: CLASSIFICATION.MODEL_TEMPERATURE,
-      max_tokens: CLASSIFICATION.MAX_TOKENS,
+      maxOutputTokens: CLASSIFICATION.MAX_TOKENS,
       traceId: traceOptions.traceId,
       traceLabel: traceOptions.traceLabel ?? "daily.classify_category",
       response_format: {

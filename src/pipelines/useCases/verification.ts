@@ -511,7 +511,7 @@ export async function verifyEnterpriseUseCase(
     repairInstructions: buildVerificationRepairInstructions(),
     completeOptions: {
       temperature: MODEL_TEMPERATURE,
-      max_tokens: MODEL_MAX_TOKENS,
+      maxOutputTokens: MODEL_MAX_TOKENS,
       traceId: options.traceId,
       traceLabel: options.traceLabel ?? "use_cases.verify_enterprise_use_case",
       response_format: {

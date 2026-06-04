@@ -65,7 +65,7 @@ export function parsePipelineCliArgs(
   };
 
   if (!options.pipelineId && !options.configPath) {
-    throw new Error("Usage: npm run run-pipeline -- <pipelineId> [--config path] [--limit n]");
+    throw new Error("Usage: pnpm run-pipeline <pipelineId> [--config path] [--limit n]");
   }
 
   return options;

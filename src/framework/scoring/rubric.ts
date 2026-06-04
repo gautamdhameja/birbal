@@ -158,7 +158,7 @@ export async function scoreItem<TScore extends Record<string, unknown>>(
       "Repair the rubric score response so it is valid JSON and matches the output schema exactly.",
     completeOptions: {
       temperature: context.temperature ?? DEFAULT_TEMPERATURE,
-      max_tokens: context.maxTokens ?? DEFAULT_MAX_TOKENS,
+      maxOutputTokens: context.maxTokens ?? DEFAULT_MAX_TOKENS,
       traceId: context.traceId,
       traceLabel: context.traceLabel ?? `rubric_score.${rubric.id}`,
     },

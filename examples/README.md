@@ -8,6 +8,6 @@ These examples exercise the reusable harness APIs without depending on Birbal's 
 Run them with:
 
 ```sh
-npm run example:agent
-npm run example:pipeline
+pnpm example:agent
+pnpm example:pipeline
 ```

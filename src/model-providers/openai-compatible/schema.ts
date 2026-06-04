@@ -18,7 +18,7 @@ export const CompleteOptionsSchema = z.strictObject({
     .min(MODEL_PROVIDERS.TEMPERATURE_MIN)
     .max(MODEL_PROVIDERS.TEMPERATURE_MAX)
     .optional(),
-  max_tokens: z.number().int().positive().optional(),
+  maxOutputTokens: z.number().int().positive().optional(),
   response_format: z
     .strictObject({
       type: z.literal(MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT),
@@ -28,13 +28,18 @@ export const CompleteOptionsSchema = z.strictObject({
   traceLabel: z.string().trim().min(1).optional(),
 });
 
-export const OpenAICompatibleChatCompletionRequestSchema = z.strictObject({
-  model: z.string().min(1),
-  messages: ChatMessageSchema.array().min(1),
-  temperature: CompleteOptionsSchema.shape.temperature,
-  max_tokens: CompleteOptionsSchema.shape.max_tokens,
-  response_format: CompleteOptionsSchema.shape.response_format,
-});
+export const OpenAICompatibleChatCompletionRequestSchema = z
+  .strictObject({
+    model: z.string().min(1),
+    messages: ChatMessageSchema.array().min(1),
+    temperature: CompleteOptionsSchema.shape.temperature,
+    max_tokens: CompleteOptionsSchema.shape.maxOutputTokens,
+    max_completion_tokens: CompleteOptionsSchema.shape.maxOutputTokens,
+    response_format: CompleteOptionsSchema.shape.response_format,
+  })
+  .refine((request) => !(request.max_tokens && request.max_completion_tokens), {
+    message: "Only one output token limit parameter can be set.",
+  });
 
 export const OpenAICompatibleChatCompletionResponseSchema = z.object({
   choices: z
@@ -50,8 +55,13 @@ export const OpenAICompatibleChatCompletionResponseSchema = z.object({
 
 export const OpenAICompatibleConfigSchema = z.strictObject({
   providerId: z.string().min(1),
-  serverUrl: z.url().refine(isHttpUrlWithoutCredentials, httpUrlErrorMessage()),
-  model: z.string().min(1),
+  baseUrl: z.url().refine(isHttpUrlWithoutCredentials, httpUrlErrorMessage()),
+  chatCompletionsPath: z.string().trim().startsWith("/"),
+  outputTokenParameter: z.enum([
+    MODEL_PROVIDERS.OUTPUT_TOKEN_PARAMETERS.MAX_TOKENS,
+    MODEL_PROVIDERS.OUTPUT_TOKEN_PARAMETERS.MAX_COMPLETION_TOKENS,
+  ]),
+  model: z.string().min(1, MODEL_PROVIDERS.ERRORS.MODEL_NAME_REQUIRED),
   requestTimeoutMs: z.number().int().positive(),
   apiKey: z.string().min(1).optional(),
 });

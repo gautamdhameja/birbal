@@ -3,15 +3,15 @@
 ## Requirements
 
 - Node.js compatible with the project lockfile.
-- npm.
+- pnpm.
 - A local llama.cpp-compatible chat completions server, or an OpenAI API key.
 - A Brave Search API key if you want to run the research pipelines.
 
 ## Install
 
 ```sh
-npm install
-npm link
+pnpm install
+pnpm link --global
 ```
 
 ## Configure
@@ -20,8 +20,8 @@ Create `.env.local`:
 
 ```sh
 MODEL_PROVIDER=llama_cpp
-LLAMA_SERVER_URL=http://127.0.0.1:8080/v1/chat/completions
-LLAMA_MODEL=local
+MODEL_BASE_URL=http://127.0.0.1:8080
+MODEL_NAME=local
 BRAVE_SEARCH_API_KEY=your_key_here
 ```
 
@@ -31,8 +31,8 @@ To use hosted OpenAI instead:
 
 ```sh
 MODEL_PROVIDER=openai
-OPENAI_API_KEY=your_key_here
-OPENAI_MODEL=gpt-...
+MODEL_API_KEY=your_key_here
+MODEL_NAME=gpt-...
 BRAVE_SEARCH_API_KEY=your_key_here
 ```
 
@@ -61,19 +61,19 @@ Dry-run a pipeline config without making network or model calls:
 birbal pipeline use_cases --dry-run
 ```
 
-The npm scripts remain available as repo-local wrappers around the same CLI.
+The pnpm scripts remain available as repo-local wrappers around the same CLI.
 
 For the full command reference, see [CLI](cli.md).
 
 ## Run Framework Examples
 
 ```sh
-npm run example:agent
-npm run example:pipeline
+pnpm example:agent
+pnpm example:pipeline
 ```
 
 ## Verify The Project
 
 ```sh
-npm run check
+pnpm check
 ```

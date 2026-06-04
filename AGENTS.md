@@ -11,5 +11,5 @@
 - Do not move incidental language syntax or tiny local parsing tokens into global constants unless they are part of a shared contract or reused behavior. Over-centralization is still a design smell.
 - When adding stateful singletons, caches, queues, or database connections, review lifecycle behavior explicitly. Tests should cover reinitialization, path/config changes, and repeated calls, not only the first successful use.
 - Keep dependency classification clean. Runtime packages belong in `dependencies`; type packages, test tools, and build-only packages belong in `devDependencies`.
-- Before installing or upgrading any npm package, check for known supply-chain attacks, malicious releases, typosquats, active advisories, and current audit/signature status. Choose the safest acceptable version, even if that means pinning an older version instead of the newest release.
+- Before installing or upgrading any registry package, check for known supply-chain attacks, malicious releases, typosquats, active advisories, and current audit/signature status. Choose the safest acceptable version, even if that means pinning an older version instead of the newest release.
 - During cleanup, look for both duplication and unnecessary abstraction. Removing duplication should not make modules broader, less cohesive, or harder to reason about.

@@ -3,7 +3,7 @@
 Run the full project check:
 
 ```sh
-npm run check
+pnpm check
 ```
 
 This runs:
@@ -16,10 +16,10 @@ This runs:
 ## Useful Targeted Commands
 
 ```sh
-npm run format:check
-npm run lint
-npm run typecheck
-npm test
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
 ```
 
 ## What Tests Cover

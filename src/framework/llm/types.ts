@@ -14,7 +14,7 @@ export type ModelResponseFormat = {
 
 export type ModelCompleteOptions = {
   temperature?: number;
-  max_tokens?: number;
+  maxOutputTokens?: number;
   response_format?: ModelResponseFormat;
   traceId?: string;
   traceLabel?: string;

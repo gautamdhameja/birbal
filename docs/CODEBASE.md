@@ -26,7 +26,7 @@ The package binary is `bin/birbal.js`, which launches the TypeScript CLI through
 
 ### Agent CLI
 
-`src/main.ts` remains the agent-only entry point for compatibility, while `npm run dev` now routes through `src/cli.ts agent`.
+`src/main.ts` remains the agent-only entry point for compatibility, while `pnpm dev` now routes through `src/cli.ts agent`.
 
 It:
 
@@ -45,9 +45,9 @@ The default task is `Say hello through the final response protocol.`
 - `birbal pipeline <pipelineId>`
 - `birbal daily`
 - `birbal use-cases`
-- `npm run run-pipeline -- <pipelineId>`
-- `npm run daily`
-- `npm run use-cases`
+- `pnpm run-pipeline <pipelineId>`
+- `pnpm daily`
+- `pnpm use-cases`
 
 It supports:
 
@@ -62,16 +62,16 @@ Pipeline IDs are resolved from `config/pipelines/<id>.json`, with underscore-to-
 
 `package.json` defines:
 
-- `npm run cli`: run the top-level CLI via `tsx src/cli.ts`.
-- `npm run dev`: wrapper for `birbal agent`.
-- `npm run run-pipeline`: wrapper for `birbal pipeline`.
-- `npm run daily`: wrapper for `birbal daily`.
-- `npm run use-cases`: wrapper for `birbal use-cases`.
-- `npm run format` / `format:check`: Prettier write/check.
-- `npm run lint` / `lint:fix`: ESLint.
-- `npm run typecheck`: `tsc --noEmit`.
-- `npm test`: Node test runner through `tsx --test tests/**/*.test.ts` with silent logs.
-- `npm run check`: format check, lint, typecheck, then tests.
+- `pnpm cli`: run the top-level CLI via `tsx src/cli.ts`.
+- `pnpm dev`: wrapper for `birbal agent`.
+- `pnpm run-pipeline`: wrapper for `birbal pipeline`.
+- `pnpm daily`: wrapper for `birbal daily`.
+- `pnpm use-cases`: wrapper for `birbal use-cases`.
+- `pnpm format` / `format:check`: Prettier write/check.
+- `pnpm lint` / `lint:fix`: ESLint.
+- `pnpm typecheck`: `tsc --noEmit`.
+- `pnpm test`: Node test runner through `tsx --test tests/**/*.test.ts` with silent logs.
+- `pnpm check`: format check, lint, typecheck, then tests.
 
 TypeScript is configured for strict ESM (`"type": "module"`, `moduleResolution: "NodeNext"`, strict mode, and `noUncheckedIndexedAccess`).
 
@@ -81,7 +81,7 @@ Top-level files:
 
 - `README.md`: short project description.
 - `AGENTS.md`: engineering rules for contributors and agents.
-- `package.json` / `package-lock.json`: npm metadata and pinned dependency graph.
+- `package.json` / `pnpm-lock.yaml`: pnpm metadata and pinned dependency graph.
 - `tsconfig.json`: strict TypeScript configuration.
 - `eslint.config.js`: ESLint rules for source and tests.
 - `prompts/system-agent.txt`: base prompt for the JSON-protocol agent.
@@ -134,13 +134,10 @@ Birbal uses two kinds of configuration.
 Environment variables configure runtime clients:
 
 - `MODEL_PROVIDER`: active model provider, defaulting to `llama_cpp`; supported values are `llama_cpp` and `openai`.
-- `LLAMA_SERVER_URL`: llama.cpp-compatible chat completions endpoint. Must be HTTP(S), valid, and without credentials.
-- `LLAMA_MODEL`: model name sent in chat completion requests.
-- `LLAMA_REQUEST_TIMEOUT_MS`: optional completion timeout, defaulting to `120000`.
-- `OPENAI_API_KEY`: required when `MODEL_PROVIDER=openai`.
-- `OPENAI_MODEL`: hosted OpenAI model name when `MODEL_PROVIDER=openai`.
-- `OPENAI_SERVER_URL`: optional hosted OpenAI chat completions endpoint override, defaulting to `https://api.openai.com/v1/chat/completions`.
-- `OPENAI_REQUEST_TIMEOUT_MS`: optional hosted OpenAI completion timeout, defaulting to `120000`.
+- `MODEL_BASE_URL`: provider root URL. Defaults to `http://127.0.0.1:8080` for llama.cpp and `https://api.openai.com` for OpenAI.
+- `MODEL_NAME`: model name sent in chat completion requests.
+- `MODEL_API_KEY`: required when `MODEL_PROVIDER=openai`; omitted for local llama.cpp.
+- `MODEL_REQUEST_TIMEOUT_MS`: optional completion timeout, defaulting to `120000`.
 - `BRAVE_SEARCH_API_KEY`: required for Brave Search.
 - `BRAVE_SEARCH_URL`: optional override for the Brave web search API, restricted to `api.search.brave.com`.
 - `BRAVE_SEARCH_MAX_CALLS_PER_PROCESS`: optional process-level Brave Search call budget, defaulting to `50`.
@@ -171,16 +168,18 @@ type ModelClient = {
 
 This keeps the harness independent of a specific model provider. Runtime provider selection lives in `src/model-providers/default.ts`. The app supports `MODEL_PROVIDER=llama_cpp` by default and `MODEL_PROVIDER=openai` for hosted OpenAI.
 
-The shared OpenAI-compatible transport lives in `src/model-providers/openai-compatible/`. The hosted OpenAI adapter adds bearer-token auth through `OPENAI_API_KEY`. The llama.cpp adapter in `src/llama/` delegates to the same transport without auth.
+The shared OpenAI-compatible transport lives in `src/model-providers/openai-compatible/`. It composes the endpoint from `MODEL_BASE_URL` plus the common `/v1/chat/completions` path. The hosted OpenAI adapter adds bearer-token auth through `MODEL_API_KEY`. The llama.cpp adapter in `src/llama/` delegates to the same transport without auth.
 
-Model adapters build an OpenAI-style chat completion request:
+Model adapters build an OpenAI-style chat completion request. The framework-level option is
+`maxOutputTokens`; the transport serializes it as `max_tokens` for llama.cpp-compatible local
+servers and as `max_completion_tokens` for hosted OpenAI Chat Completions.
 
 ```json
 {
   "model": "...",
   "messages": [{ "role": "system", "content": "..." }],
   "temperature": 0,
-  "max_tokens": 1000,
+  "max_completion_tokens": 1000,
   "response_format": { "type": "json_object" }
 }
 ```
@@ -713,11 +712,11 @@ Current test areas include:
 Common quality commands:
 
 ```sh
-npm run format:check
-npm run lint
-npm run typecheck
-npm test
-npm run check
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm check
 ```
 
 Some tests use dependency injection to avoid live network or live model calls. Runtime pipeline execution requires a configured model provider for LLM stages and the relevant API env vars for external search.

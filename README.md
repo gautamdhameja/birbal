@@ -67,23 +67,23 @@ Pipeline behavior is data-driven by `config/pipelines/*.json`. Generic framework
 ## Main Commands
 
 ```sh
-npm install
-npm link
+pnpm install
+pnpm link --global
 birbal agent "Use a tool to get the current time and tell me what it is."
 birbal daily
 birbal use-cases
 birbal use cases
-npm run example:agent
-npm run example:pipeline
-npm run check
+pnpm example:agent
+pnpm example:pipeline
+pnpm check
 ```
 
-The npm scripts still work for repo-local development:
+The pnpm scripts still work for repo-local development:
 
 ```sh
-npm run dev -- "Use a tool to get the current time and tell me what it is."
-npm run daily
-npm run use-cases
+pnpm dev -- "Use a tool to get the current time and tell me what it is."
+pnpm daily
+pnpm use-cases
 ```
 
 See [docs/cli.md](docs/cli.md) for the complete command reference.
@@ -101,8 +101,8 @@ Create `.env.local` for local runtime settings:
 
 ```sh
 MODEL_PROVIDER=llama_cpp
-LLAMA_SERVER_URL=http://localhost:8080/v1/chat/completions
-LLAMA_MODEL=local-model
+MODEL_BASE_URL=http://localhost:8080
+MODEL_NAME=local-model
 BRAVE_SEARCH_API_KEY=...
 ```
 
@@ -110,8 +110,8 @@ To use the hosted OpenAI API instead of llama.cpp:
 
 ```sh
 MODEL_PROVIDER=openai
-OPENAI_API_KEY=...
-OPENAI_MODEL=gpt-...
+MODEL_API_KEY=...
+MODEL_NAME=gpt-...
 ```
 
 The important JSON config files are:

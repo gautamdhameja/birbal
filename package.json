@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "A local TypeScript AI research scout with a JSON agent harness and configurable enterprise AI pipelines.",
   "type": "module",
+  "packageManager": "pnpm@10.15.0",
   "bin": {
     "birbal": "./bin/birbal.js"
   },
@@ -22,7 +23,7 @@
     "lint:fix": "eslint . --fix",
     "test": "LOG_LEVEL=silent tsx --test tests/**/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm test"
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test"
   },
   "keywords": [
     "agent",
@@ -59,5 +60,11 @@
     "prettier": "^3.8.3",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.4"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild"
+    ]
   }
 }

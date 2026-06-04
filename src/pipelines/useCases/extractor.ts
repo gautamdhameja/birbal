@@ -284,7 +284,7 @@ export async function extractEnterpriseUseCases(
     repairInstructions: buildRepairInstructions(),
     completeOptions: {
       temperature: MODEL_TEMPERATURE,
-      max_tokens: MODEL_MAX_TOKENS,
+      maxOutputTokens: MODEL_MAX_TOKENS,
       traceId: options.traceId,
       traceLabel: options.traceLabel ?? "use_cases.extract_enterprise_use_cases",
       response_format: {

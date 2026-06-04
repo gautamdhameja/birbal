@@ -5,8 +5,8 @@ Birbal ships a top-level command named `birbal`.
 For local development, install dependencies and link the package:
 
 ```sh
-npm install
-npm link
+pnpm install
+pnpm link --global
 ```
 
 The package binary is `bin/birbal.js`. It launches the TypeScript CLI in `src/cli.ts` through the local `tsx` runtime, so the command works without a separate build step.
@@ -65,15 +65,15 @@ birbal agent --trace "Use a tool to get the current time."
 birbal use-cases --trace
 ```
 
-## NPM Script Wrappers
+## PNPM Script Wrappers
 
-The npm scripts remain available for repo-local workflows, but they call the same CLI:
+The pnpm scripts remain available for repo-local workflows, but they call the same CLI:
 
 ```sh
-npm run dev -- "Use a tool to get the current time."
-npm run daily
-npm run use-cases
-npm run run-pipeline -- daily
+pnpm dev -- "Use a tool to get the current time."
+pnpm daily
+pnpm use-cases
+pnpm run-pipeline daily
 ```
 
 Prefer `birbal ...` when using the project interactively.

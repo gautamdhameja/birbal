@@ -299,7 +299,7 @@ export async function scoreItem(
     repairInstructions: SCORING.REPAIR_PROMPT,
     completeOptions: {
       temperature: SCORING.MODEL_TEMPERATURE,
-      max_tokens: SCORING.MAX_TOKENS,
+      maxOutputTokens: SCORING.MAX_TOKENS,
       ...completeTraceOptions,
       traceLabel: traceOptions.traceLabel ?? "daily.score_item",
       response_format: {
@@ -345,7 +345,7 @@ export async function scoreItems(
     repairInstructions: SCORING.REPAIR_PROMPT,
     completeOptions: {
       temperature: SCORING.MODEL_TEMPERATURE,
-      max_tokens: SCORING.BATCH_MAX_TOKENS,
+      maxOutputTokens: SCORING.BATCH_MAX_TOKENS,
       ...completeTraceOptions,
       traceLabel: traceOptions.traceLabel ?? "daily.score_items",
       response_format: {

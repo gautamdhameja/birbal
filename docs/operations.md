@@ -14,8 +14,8 @@ For hosted OpenAI, confirm these variables are set:
 
 ```sh
 MODEL_PROVIDER=openai
-OPENAI_API_KEY=...
-OPENAI_MODEL=gpt-...
+MODEL_API_KEY=...
+MODEL_NAME=gpt-...
 ```
 
 ## Trace Logs
@@ -54,7 +54,7 @@ Symptom:
 Failed to reach model provider at http://127.0.0.1:8080/v1/chat/completions
 ```
 
-Fix: start the local llama.cpp server or update `LLAMA_SERVER_URL`. If using OpenAI, check `OPENAI_API_KEY`, `OPENAI_MODEL`, and network access.
+Fix: start the local llama.cpp server or update `MODEL_BASE_URL`. If using OpenAI, check `MODEL_API_KEY`, `MODEL_NAME`, and network access.
 
 ### Page fetch blocked
 

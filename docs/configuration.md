@@ -8,9 +8,9 @@ Common local variables:
 
 ```sh
 MODEL_PROVIDER=llama_cpp
-LLAMA_SERVER_URL=http://127.0.0.1:8080/v1/chat/completions
-LLAMA_MODEL=local
-LLAMA_REQUEST_TIMEOUT_MS=120000
+MODEL_BASE_URL=http://127.0.0.1:8080
+MODEL_NAME=local
+MODEL_REQUEST_TIMEOUT_MS=120000
 BRAVE_SEARCH_API_KEY=...
 LOG_LEVEL=info
 LOG_PRETTY=true
@@ -22,9 +22,10 @@ Use hosted OpenAI instead of the local model with:
 
 ```sh
 MODEL_PROVIDER=openai
-OPENAI_API_KEY=...
-OPENAI_MODEL=gpt-...
-OPENAI_REQUEST_TIMEOUT_MS=120000
+MODEL_BASE_URL=https://api.openai.com
+MODEL_API_KEY=...
+MODEL_NAME=gpt-...
+MODEL_REQUEST_TIMEOUT_MS=120000
 ```
 
 ## Source Registry
