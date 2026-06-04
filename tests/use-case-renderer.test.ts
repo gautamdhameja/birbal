@@ -13,9 +13,6 @@ function useCase(overrides: Partial<EnterpriseUseCase> = {}): EnterpriseUseCase 
     companyName: "Acme",
     industry: "Manufacturing",
     businessFunction: "Customer support",
-    workflowAffected: "Support ticket triage",
-    workflowBefore: "Agents manually read and route incoming tickets.",
-    workflowAfter: "AI drafts responses and routes escalations.",
     aiSystemOrCapability: "Customer support AI assistant",
     humanRoleChange: "Agents review drafts and handle escalations.",
     systemIntegrations: "CRM and support desk",
@@ -41,17 +38,14 @@ describe("enterprise use case renderer", () => {
     assert.match(markdown, /^# Enterprise AI Use Cases - 2026-05-25/);
     assert.match(
       markdown,
-      /- Use case: Acme is using Customer support AI assistant for Support ticket triage in Customer support\. Named production deployment with measurable support outcome\./,
-    );
-    assert.match(
-      markdown,
-      /- Workflow changed: Support ticket triage\. Previously: Agents manually read and route incoming tickets\. Now: AI drafts responses and routes escalations\./,
+      /- Summary: Named production deployment with measurable support outcome\./,
     );
     assert.match(markdown, /- Business impact: 20% faster response time/);
     assert.match(markdown, /- Source: \[Example\]\(<https:\/\/example\.com\/acme-support>\)/);
     assert.doesNotMatch(markdown, /## Summary Table/);
     assert.doesNotMatch(markdown, /- Human role change:/);
     assert.doesNotMatch(markdown, /- Enterprise lesson:/);
+    assert.doesNotMatch(markdown, /- Workflow changed:/);
   });
 
   it("escapes Markdown control characters from source content", () => {
@@ -59,7 +53,6 @@ describe("enterprise use case renderer", () => {
       [
         useCase({
           companyName: "Acme [spoof](https://evil.example)",
-          workflowAffected: "Support #1",
           roiMetric: "unknown",
           businessOutcome: "Reduced *manual* work.",
           sourceName: "Example | Source",
@@ -69,7 +62,6 @@ describe("enterprise use case renderer", () => {
     );
 
     assert.ok(markdown.includes("Acme \\[spoof\\]\\(https://evil.example\\)"));
-    assert.ok(markdown.includes("Support \\#1"));
     assert.ok(markdown.includes("Reduced \\*manual\\* work."));
     assert.ok(markdown.includes("Example \\| Source"));
   });
@@ -91,43 +83,22 @@ describe("enterprise use case renderer", () => {
       [
         useCase({
           businessFunction: "unknown",
-          workflowBefore: "unknown",
-          workflowAfter: "not stated",
           roiMetric: "unknown",
           businessOutcome: "N/A",
           systemIntegrations: "unknown",
           governanceOrRiskNotes: "unknown",
+          evidenceSummary: "unknown",
         }),
       ],
       "2026-05-25",
     );
 
-    assert.match(
-      markdown,
-      /- Use case: Acme is using Customer support AI assistant for Support ticket triage\. Named production deployment with measurable support outcome\./,
-    );
-    assert.match(markdown, /- Workflow changed: Support ticket triage/);
+    assert.match(markdown, /- Summary: Acme is using Customer support AI assistant\./);
     assert.match(markdown, /- Business impact: $/m);
     assert.doesNotMatch(markdown, /unknown/);
     assert.doesNotMatch(markdown, /N\/A/);
     assert.doesNotMatch(markdown, /- Enterprise lesson:/);
-  });
-
-  it("does not include missing before or after workflow fragments", () => {
-    const markdown = renderEnterpriseUseCaseDigest(
-      [
-        useCase({
-          workflowBefore: "unknown",
-        }),
-      ],
-      "2026-05-25",
-    );
-
-    assert.match(
-      markdown,
-      /- Workflow changed: Support ticket triage\. Now: AI drafts responses and routes escalations\./,
-    );
-    assert.doesNotMatch(markdown, /Previously:/);
+    assert.doesNotMatch(markdown, /- Workflow changed:/);
   });
 
   it("rejects invalid digest dates", () => {

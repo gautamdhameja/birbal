@@ -56,9 +56,9 @@
     "verificationBatchSize": 5,
     "verificationCandidateMultiplier": 4,
     "maxVerificationLinks": 0,
-    "verificationMaxChars": 8000,
+    "verificationMaxChars": 12000,
     "verificationPromptLinkedMaxChars": 1500,
-    "verificationPromptSourceMaxChars": 5000,
+    "verificationPromptSourceMaxChars": 9000,
     "minVerificationConfidenceScore": 3
   },
   "settings": {

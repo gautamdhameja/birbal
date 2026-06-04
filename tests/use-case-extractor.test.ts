@@ -33,9 +33,6 @@ function extractedUseCase(overrides: Record<string, unknown> = {}) {
     companyName: "Acme",
     industry: "Manufacturing",
     businessFunction: "Customer support",
-    workflowAffected: "Support ticket triage",
-    workflowBefore: "Agents manually read and route incoming tickets.",
-    workflowAfter: "AI drafts responses and routes escalations.",
     aiSystemOrCapability: "Customer support AI assistant",
     humanRoleChange: "Agents review drafts and handle escalations.",
     systemIntegrations: "CRM and support desk",
@@ -89,9 +86,12 @@ describe("enterprise use case extractor", () => {
 
     assert.match(prompt, /leave unsupported fields as empty strings/i);
     assert.match(prompt, /Blank is better than generic/i);
-    assert.match(prompt, /evidenceSummary must give enough context/i);
-    assert.match(prompt, /workflowBefore must explain the old/i);
-    assert.match(prompt, /workflowAfter must explain what changed/i);
+    assert.match(prompt, /evidenceSummary is the final newsletter summary/i);
+    assert.match(prompt, /Treat marketing language as neutral/i);
+    assert.match(prompt, /confidenceScore 5: named organization/i);
+    assert.match(prompt, /real organization or clearly deployed internal enterprise team/i);
+    assert.doesNotMatch(prompt, /workflowBefore/i);
+    assert.doesNotMatch(prompt, /workflowAfter/i);
     assert.doesNotMatch(prompt, /Use "unknown" for unavailable fields/);
   });
 
@@ -112,9 +112,6 @@ describe("enterprise use case extractor", () => {
                 companyName: "Any organization using contact centers",
                 industry: "Customer service",
                 businessFunction: "Contact center operations",
-                workflowAffected: "AI agent performance evaluation and scaling",
-                workflowBefore: "Teams manually define metrics for agents.",
-                workflowAfter: "Teams use a measurement framework to evaluate agents.",
                 aiSystemOrCapability: "AI agent performance measurement framework",
                 deploymentStage: "Building, deploying, and scaling AI agents in production",
                 roiMetric: "Improved customer satisfaction",

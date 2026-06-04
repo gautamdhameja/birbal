@@ -225,7 +225,6 @@ function selectWithoutVerification(
       verification: {
         verified: true,
         confidenceScore: useCase.confidenceScore,
-        unsupportedFields: [],
         evidenceLinks: [],
         notes: "Verification disabled by pipeline config.",
       },

@@ -198,7 +198,7 @@ describe("enterprise use case search", () => {
     assert.ok(customerStoryScore > frameworkScore);
   });
 
-  it("does not match low-relevance terms inside unrelated words", () => {
+  it("keeps positive relevance scoring independent of incidental wording", () => {
     const score = useCaseSearchRelevanceScore({
       id: "use-case:https://example.com/laptop-workflow",
       query: "enterprise AI workflow",

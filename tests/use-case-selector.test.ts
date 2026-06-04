@@ -16,9 +16,6 @@ function useCase(overrides: Partial<EnterpriseUseCase> = {}): EnterpriseUseCase 
     companyName: "Acme",
     industry: "Manufacturing",
     businessFunction: "Customer support",
-    workflowAffected: "Support ticket triage",
-    workflowBefore: "Agents manually read and route incoming tickets.",
-    workflowAfter: "AI drafts responses and routes escalations.",
     aiSystemOrCapability: "Customer support AI assistant",
     humanRoleChange: "Agents review drafts and handle escalations.",
     systemIntegrations: "CRM and support desk",
@@ -55,7 +52,6 @@ describe("enterprise use case selector", () => {
       useCase({
         id: "generic-measurement-framework",
         companyName: "Any organization using contact centers",
-        workflowAffected: "AI agent performance evaluation and scaling",
         aiSystemOrCapability: "AI agent performance measurement framework",
         evidenceSummary: "The article describes a framework, not a named deployment.",
         confidenceScore: 5,
@@ -75,8 +71,6 @@ describe("enterprise use case selector", () => {
         useCase({
           id: "lower-confidence-production",
           deploymentStage: "pilot",
-          workflowBefore: "unknown",
-          workflowAfter: "unknown",
           roiMetric: "unknown",
           businessOutcome: "unknown",
           sourceName: "Unknown Blog",
@@ -105,7 +99,6 @@ describe("enterprise use case selector", () => {
         useCase({
           id: "manufacturing-2",
           companyName: "Beta",
-          workflowAffected: "Quality inspection",
           sourceName: "Microsoft",
         }),
         useCase({
@@ -113,7 +106,6 @@ describe("enterprise use case selector", () => {
           companyName: "Gamma",
           industry: "Financial services",
           businessFunction: "Finance",
-          workflowAffected: "Finance close",
           aiSystemOrCapability: "Finance AI assistant",
           sourceName: "Microsoft",
         }),
@@ -122,7 +114,6 @@ describe("enterprise use case selector", () => {
           companyName: "Delta",
           industry: "Healthcare",
           businessFunction: "Clinical operations",
-          workflowAffected: "Clinical documentation",
           aiSystemOrCapability: "Clinical documentation assistant",
           sourceName: "AWS",
           sourceUrl: "https://aws.amazon.com/case-studies/delta",
@@ -141,12 +132,12 @@ describe("enterprise use case selector", () => {
     );
   });
 
-  it("avoids selecting multiple very similar use cases", () => {
+  it("does not drop similar-looking model outputs before verification", () => {
     const selected = selectEnterpriseUseCases([
       useCase({ id: "first", companyName: "Acme" }),
       useCase({
         id: "similar",
-        companyName: "Beta",
+        companyName: "Acme",
         sourceUrl: "https://aws.amazon.com/case-studies/beta",
         sourceName: "AWS",
       }),
@@ -154,7 +145,6 @@ describe("enterprise use case selector", () => {
         id: "different",
         companyName: "Gamma",
         businessFunction: "Procurement",
-        workflowAffected: "Supplier onboarding",
         aiSystemOrCapability: "Procurement agent",
         sourceUrl: "https://openai.com/index/gamma",
         sourceName: "OpenAI",
@@ -164,7 +154,7 @@ describe("enterprise use case selector", () => {
 
     assert.deepEqual(
       selected.map((item) => item.id),
-      ["different", "first"],
+      ["different", "first", "similar"],
     );
   });
 
@@ -176,7 +166,6 @@ describe("enterprise use case selector", () => {
           id: "second",
           companyName: "Beta",
           businessFunction: "Finance",
-          workflowAffected: "Finance close",
           aiSystemOrCapability: "Finance AI assistant",
           sourceUrl: "https://aws.amazon.com/case-studies/beta",
           sourceName: "AWS",
@@ -198,7 +187,6 @@ describe("enterprise use case selector", () => {
         useCase({
           id: "fresh-use-case",
           companyName: "Beta",
-          workflowAffected: "Claims intake",
           aiSystemOrCapability: "Claims assistant",
           publishDate: "2025-06-04",
           sourceUrl: "https://aws.amazon.com/case-studies/beta",
@@ -223,7 +211,6 @@ describe("enterprise use case selector", () => {
       verification: {
         verified: true,
         confidenceScore: 4,
-        unsupportedFields: [],
         evidenceLinks: [],
         notes: "Verified against source evidence.",
       },

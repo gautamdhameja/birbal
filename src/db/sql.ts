@@ -77,9 +77,6 @@ export const DATABASE_SQL = {
         company_name TEXT NOT NULL,
         industry TEXT NOT NULL,
         business_function TEXT NOT NULL,
-        workflow_affected TEXT NOT NULL,
-        workflow_before TEXT NOT NULL,
-        workflow_after TEXT NOT NULL,
         ai_system_or_capability TEXT NOT NULL,
         human_role_change TEXT NOT NULL,
         system_integrations TEXT NOT NULL,
@@ -97,7 +94,7 @@ export const DATABASE_SQL = {
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         raw_json TEXT NOT NULL,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(source_url, company_name, workflow_affected)
+        UNIQUE(source_url, company_name, ai_system_or_capability)
       );
 
       CREATE INDEX IF NOT EXISTS idx_use_cases_created_at
@@ -474,9 +471,6 @@ export const DATABASE_SQL = {
         company_name,
         industry,
         business_function,
-        workflow_affected,
-        workflow_before,
-        workflow_after,
         ai_system_or_capability,
         human_role_change,
         system_integrations,
@@ -499,9 +493,6 @@ export const DATABASE_SQL = {
         @companyName,
         @industry,
         @businessFunction,
-        @workflowAffected,
-        @workflowBefore,
-        @workflowAfter,
         @aiSystemOrCapability,
         @humanRoleChange,
         @systemIntegrations,
@@ -518,13 +509,11 @@ export const DATABASE_SQL = {
         @confidenceScore,
         @rawJson
       )
-      ON CONFLICT(source_url, company_name, workflow_affected) DO UPDATE SET
+      ON CONFLICT(source_url, company_name, ai_system_or_capability) DO UPDATE SET
         id = excluded.id,
         run_id = excluded.run_id,
         industry = excluded.industry,
         business_function = excluded.business_function,
-        workflow_before = excluded.workflow_before,
-        workflow_after = excluded.workflow_after,
         ai_system_or_capability = excluded.ai_system_or_capability,
         human_role_change = excluded.human_role_change,
         system_integrations = excluded.system_integrations,
@@ -548,9 +537,6 @@ export const DATABASE_SQL = {
         company_name,
         industry,
         business_function,
-        workflow_affected,
-        workflow_before,
-        workflow_after,
         ai_system_or_capability,
         human_role_change,
         system_integrations,
@@ -568,7 +554,7 @@ export const DATABASE_SQL = {
         created_at,
         raw_json
       FROM use_cases
-      ORDER BY created_at DESC, company_name ASC, workflow_affected ASC
+      ORDER BY created_at DESC, company_name ASC, ai_system_or_capability ASC
       LIMIT ?
     `,
   LIST_USE_CASES_BY_RUN: `
@@ -578,9 +564,6 @@ export const DATABASE_SQL = {
         company_name,
         industry,
         business_function,
-        workflow_affected,
-        workflow_before,
-        workflow_after,
         ai_system_or_capability,
         human_role_change,
         system_integrations,

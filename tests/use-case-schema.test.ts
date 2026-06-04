@@ -4,7 +4,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { EnterpriseUseCaseSchema } from "../src/pipelines/useCases/schema.js";
+import {
+  EnterpriseUseCaseSchema,
+  isEligibleEnterpriseUseCase,
+} from "../src/pipelines/useCases/schema.js";
 
 function useCase(overrides: Record<string, unknown> = {}) {
   return {
@@ -12,9 +15,6 @@ function useCase(overrides: Record<string, unknown> = {}) {
     companyName: "Acme",
     industry: "Manufacturing",
     businessFunction: "Customer support",
-    workflowAffected: "Support ticket triage",
-    workflowBefore: "Agents manually read and route incoming tickets.",
-    workflowAfter: "AI drafts responses and routes escalations.",
     aiSystemOrCapability: "Customer support AI assistant",
     humanRoleChange: "Agents review drafts and handle escalations.",
     systemIntegrations: "CRM and support desk",
@@ -90,7 +90,7 @@ describe("enterprise use case schema", () => {
     );
   });
 
-  it("normalizes unavailable text fields to unknown", () => {
+  it("preserves unavailable text fields as blanks", () => {
     const parsed = EnterpriseUseCaseSchema.parse(
       useCase({
         roiMetric: null,
@@ -98,7 +98,29 @@ describe("enterprise use case schema", () => {
       }),
     );
 
-    assert.equal(parsed.roiMetric, "unknown");
-    assert.equal(parsed.governanceOrRiskNotes, "unknown");
+    assert.equal(parsed.roiMetric, "");
+    assert.equal(parsed.governanceOrRiskNotes, "");
+  });
+
+  it("does not treat filler missing values as concrete required evidence", () => {
+    assert.equal(
+      isEligibleEnterpriseUseCase(useCase({ aiSystemOrCapability: "not available" })),
+      false,
+    );
+  });
+
+  it("strips legacy workflow fields from model output", () => {
+    const parsed = EnterpriseUseCaseSchema.parse(
+      useCase({
+        workflowAffected: "Support ticket triage",
+        workflowBefore: "Agents manually read and route incoming tickets.",
+        workflowAfter: "AI drafts responses and routes escalations.",
+      }),
+    );
+
+    assert.equal("workflowAffected" in parsed, false);
+    assert.equal("workflowBefore" in parsed, false);
+    assert.equal("workflowAfter" in parsed, false);
+    assert.equal(isEligibleEnterpriseUseCase(parsed), true);
   });
 });

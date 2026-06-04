@@ -499,8 +499,9 @@ It:
 
 - Converts a daily-style `CandidateItem` plus fetched article text into a structured extraction prompt.
 - Asks for a top-level `{ "useCases": [...] }` object.
-- Requires every use case to include company, industry, business function, before/after workflow, AI capability, human role change, integrations, deployment stage, ROI metric, business outcome, governance/risk notes, implementation details, source fields, evidence summary, and `confidenceScore`.
-- Allows `unknown` for unavailable source facts but tells the model not to invent evidence.
+- Requires every use case to include company, industry, business function, AI capability, deployment/outcome fields, source fields, evidence summary, and `confidenceScore`.
+- Asks the model to judge whether the article contains a real enterprise AI use case, score the strength of the evidence, and write a self-contained newsletter-ready summary.
+- Preserves blank fields when details are unavailable and tells the model not to invent evidence or filler values.
 - Accepts multiple use cases per article, capped to the strongest few so aggregator pages do not overwhelm the run.
 - Normalizes common model shape mistakes such as arrays at the top level, `use_cases`, single objects, and `confidence`/`confidence_score`.
 - Overwrites model-supplied `sourceUrl` with the trusted candidate URL before downstream selection, storage, or rendering.
@@ -512,27 +513,28 @@ Verification in `src/pipelines/useCases/verification.ts`:
 
 - Runs after initial use-case selection and before storage/rendering.
 - Re-fetches the selected source URL without using web search.
-- Extracts relevant source-page links and follows a small bounded number of supporting links.
+- Extracts a small bounded set of same-site source-page links and follows them as supporting evidence.
 - Asks the configured model provider to verify the selected use case only against the source page and linked evidence.
-- Filters out selected items when the source-grounded evidence does not support a concrete enterprise AI workflow.
+- Makes a semantic source-grounded judgment rather than exact wording or field-name matching.
+- Filters out selected items when the evidence does not support a real enterprise AI use case.
 
 Selection in `src/pipelines/useCases/selector.ts`:
 
 - Validates every use case through the schema.
 - Filters below `minConfidenceScore`.
-- Ranks by confidence score, then company/workflow label.
-- Enforces caps for max use cases, max per industry, max per source, and duplicate similarity keys based on business function, workflow affected, and AI capability.
+- Ranks by confidence score, then company and AI capability.
+- Enforces caps for max use cases, max per industry, and max per source. It does not drop similar-looking model outputs before verification.
 
 Rendering in `src/pipelines/useCases/renderer.ts`:
 
 - Renders a dated enterprise AI use-case digest.
 - Uses a compact newsletter-style format for every selected use case.
-- Includes only use case, workflow changed, business impact, and source.
+- Includes only summary, business impact, and source.
 - Escapes Markdown text and renders source links when URLs are valid HTTP(S).
 
 Persistence in `src/db/useCases.ts`:
 
-- Generates stable IDs from a SHA-256 hash of `sourceUrl`, `companyName`, and `workflowAffected`.
+- Generates stable IDs from a SHA-256 hash of `sourceUrl`, `companyName`, and `aiSystemOrCapability`.
 - Upserts into the `use_cases` table.
 - Stores `runId`, normalized fields, confidence score, and raw JSON.
 - Lists recent use cases or use cases by run.

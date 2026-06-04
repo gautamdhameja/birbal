@@ -24,9 +24,6 @@ type UseCaseRow = {
   company_name: string;
   industry: string;
   business_function: string;
-  workflow_affected: string;
-  workflow_before: string;
-  workflow_after: string;
   ai_system_or_capability: string;
   human_role_change: string;
   system_integrations: string;
@@ -60,9 +57,6 @@ function useCaseFromRow(row: UseCaseRow): StoredEnterpriseUseCase {
     companyName: row.company_name,
     industry: row.industry,
     businessFunction: row.business_function,
-    workflowAffected: row.workflow_affected,
-    workflowBefore: row.workflow_before,
-    workflowAfter: row.workflow_after,
     aiSystemOrCapability: row.ai_system_or_capability,
     humanRoleChange: row.human_role_change,
     systemIntegrations: row.system_integrations,
@@ -86,7 +80,7 @@ function persistentUseCaseId(useCase: EnterpriseUseCase): string {
   const dedupeKey = [
     useCase.sourceUrl.trim().toLowerCase(),
     useCase.companyName.trim().toLowerCase(),
-    useCase.workflowAffected.trim().toLowerCase(),
+    useCase.aiSystemOrCapability.trim().toLowerCase(),
   ].join("|");
   const hash = createHash("sha256").update(dedupeKey).digest("hex").slice(0, 16);
 
@@ -105,9 +99,6 @@ export function upsertUseCase(useCase: EnterpriseUseCaseStorageInput): void {
       companyName: parsedUseCase.companyName,
       industry: parsedUseCase.industry,
       businessFunction: parsedUseCase.businessFunction,
-      workflowAffected: parsedUseCase.workflowAffected,
-      workflowBefore: parsedUseCase.workflowBefore,
-      workflowAfter: parsedUseCase.workflowAfter,
       aiSystemOrCapability: parsedUseCase.aiSystemOrCapability,
       humanRoleChange: parsedUseCase.humanRoleChange,
       systemIntegrations: parsedUseCase.systemIntegrations,

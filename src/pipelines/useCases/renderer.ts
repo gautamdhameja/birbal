@@ -77,46 +77,23 @@ function renderDetailLine(label: string, value: string): string {
 }
 
 function renderUseCaseSummary(useCase: EnterpriseUseCase): string {
+  const evidenceSummary = blankIfMissing(useCase.evidenceSummary);
+  if (evidenceSummary) {
+    return sentence(evidenceSummary);
+  }
+
   const company = blankIfMissing(useCase.companyName);
   const businessFunction = blankIfMissing(useCase.businessFunction);
   const aiCapability = blankIfMissing(useCase.aiSystemOrCapability);
-  const workflow = blankIfMissing(useCase.workflowAffected);
-  const evidenceSummary = blankIfMissing(useCase.evidenceSummary);
   const context = [
     company ? `${company} is using` : "Using",
     aiCapability || "AI",
-    workflow ? `for ${workflow}` : "",
     businessFunction ? `in ${businessFunction}` : "",
   ]
     .filter(Boolean)
     .join(" ");
 
-  if (evidenceSummary) {
-    return [sentence(context), sentence(evidenceSummary)].filter(Boolean).join(" ");
-  }
-
   return sentence(context);
-}
-
-function renderWorkflowChanged(useCase: EnterpriseUseCase): string {
-  const workflow = blankIfMissing(useCase.workflowAffected);
-  const before = blankIfMissing(useCase.workflowBefore);
-  const after = blankIfMissing(useCase.workflowAfter);
-  if (!before && !after) {
-    return workflow;
-  }
-
-  if (!before) {
-    return [sentence(workflow), `Now: ${sentence(after)}`].filter(Boolean).join(" ");
-  }
-
-  if (!after) {
-    return [sentence(workflow), `Previously: ${sentence(before)}`].filter(Boolean).join(" ");
-  }
-
-  return [sentence(workflow), `Previously: ${sentence(before)}`, `Now: ${sentence(after)}`]
-    .filter(Boolean)
-    .join(" ");
 }
 
 function renderBusinessImpact(useCase: EnterpriseUseCase): string {
@@ -134,8 +111,7 @@ function renderUseCase(useCase: EnterpriseUseCase, index: number): string {
   return [
     `### ${index + 1}. ${escapeMarkdownText(useCase.companyName)}`,
     "",
-    renderDetailLine("Use case", renderUseCaseSummary(useCase)),
-    renderDetailLine("Workflow changed", renderWorkflowChanged(useCase)),
+    renderDetailLine("Summary", renderUseCaseSummary(useCase)),
     renderDetailLine("Business impact", renderBusinessImpact(useCase)),
     `- Source: ${renderSourceLink(useCase)}`,
   ].join("\n");

@@ -41,7 +41,7 @@ function normalizeExtractionEnvelope(value: unknown): unknown {
     !Array.isArray(record.use_cases) &&
     "id" in record &&
     "companyName" in record &&
-    "workflowAffected" in record
+    "aiSystemOrCapability" in record
   ) {
     return { useCases: [record] };
   }
@@ -98,7 +98,7 @@ const ExtractedEnterpriseUseCasesSchema = z.preprocess(
   }),
 );
 
-export const ENTERPRISE_USE_CASE_EXTRACTOR_VERSION = "enterprise-use-case-extractor:v2";
+export const ENTERPRISE_USE_CASE_EXTRACTOR_VERSION = "enterprise-use-case-extractor:v4";
 const DEFAULT_MAX_CONTENT_CHARS = 6_000;
 const MAX_USE_CASES_PER_ARTICLE = 5;
 const MODEL_TEMPERATURE = 0;
@@ -137,11 +137,6 @@ function responseShape(): string {
         companyName: "real company or organization name; empty string if not stated",
         industry: "industry; empty string if not stated",
         businessFunction: "business function; empty string if not stated",
-        workflowAffected: "specific workflow changed; empty string if not stated",
-        workflowBefore:
-          "1 complete sentence describing how the workflow worked before AI; empty string if not stated",
-        workflowAfter:
-          "1 complete sentence describing how the workflow works after AI; empty string if not stated",
         aiSystemOrCapability:
           "AI system or capability used in the workflow; empty string if not stated",
         humanRoleChange: "human role change from the article; empty string if not stated",
@@ -156,7 +151,7 @@ function responseShape(): string {
         sourceName: "source name",
         publishDate: "publish date; empty string if not stated",
         evidenceSummary:
-          "2-3 complete sentences explaining the company, workflow, AI role, deployment evidence, and improvement; empty string if unsupported",
+          "3-5 concise, self-contained newsletter sentences covering the company, use case, what the AI does, deployment evidence, implementation or human role details if stated, and business impact; empty string if unsupported",
       },
     ],
   });
@@ -171,46 +166,59 @@ function buildMessages(
     {
       role: AGENT.ROLES.SYSTEM,
       content: [
-        "You extract concrete, real enterprise AI deployments from source articles.",
+        "You are an enterprise AI research analyst extracting real deployed use cases from source articles.",
         "Return exactly one valid JSON object with a useCases array and nothing else.",
         `Extract at most ${MAX_USE_CASES_PER_ARTICLE} use cases from one article. Choose the strongest evidence only.`,
-        "Accept only real deployed or live operational enterprise workflows using AI.",
-        "Reject advice, measurement/evaluation frameworks, best practices, trend pieces, product launches, hypothetical examples, and generic vendor claims.",
+        "Use judgment. Accept vendor or consulting PR material when it names a real organization and gives a concrete AI use case with source-grounded deployment or outcome evidence.",
+        "Reject advice, measurement/evaluation frameworks, best practices, trend pieces, product launches, hypothetical examples, and generic vendor claims when they do not contain a real organization using AI in a concrete activity.",
         "Never use generic audience labels as companyName, such as companies, enterprises, customers, users, teams, or contact center organizations.",
-        "Leave unsupported fields as empty strings. Do not invent missing company names, metrics, integrations, workflow details, or deployment evidence.",
+        "Leave unsupported fields as empty strings. Do not invent missing company names, metrics, integrations, deployment evidence, or business impact.",
         "All fields are strings except confidenceScore, which is 1-5 and must appear inside every use case.",
-        "Score 5 for named production deployments with workflow detail and measurable outcomes; 4 for strong deployments with one thin detail; 3 for concrete but incomplete deployments; 1-2 for weak evidence.",
-        "Write workflowBefore, workflowAfter, businessOutcome, and evidenceSummary as clear sentences, not keyword fragments.",
-        "Keep most fields concise. evidenceSummary may be 2-3 short sentences because it is used directly in the newsletter.",
+        "The confidenceScore is the extraction score: 5 means named organization, live deployment or rollout, clear AI role, concrete enterprise activity, and measurable business outcome; 4 means strong real deployment with one missing detail; 3 means real but incomplete evidence; 1-2 means weak evidence and should usually be omitted.",
+        "Write businessOutcome and evidenceSummary as clear sentences, not keyword fragments.",
+        "Keep most fields concise. evidenceSummary is the newsletter summary, so it must contain the useful context instead of relying on other fields.",
         "Use comma-separated strings instead of arrays.",
       ].join(" "),
     },
     {
       role: AGENT.ROLES.USER,
       content: [
-        "Eligibility checklist:",
-        "- Extract a use case only when the article describes a real enterprise AI deployment, rollout, production system, customer story, or live operational usage.",
-        "- The use case must have a concrete workflow, not just a general capability or management concept.",
-        "- The workflow must be specific enough that a reader can understand what changed before and after AI.",
-        "- The AI system or capability must be tied to that workflow.",
-        "- The evidence must come from the article text, not from your assumptions.",
-        "- If the article is a measurement framework, evaluation framework, best-practices guide, thought-leadership piece, or generic methodology article, return an empty useCases array.",
-        "- If the article mentions deployment only as something readers should do in the future, return an empty useCases array.",
-        "- If there is no real company, organization, or clearly deployed internal team, return an empty useCases array unless the article still provides unmistakable live-production evidence for a specific enterprise workflow.",
-        "- Never use a target audience as companyName. Examples to reject: Any organization using contact centers, contact center organizations, companies, enterprises, customers, users.",
-        "- For every extracted field, copy only what the article supports. If the article does not support the field, use an empty string.",
+        "Decision process:",
+        "1. Read the candidate metadata and fetched article text as the only evidence.",
+        "2. Identify whether the article contains one or more real enterprise AI use cases.",
+        "3. Extract only use cases where a real company, public-sector organization, or clearly identified internal enterprise team is using AI for a concrete business activity.",
+        "4. Treat marketing language as neutral. Do not reject a case merely because the source is a vendor blog, PR page, or consulting article. Reject it only when the concrete use-case evidence is missing.",
+        "5. Reject the article by returning an empty useCases array when it is mainly a framework, measurement guide, best-practices article, benchmark, trend piece, product announcement, future roadmap, or hypothetical example without a real deployed use case.",
+        "6. Reject generic audience labels as companies. Examples to reject: Any organization using contact centers, contact center organizations, companies, enterprises, customers, users, teams.",
+        "",
+        "Evidence requirements for an accepted use case:",
+        "- There must be a real organization or clearly deployed internal enterprise team.",
+        "- There must be a specific AI system, agent, assistant, copilot, model, automation capability, or AI-enabled product capability.",
+        "- The AI capability must be doing something concrete, such as triaging requests, drafting responses, summarizing records, automating support, analyzing contracts, generating content, improving search, assisting employees, or changing a business process.",
+        "- Prefer production, rollout, customer-story, live usage, or measurable outcome evidence. A pilot can score at most 3 unless the article gives unusually strong operational evidence.",
+        "- If the source gives no metric, leave roiMetric empty and describe only the stated qualitative businessOutcome.",
+        "- If the source gives no integrations, governance, implementation, or human-role detail, leave those fields empty.",
+        "",
+        "Scoring guidance:",
+        "- confidenceScore 5: named organization, live deployment or rollout, clear AI activity, concrete business function, measurable result, and useful implementation or operating detail.",
+        "- confidenceScore 4: named organization and real deployment with clear AI activity, but either the metric or implementation detail is thin.",
+        "- confidenceScore 3: real organization and plausible live use case, but evidence is incomplete or mostly qualitative.",
+        "- confidenceScore 2: vague, pilot-only, or mostly vendor claim. Usually omit unless it is the only concrete example in a multi-example article.",
+        "- confidenceScore 1: hypothetical, generic, framework-only, or unsupported. Do not include.",
+        "",
+        "Field rules:",
+        "- For every extracted field, use only article-supported facts. If unsupported, use an empty string.",
         "- Do not paraphrase missing details into plausible language. Blank is better than generic.",
-        "- workflowBefore must explain the old human, team, or process behavior in a complete sentence when the article states it.",
-        "- workflowAfter must explain what changed after AI was deployed or rolled out in a complete sentence when the article states it.",
-        "- evidenceSummary must give enough context for a newsletter reader to understand the actual use case without opening the link.",
-        "- evidenceSummary should mention the company, the workflow, what the AI system does, and the improvement or evidence of deployment when stated.",
+        "- Use specific, source-grounded wording. Avoid hype words unless they are part of a stated product or metric.",
+        "- businessOutcome should be a clear sentence about operational or business impact when the article states one.",
+        "- evidenceSummary is the final newsletter summary. It must be self-contained and useful even if the reader sees no other fields.",
+        "- evidenceSummary must include: who the organization is, what AI is doing, where it is used in the enterprise, evidence of deployment or usage when stated, and the business impact or operational change when stated.",
+        "- evidenceSummary should be 3-5 concise sentences. It may mention missing metrics only by omission; do not write that details were not stated.",
         "",
         "For each accepted use case, extract:",
         "- real company or organization when stated",
         "- industry",
         "- business function",
-        "- workflow affected",
-        "- before/after workflow",
         "- AI system or capability",
         "- human role change",
         "- system integration",
@@ -227,7 +235,7 @@ function buildMessages(
         truncateContent(fetchedContentText, maxContentChars),
         "",
         "Set sourceUrl exactly to the candidate URL.",
-        "Keep evidenceSummary analytical and specific. Explain why the use case deserves its confidenceScore using only article evidence.",
+        "Keep evidenceSummary analytical and specific. It should explain the actual use case and why it deserves its confidenceScore using only article evidence.",
         "Keep the full response compact enough to finish. If the article has many examples, pick the best few rather than listing all of them.",
         "",
         "Response shape:",
@@ -250,8 +258,7 @@ function buildRepairInstructions(): string {
     "All fields must be strings except confidenceScore, which must be a number from 1 to 5.",
     "Do not omit confidenceScore.",
     `Keep at most ${MAX_USE_CASES_PER_ARTICLE} use cases.`,
-    "Keep string fields concise so the JSON can complete without truncation, but keep evidenceSummary as 2-3 short complete sentences when evidence exists.",
-    "Keep workflowBefore and workflowAfter as complete sentences, not fragments, when the source states those details.",
+    "Keep string fields concise so the JSON can complete without truncation, but keep evidenceSummary as 3-5 concise, self-contained newsletter sentences when evidence exists.",
     "Use comma-separated strings instead of arrays for list-like fields.",
     "Use empty strings for unavailable fields.",
     "Do not replace missing details with vague filler such as unknown, not stated, not available, unclear, generic, or N/A.",

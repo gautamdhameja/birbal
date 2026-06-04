@@ -5,7 +5,6 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
-  EnterpriseUseCaseVerificationSchema,
   extractVerificationLinks,
   isAcceptedEnterpriseUseCaseVerification,
   verifyEnterpriseUseCase,
@@ -20,9 +19,6 @@ function useCase(overrides: Partial<EnterpriseUseCase> = {}): EnterpriseUseCase 
     companyName: "Acme",
     industry: "Manufacturing",
     businessFunction: "Customer support",
-    workflowAffected: "Support ticket triage",
-    workflowBefore: "Agents manually read and route incoming tickets.",
-    workflowAfter: "AI drafts responses and routes escalations.",
     aiSystemOrCapability: "Customer support AI assistant",
     humanRoleChange: "Agents review drafts and handle escalations.",
     systemIntegrations: "CRM and support desk",
@@ -63,13 +59,14 @@ describe("enterprise use case verification", () => {
   it("extracts relevant bounded verification links from the source page", () => {
     const links = extractVerificationLinks(
       `
-        <a href="/privacy">Privacy</a>
-        <a href="/customers/acme-ai-support">Acme AI support customer story</a>
-        <a href="/case-studies/acme-workflow">Workflow case study</a>
-        <a href="https://social.example/acme">Social</a>
+        <footer><a href="/privacy">Privacy</a></footer>
+        <main>
+          <a href="/customers/acme-ai-support">Acme AI support customer story</a>
+          <a href="/case-studies/acme-workflow">Workflow case study</a>
+        </main>
+        <footer><a href="https://social.example/acme">Social</a></footer>
       `,
       "https://example.com/acme-support",
-      useCase(),
       2,
     );
 
@@ -85,9 +82,8 @@ describe("enterprise use case verification", () => {
         JSON.stringify({
           verified: true,
           confidenceScore: 4,
-          unsupportedFields: [],
           evidenceLinks: ["https://example.com/customers/acme"],
-          notes: "The source evidence supports the company, workflow, AI capability, and outcome.",
+          notes: "The source evidence supports the enterprise AI use case.",
         }),
     });
 
@@ -119,7 +115,6 @@ describe("enterprise use case verification", () => {
           return JSON.stringify({
             verified,
             confidenceScore: verified ? 4 : 1,
-            unsupportedFields: verified ? [] : ["workflowAffected"],
             evidenceLinks: [],
             notes: verified ? "Supported by evidence." : "Not supported by evidence.",
           });
@@ -134,37 +129,43 @@ describe("enterprise use case verification", () => {
     assert.equal(selected[0]?.verification.verified, true);
   });
 
-  it("accepts otherwise grounded use cases when only the workflow summary label is disputed", async () => {
+  it("accepts verified source-grounded use cases", () => {
+    assert.equal(
+      isAcceptedEnterpriseUseCaseVerification({
+        verified: true,
+        confidenceScore: 3,
+        evidenceLinks: [],
+        notes: "The use case is real and source-grounded.",
+      }),
+      true,
+    );
+  });
+
+  it("rejects unverified use cases even when the model reports high confidence", async () => {
     const selected = await verifySelectedEnterpriseUseCases([useCase()], {
       fetchEvidence: async () => evidence(),
       completeFn: async () =>
         JSON.stringify({
           verified: false,
-          confidenceScore: 1,
-          unsupportedFields: ["workflowAffected"],
+          confidenceScore: 4,
           evidenceLinks: ["https://example.com/acme-support"],
           notes:
-            "The evidence supports the company, AI assistant, deployment, and outcome, but the workflow label is broad.",
+            "The source is related, but the article does not support this as a publishable use case.",
         }),
     });
 
-    assert.equal(selected.length, 1);
-    assert.equal(selected[0]?.verification.verified, true);
-    assert.equal(selected[0]?.verification.confidenceScore, 3);
-    assert.match(selected[0]?.verification.notes ?? "", /Accepted by workflow-label policy/);
+    assert.deepEqual(selected, []);
   });
 
-  it("does not apply workflow-label policy when the verifier says the source lacks the claimed evidence", async () => {
+  it("rejects use cases when the verifier judges the core story unsupported", async () => {
     const selected = await verifySelectedEnterpriseUseCases([useCase()], {
       fetchEvidence: async () => evidence(),
       completeFn: async () =>
         JSON.stringify({
           verified: false,
-          confidenceScore: 1,
-          unsupportedFields: ["workflowAffected"],
+          confidenceScore: 3,
           evidenceLinks: ["https://example.com/acme-support"],
-          notes:
-            "The provided source text does not include any specific mention of Acme, the AI assistant, or the claimed workflow.",
+          notes: "The evidence supports the company, but not the extracted AI use case.",
         }),
     });
 
@@ -176,7 +177,6 @@ describe("enterprise use case verification", () => {
       isAcceptedEnterpriseUseCaseVerification({
         verified: true,
         confidenceScore: 1,
-        unsupportedFields: [],
         evidenceLinks: [],
         notes: "The source is weak.",
       }),
@@ -184,42 +184,15 @@ describe("enterprise use case verification", () => {
     );
   });
 
-  it("rejects verification with unsupported critical fields", () => {
+  it("accepts based on semantic verifier judgment rather than hard-coded field checks", () => {
     assert.equal(
       isAcceptedEnterpriseUseCaseVerification({
         verified: true,
         confidenceScore: 5,
-        unsupportedFields: ["aiSystemOrCapability"],
         evidenceLinks: [],
-        notes: "AI system was not supported.",
-      }),
-      false,
-    );
-  });
-
-  it("does not reject otherwise verified use cases for non-critical workflow label issues", () => {
-    assert.equal(
-      isAcceptedEnterpriseUseCaseVerification({
-        verified: true,
-        confidenceScore: 3,
-        unsupportedFields: ["workflowAffected"],
-        evidenceLinks: [],
-        notes: "The workflow label is broad, but the use case is real.",
+        notes: "The source supports the use case.",
       }),
       true,
-    );
-  });
-
-  it("drops model-invented unsupported field names during verification parsing", () => {
-    assert.deepEqual(
-      EnterpriseUseCaseVerificationSchema.parse({
-        verified: true,
-        confidenceScore: 4,
-        unsupportedFields: ["workflowAffected", "sourceUrl", "publishDate"],
-        evidenceLinks: ["https://example.com/source"],
-        notes: "The source supports the workflow but not every detail.",
-      }).unsupportedFields,
-      ["workflowAffected"],
     );
   });
 });

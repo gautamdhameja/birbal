@@ -3,8 +3,6 @@
 
 import { z } from "zod";
 
-const UNKNOWN_TEXT = "unknown";
-
 const EXACT_GENERIC_COMPANY_NAMES = new Set([
   "businesses",
   "companies",
@@ -31,13 +29,13 @@ function normalizeTextField(value: unknown): string {
   if (Array.isArray(value)) {
     const normalizedItems = value
       .map((item) => normalizeTextField(item))
-      .filter((item) => item !== UNKNOWN_TEXT);
+      .filter((item) => item.trim().length > 0);
 
-    return normalizedItems.length > 0 ? normalizedItems.join(", ") : UNKNOWN_TEXT;
+    return normalizedItems.join(", ");
   }
 
   if (value === null || value === undefined) {
-    return UNKNOWN_TEXT;
+    return "";
   }
 
   if (typeof value === "object") {
@@ -45,10 +43,10 @@ function normalizeTextField(value: unknown): string {
   }
 
   const text = String(value).trim();
-  return text.length > 0 ? text : UNKNOWN_TEXT;
+  return text;
 }
 
-const EnterpriseUseCaseTextFieldSchema = z.preprocess(normalizeTextField, z.string().trim().min(1));
+const EnterpriseUseCaseTextFieldSchema = z.preprocess(normalizeTextField, z.string().trim());
 
 const EnterpriseUseCaseConfidenceScoreSchema = z.preprocess((value) => {
   if (typeof value === "string") {
@@ -93,9 +91,6 @@ export const EnterpriseUseCaseSchema = z.preprocess(
       companyName: EnterpriseUseCaseTextFieldSchema,
       industry: EnterpriseUseCaseTextFieldSchema,
       businessFunction: EnterpriseUseCaseTextFieldSchema,
-      workflowAffected: EnterpriseUseCaseTextFieldSchema,
-      workflowBefore: EnterpriseUseCaseTextFieldSchema,
-      workflowAfter: EnterpriseUseCaseTextFieldSchema,
       aiSystemOrCapability: EnterpriseUseCaseTextFieldSchema,
       humanRoleChange: EnterpriseUseCaseTextFieldSchema,
       systemIntegrations: EnterpriseUseCaseTextFieldSchema,
@@ -116,12 +111,22 @@ export const EnterpriseUseCaseSchema = z.preprocess(
 
 export type EnterpriseUseCase = z.infer<typeof EnterpriseUseCaseSchema>;
 
-function isUnknown(value: string): boolean {
-  return value.trim().toLowerCase() === UNKNOWN_TEXT;
+function isMissingText(value: string): boolean {
+  const normalizedValue = value.trim().toLowerCase();
+  return (
+    normalizedValue === "" ||
+    normalizedValue === "unknown" ||
+    normalizedValue === "n/a" ||
+    normalizedValue === "na" ||
+    normalizedValue === "not available" ||
+    normalizedValue === "not stated" ||
+    normalizedValue === "unclear" ||
+    normalizedValue === "none"
+  );
 }
 
 function hasGenericCompanyName(value: string): boolean {
-  if (isUnknown(value)) {
+  if (isMissingText(value)) {
     return false;
   }
 
@@ -134,7 +139,7 @@ function hasGenericCompanyName(value: string): boolean {
 }
 
 function hasConcreteText(value: string): boolean {
-  return !isUnknown(value) && value.trim().length > 0;
+  return !isMissingText(value);
 }
 
 export type EnterpriseUseCaseEligibility = {
@@ -149,13 +154,6 @@ export function assessEnterpriseUseCaseEligibility(
     return {
       eligible: false,
       reason: "companyName is a generic audience label, not a real company or organization",
-    };
-  }
-
-  if (!hasConcreteText(useCase.workflowAffected)) {
-    return {
-      eligible: false,
-      reason: "workflowAffected is missing",
     };
   }
 

@@ -50,14 +50,6 @@ function sourceKey(useCase: EnterpriseUseCase): string {
     : sourceHost(useCase.sourceUrl);
 }
 
-function similarityKey(useCase: EnterpriseUseCase): string {
-  return [
-    normalize(useCase.businessFunction),
-    normalize(useCase.workflowAffected),
-    normalize(useCase.aiSystemOrCapability),
-  ].join("|");
-}
-
 function rankedUseCases<TUseCase extends EnterpriseUseCase>(
   useCases: readonly TUseCase[],
 ): TUseCase[] {
@@ -67,8 +59,8 @@ function rankedUseCases<TUseCase extends EnterpriseUseCase>(
       return confidenceDifference;
     }
 
-    return `${left.companyName}:${left.workflowAffected}`.localeCompare(
-      `${right.companyName}:${right.workflowAffected}`,
+    return `${left.companyName}:${left.aiSystemOrCapability}`.localeCompare(
+      `${right.companyName}:${right.aiSystemOrCapability}`,
     );
   });
 }
@@ -111,7 +103,6 @@ export function selectEnterpriseUseCaseItems<TUseCase extends EnterpriseUseCase>
   const selected: TUseCase[] = [];
   const industryCounts = new Map<string, number>();
   const sourceCounts = new Map<string, number>();
-  const selectedSimilarityKeys = new Set<string>();
 
   for (const useCase of candidates) {
     if (selected.length >= selectionConfig.maxUseCasesPerRun) {
@@ -128,15 +119,9 @@ export function selectEnterpriseUseCaseItems<TUseCase extends EnterpriseUseCase>
       continue;
     }
 
-    const similarKey = similarityKey(useCase);
-    if (selectedSimilarityKeys.has(similarKey)) {
-      continue;
-    }
-
     selected.push(useCase);
     increment(industryCounts, industry);
     increment(sourceCounts, source);
-    selectedSimilarityKeys.add(similarKey);
   }
 
   return selected;

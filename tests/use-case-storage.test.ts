@@ -32,9 +32,6 @@ function useCase(
     companyName: "Acme",
     industry: "Manufacturing",
     businessFunction: "Customer support",
-    workflowAffected: "Support ticket triage",
-    workflowBefore: "Agents manually read and route incoming tickets.",
-    workflowAfter: "AI drafts responses and routes escalations.",
     aiSystemOrCapability: "Customer support AI assistant",
     humanRoleChange: "Agents review drafts and handle escalations.",
     systemIntegrations: "CRM and support desk",
@@ -77,7 +74,7 @@ describe("enterprise use case storage", () => {
     assert.match(recentUseCases[0]?.id ?? "", /^use-case:[a-f0-9]{16}$/);
   });
 
-  it("deduplicates by source URL, company name, and workflow affected", () => {
+  it("deduplicates by source URL, company name, and AI capability", () => {
     initDb(dbPath());
 
     upsertUseCase(useCase({ id: "first", businessOutcome: "Original outcome." }));
@@ -99,7 +96,7 @@ describe("enterprise use case storage", () => {
         runId: "run-1",
         companyName: "Second",
         sourceUrl: "https://example.com/second",
-        workflowAffected: "Procurement intake",
+        aiSystemOrCapability: "Procurement assistant",
       }),
     );
     upsertUseCase(
@@ -108,7 +105,7 @@ describe("enterprise use case storage", () => {
         runId: "run-2",
         companyName: "Beta",
         sourceUrl: "https://example.com/beta",
-        workflowAffected: "Finance close",
+        aiSystemOrCapability: "Finance assistant",
       }),
     );
 
@@ -127,7 +124,7 @@ describe("enterprise use case storage", () => {
         id: "use-case-1",
         companyName: "Beta",
         sourceUrl: "https://example.com/beta",
-        workflowAffected: "Finance close",
+        aiSystemOrCapability: "Finance assistant",
       }),
     );
 
@@ -186,7 +183,6 @@ describe("enterprise use case storage", () => {
     const verification = {
       verified: true,
       confidenceScore: 4,
-      unsupportedFields: [],
       evidenceLinks: [cachedUseCase.sourceUrl],
       notes: "Supported by source evidence.",
     };

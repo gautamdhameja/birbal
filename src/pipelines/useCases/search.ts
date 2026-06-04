@@ -81,24 +81,6 @@ const RELEVANCE_PATTERNS = [
   /\bgemini\b/u,
   /\bclaude\b/u,
 ] as const;
-const LOW_RELEVANCE_PATTERNS = [
-  /\bstate of ai\b/u,
-  /\bstate of enterprise ai\b/u,
-  /\bbest practices?\b/u,
-  /\bbuyers? guide\b/u,
-  /\btop\s+\d+\b/u,
-  /\bbest ai\b/u,
-  /\bframework\b/u,
-  /\bmeasurement\b/u,
-  /\bevaluation\b/u,
-  /\bbenchmark\b/u,
-  /\bmetrics\b/u,
-  /\bmethodology\b/u,
-  /\bthought leadership\b/u,
-  /\beconomic potential\b/u,
-  /\bhow to get roi\b/u,
-  /\bwhat successful\b/u,
-] as const;
 
 function toTimestamp(value: string): number {
   const timestamp = Date.parse(value);
@@ -158,8 +140,7 @@ export function useCaseSearchRelevanceScore(candidate: UseCaseSearchCandidate): 
   return (
     patternScore(text, STRONG_RELEVANCE_PATTERNS, 5) +
     patternScore(text, RELEVANCE_PATTERNS, 2) +
-    metricSignalScore(text) -
-    patternScore(text, LOW_RELEVANCE_PATTERNS, 5)
+    metricSignalScore(text)
   );
 }
 

@@ -48,8 +48,8 @@ export function useCaseHash(useCase: EnterpriseUseCase): string {
   return stableHash(
     JSON.stringify({
       companyName: useCase.companyName,
-      workflowAffected: useCase.workflowAffected,
       aiSystemOrCapability: useCase.aiSystemOrCapability,
+      businessOutcome: useCase.businessOutcome,
       sourceUrl: normalizeUrl(useCase.sourceUrl),
     }),
   );
