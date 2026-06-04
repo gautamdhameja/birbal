@@ -17,7 +17,6 @@ import type { PipelineConfig, PipelineCollectionMethod } from "../../framework/p
 import { logger } from "../../logging/logger.js";
 import { getDefaultModelClient } from "../../model-providers/default.js";
 import { registerBirbalPipelineComponents } from "../register.js";
-import { applyPipelineCliLimit } from "../../runPipeline.js";
 import { collectUseCaseSearchCandidates } from "./search.js";
 import type { UseCaseSearchConfig } from "./search.js";
 
@@ -37,7 +36,22 @@ const SNAPSHOT_COLLECTION_METHOD_ID = "search_snapshot";
 const SNAPSHOT_COLLECTOR_ID = "search_snapshot_collector";
 
 function useCaseSearchConfig(configPath?: string, limit?: number): PipelineConfig {
-  return applyPipelineCliLimit(loadPipelineConfig(configPath ?? USE_CASES_PIPELINE_ID), limit);
+  const config = loadPipelineConfig(configPath ?? USE_CASES_PIPELINE_ID);
+  if (!limit) {
+    return config;
+  }
+
+  return {
+    ...config,
+    limits: {
+      ...config.limits,
+      maxCandidatesForExtraction: limit,
+    },
+    metadata: {
+      ...config.metadata,
+      cliSearchLimit: limit,
+    },
+  };
 }
 
 function useCaseProcessConfig(configPath?: string, limit?: number): PipelineConfig {
@@ -82,6 +96,8 @@ function searchConfig(config: PipelineConfig): UseCaseSearchConfig {
     maxSearchQueries: config.limits.maxSearchQueries ?? 1,
     maxSearchResultsPerQuery: config.limits.maxSearchResultsPerQuery ?? 10,
     maxCandidatesForExtraction: config.limits.maxCandidatesForExtraction ?? 30,
+    maxCandidateAgeDays: config.limits.maxItemAgeDays,
+    referenceDate: new Date(),
   };
 }
 

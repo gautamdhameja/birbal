@@ -4,7 +4,7 @@
 export type BackfillSelectionResult<TCandidate, TAccepted = TCandidate> = {
   candidatePool: TCandidate[];
   acceptedPool: TAccepted[];
-  processedCandidateCount?: number;
+  processedCandidateCount: number;
   selected: TAccepted[];
 };
 
@@ -54,6 +54,7 @@ export async function selectWithAcceptanceBackfill<TCandidate, TAccepted = TCand
   return {
     candidatePool,
     acceptedPool,
+    processedCandidateCount: candidatePool.length,
     selected,
   };
 }

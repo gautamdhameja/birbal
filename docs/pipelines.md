@@ -53,14 +53,20 @@ Pipeline config lives in `config/pipelines/*.json`.
   "contentFetchPolicy": {
     "enabled": true,
     "fetcherId": "url_text_fetcher",
-    "fetchForTopN": 20,
+    "fetchForTopN": 30,
     "maxChars": 16000,
     "maxResponseBytes": 8000000,
     "preferFetchedContent": true
   },
   "structuredExtractorId": "enterprise_use_case_extractor",
   "selectorId": "enterprise_use_case_selector",
-  "rendererId": "enterprise_use_case_markdown_renderer"
+  "rendererId": "enterprise_use_case_markdown_renderer",
+  "limits": {
+    "maxCandidates": 50,
+    "maxCandidatesForExtraction": 50,
+    "maxItemAgeDays": 365,
+    "maxResults": 5
+  }
 }
 ```
 
@@ -70,6 +76,14 @@ caps the extracted plain text passed to later model or renderer stages.
 
 Pipeline-specific `limits` can further control model cost. The use-cases pipeline uses:
 
+- `maxCandidates`: caps the deduplicated search results entering the pipeline.
+- `maxCandidatesForExtraction`: caps the search collector output before content fetching.
+- `maxResults`: caps the final rendered output count. CLI `--limit` maps here and does not shrink
+  the upstream candidate pool.
+- `maxItemAgeDays`: filters search candidates and extracted use cases older than the configured
+  age window before newsletter output.
+- Search candidates are ranked by enterprise use-case relevance before domain priority and recency,
+  so customer stories and production deployment pages are fetched before generic AI commentary.
 - `extractionMaxContentChars`: caps article text included in each extraction prompt.
 - `verificationBatchSize`: verifies candidates in batches and stops once enough are accepted.
 - `verificationCandidateMultiplier`: controls the maximum over-selected verification pool.

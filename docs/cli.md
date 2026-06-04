@@ -58,6 +58,10 @@ birbal pipeline use_cases --dry-run
 birbal use-cases --dry-run --limit 3
 ```
 
+`--limit` controls the final output count for full pipeline runs. It does not reduce the upstream
+search, fetch, extraction, or verification pool. For `birbal use-cases search`, `--limit` controls
+the stored search snapshot candidate count because that command only creates a URL snapshot.
+
 Enable trace logs:
 
 ```sh

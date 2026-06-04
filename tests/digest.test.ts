@@ -2,16 +2,13 @@
 // Scope: Covers regressions through the Node.js test runner.
 
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { CANDIDATE_CATEGORIES, CONTENT_FETCH_STATUSES } from "../src/constants/candidates.js";
 import { DIGEST } from "../src/constants/digest.js";
 import { SOURCE_REGISTRY } from "../src/constants/source-registry.js";
 import { SOURCES } from "../src/constants/sources.js";
-import { formatDigestDate, saveDigest, writeDigest } from "../src/daily/digest.js";
+import { formatDigestDate, writeDigest } from "../src/daily/digest.js";
 import type { ScoredCandidateItem } from "../src/daily/types.js";
 
 function scoredItem(overrides: Partial<ScoredCandidateItem> = {}): ScoredCandidateItem {
@@ -59,7 +56,7 @@ describe("Markdown digest writer", () => {
     assert.match(markdown, /^# Daily Reading Digest - 2026-05-19/);
     assert.match(markdown, /## 1\. Example Item/);
     assert.match(markdown, /- Source: arXiv/);
-    assert.match(markdown, /- Link: https:\/\/example\.com\/item/);
+    assert.match(markdown, /- Link: <https:\/\/example\.com\/item>/);
     assert.match(markdown, /- Publish date: 2026-05-16/);
     assert.match(markdown, /- Category: workflow redesign/);
     assert.match(markdown, /- Score: 4\.00/);
@@ -130,11 +127,12 @@ describe("Markdown digest writer", () => {
     assert.match(markdown, / {2}- \\> fake quote/);
   });
 
-  it("saves digests under the digest directory", () => {
-    const rootDirectory = mkdtempSync(join(tmpdir(), "birbal-digest-"));
-    const digestPath = saveDigest("# Test\n", "2026-05-19", rootDirectory);
+  it("wraps valid digest URLs so punctuation cannot break Markdown links", () => {
+    const markdown = writeDigest(
+      [scoredItem({ url: "https://example.com/report)final?x=1)" })],
+      "2026-05-19",
+    );
 
-    assert.equal(digestPath, join(rootDirectory, DIGEST.DIRECTORY, "2026-05-19.md"));
-    assert.equal(readFileSync(digestPath, "utf8"), "# Test\n");
+    assert.match(markdown, /- Link: <https:\/\/example\.com\/report\)final\?x=1\)>/);
   });
 });

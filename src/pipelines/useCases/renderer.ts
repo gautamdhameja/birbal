@@ -1,16 +1,11 @@
-// Purpose: Implements the Birbal pipeline component: renderer.
-// Scope: Keeps app-specific pipeline behavior outside the generic framework.
-
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+// Purpose: Renders selected enterprise use cases into newsletter Markdown.
+// Scope: Keeps use-case-specific presentation logic out of the generic pipeline framework.
 
 import { DIGEST } from "../../constants/digest.js";
 import { formatDateOnly } from "../../utils/date.js";
 import type { EnterpriseUseCase } from "./schema.js";
 
 type UseCaseDigestDate = Date | string;
-
-const USE_CASE_DIGEST_DIRECTORY = join(DIGEST.DIRECTORY, "use-cases");
 
 function formatUseCaseDigestDate(date: UseCaseDigestDate): string {
   const digestDate = formatDateOnly(date, "");
@@ -42,8 +37,13 @@ function blankIfMissing(value: string): string {
   return isMissingValue(value) ? "" : value;
 }
 
-function stripTrailingPunctuation(value: string): string {
-  return normalizeWhitespace(value).replace(/[.;:]+$/g, "");
+function sentence(value: string): string {
+  const normalizedValue = normalizeWhitespace(value);
+  if (!normalizedValue) {
+    return "";
+  }
+
+  return /[.!?]$/u.test(normalizedValue) ? normalizedValue : `${normalizedValue}.`;
 }
 
 function escapeMarkdownText(value: string): string {
@@ -63,7 +63,7 @@ function renderSourceLink(useCase: EnterpriseUseCase): string {
   try {
     const parsed = new URL(normalizeWhitespace(useCase.sourceUrl));
     if (parsed.protocol === "http:" || parsed.protocol === "https:") {
-      return `[${label}](${parsed.toString()})`;
+      return `[${label}](<${parsed.toString()}>)`;
     }
   } catch {
     return label;
@@ -72,33 +72,30 @@ function renderSourceLink(useCase: EnterpriseUseCase): string {
   return label;
 }
 
-function renderEnterpriseLesson(useCase: EnterpriseUseCase): string {
-  const workflow = blankIfMissing(useCase.workflowAffected);
-  const impact = renderBusinessImpact(useCase);
-
-  if (!workflow) {
-    return "";
-  }
-
-  if (impact) {
-    return `The reusable pattern is a specific workflow change measured through ${stripTrailingPunctuation(
-      impact,
-    )}.`;
-  }
-
-  return "";
-}
-
 function renderDetailLine(label: string, value: string): string {
   return `- ${label}: ${escapeMarkdownText(value)}`;
 }
 
 function renderUseCaseSummary(useCase: EnterpriseUseCase): string {
+  const company = blankIfMissing(useCase.companyName);
   const businessFunction = blankIfMissing(useCase.businessFunction);
   const aiCapability = blankIfMissing(useCase.aiSystemOrCapability);
-  const functionPrefix = businessFunction ? `${businessFunction}: ` : "";
+  const workflow = blankIfMissing(useCase.workflowAffected);
+  const evidenceSummary = blankIfMissing(useCase.evidenceSummary);
+  const context = [
+    company ? `${company} is using` : "Using",
+    aiCapability || "AI",
+    workflow ? `for ${workflow}` : "",
+    businessFunction ? `in ${businessFunction}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
-  return `${functionPrefix}${aiCapability}`;
+  if (evidenceSummary) {
+    return [sentence(context), sentence(evidenceSummary)].filter(Boolean).join(" ");
+  }
+
+  return sentence(context);
 }
 
 function renderWorkflowChanged(useCase: EnterpriseUseCase): string {
@@ -110,14 +107,16 @@ function renderWorkflowChanged(useCase: EnterpriseUseCase): string {
   }
 
   if (!before) {
-    return [workflow, `after AI: ${after}`].filter(Boolean).join("; ");
+    return [sentence(workflow), `Now: ${sentence(after)}`].filter(Boolean).join(" ");
   }
 
   if (!after) {
-    return [workflow, `before AI: ${before}`].filter(Boolean).join("; ");
+    return [sentence(workflow), `Previously: ${sentence(before)}`].filter(Boolean).join(" ");
   }
 
-  return [workflow, `before: ${before}`, `after: ${after}`].filter(Boolean).join("; ");
+  return [sentence(workflow), `Previously: ${sentence(before)}`, `Now: ${sentence(after)}`]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function renderBusinessImpact(useCase: EnterpriseUseCase): string {
@@ -138,7 +137,6 @@ function renderUseCase(useCase: EnterpriseUseCase, index: number): string {
     renderDetailLine("Use case", renderUseCaseSummary(useCase)),
     renderDetailLine("Workflow changed", renderWorkflowChanged(useCase)),
     renderDetailLine("Business impact", renderBusinessImpact(useCase)),
-    renderDetailLine("Enterprise lesson", renderEnterpriseLesson(useCase)),
     `- Source: ${renderSourceLink(useCase)}`,
   ].join("\n");
 }
@@ -155,19 +153,4 @@ export function renderEnterpriseUseCaseDigest(
     useCases.map(renderUseCase).join("\n\n"),
     "",
   ].join("\n");
-}
-
-export function saveEnterpriseUseCaseDigest(
-  markdown: string,
-  date: UseCaseDigestDate,
-  rootDirectory = process.cwd(),
-): string {
-  const formattedDate = formatUseCaseDigestDate(date);
-  const digestDirectory = join(rootDirectory, USE_CASE_DIGEST_DIRECTORY);
-  const digestPath = join(digestDirectory, `${formattedDate}${DIGEST.FILE_EXTENSION}`);
-
-  mkdirSync(digestDirectory, { recursive: true });
-  writeFileSync(digestPath, markdown);
-
-  return digestPath;
 }

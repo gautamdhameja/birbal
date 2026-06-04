@@ -44,7 +44,7 @@ export function parsePipelineCliArgs(
     .argument("[pipelineId]", "pipeline ID to run")
     .option("--trace", "enable debug tracing")
     .option("--dry-run", "print resolved config without running")
-    .option("--limit <number>", "limit candidate and output counts", parsePositiveInteger)
+    .option("--limit <number>", "limit final output count", parsePositiveInteger)
     .option("--config <path>", "load pipeline config from a file path")
     .showHelpAfterError();
 
@@ -81,14 +81,9 @@ export function applyPipelineCliLimit(
 
   return {
     ...config,
-    contentFetchPolicy: {
-      ...config.contentFetchPolicy,
-      fetchForTopN: Math.min(config.contentFetchPolicy.fetchForTopN, limit),
-    },
     limits: {
       ...config.limits,
       limit,
-      maxCandidates: Math.min(config.limits.maxCandidates ?? limit, limit),
       maxResults: limit,
     },
     metadata: {

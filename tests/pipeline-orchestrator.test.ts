@@ -2,7 +2,7 @@
 // Scope: Covers regressions through the Node.js test runner.
 
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -1170,6 +1170,63 @@ describe("pipeline orchestrator", () => {
     assert.equal(result.status, "failed");
     assert.equal(result.errors.at(-1)?.code, "pipeline_failed");
     assert.match(result.errors.at(-1)?.message ?? "", /inside the workspace/);
+  });
+
+  it("renders timestamped filesystem artifact paths", async () => {
+    const registry = new PipelineComponentRegistry();
+    const outputDirectory = `.tmp-pipeline-output-${Date.now()}`;
+
+    registerFrameworkPipelineComponents(registry);
+    registry.registerCollector("collector", {
+      collect: async () => [{ id: "first" }],
+    });
+    registry.registerScorer("scorer", {
+      score: async () => ({ finalScore: 1 }),
+    });
+    registry.registerSelector("selector", {
+      select: async (items) => items,
+    });
+    registry.registerRenderer("renderer", {
+      render: async () => "rendered",
+    });
+
+    try {
+      const result = await runPipeline(
+        writeConfig(
+          config({
+            contentFetchPolicy: {
+              enabled: false,
+            },
+            classifierId: undefined,
+            structuredExtractorId: undefined,
+            output: {
+              format: "markdown",
+              artifactWriterId: "filesystem_artifact_writer",
+              directory: outputDirectory,
+              filenameTemplate: "{date}-{time}.md",
+            },
+          }),
+        ),
+        {
+          startRun: () => "run-output-timestamp",
+          finishRun: () => undefined,
+          failRun: () => undefined,
+          loadSourceRegistry: testSourceRegistry,
+          logger: silentLogger(),
+          now: () => new Date("2026-05-23T08:09:10.000Z"),
+          registry,
+        },
+      );
+
+      assert.equal(result.status, "success");
+      assert.equal(
+        result.artifacts[0]?.path,
+        join(process.cwd(), outputDirectory, "2026-05-23-080910.md"),
+      );
+      assert.equal(existsSync(result.artifacts[0]?.path ?? ""), true);
+    } finally {
+      rmSync(join(process.cwd(), outputDirectory), { force: true, recursive: true });
+    }
   });
 
   it("rejects filesystem artifact paths that resolve through symlinks outside the workspace", async () => {

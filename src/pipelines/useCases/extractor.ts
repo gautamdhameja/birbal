@@ -100,7 +100,7 @@ const ExtractedEnterpriseUseCasesSchema = z.preprocess(
 
 export const ENTERPRISE_USE_CASE_EXTRACTOR_VERSION = "enterprise-use-case-extractor:v2";
 const DEFAULT_MAX_CONTENT_CHARS = 6_000;
-const MAX_USE_CASES_PER_ARTICLE = 3;
+const MAX_USE_CASES_PER_ARTICLE = 5;
 const MODEL_TEMPERATURE = 0;
 const MODEL_MAX_TOKENS = 3_000;
 
@@ -138,8 +138,10 @@ function responseShape(): string {
         industry: "industry; empty string if not stated",
         businessFunction: "business function; empty string if not stated",
         workflowAffected: "specific workflow changed; empty string if not stated",
-        workflowBefore: "before workflow from the article; empty string if not stated",
-        workflowAfter: "after workflow from the article; empty string if not stated",
+        workflowBefore:
+          "1 complete sentence describing how the workflow worked before AI; empty string if not stated",
+        workflowAfter:
+          "1 complete sentence describing how the workflow works after AI; empty string if not stated",
         aiSystemOrCapability:
           "AI system or capability used in the workflow; empty string if not stated",
         humanRoleChange: "human role change from the article; empty string if not stated",
@@ -154,7 +156,7 @@ function responseShape(): string {
         sourceName: "source name",
         publishDate: "publish date; empty string if not stated",
         evidenceSummary:
-          "short evidence-backed summary; empty string if the source has no concrete support",
+          "2-3 complete sentences explaining the company, workflow, AI role, deployment evidence, and improvement; empty string if unsupported",
       },
     ],
   });
@@ -178,7 +180,9 @@ function buildMessages(
         "Leave unsupported fields as empty strings. Do not invent missing company names, metrics, integrations, workflow details, or deployment evidence.",
         "All fields are strings except confidenceScore, which is 1-5 and must appear inside every use case.",
         "Score 5 for named production deployments with workflow detail and measurable outcomes; 4 for strong deployments with one thin detail; 3 for concrete but incomplete deployments; 1-2 for weak evidence.",
-        "Keep values concise. Use comma-separated strings instead of arrays.",
+        "Write workflowBefore, workflowAfter, businessOutcome, and evidenceSummary as clear sentences, not keyword fragments.",
+        "Keep most fields concise. evidenceSummary may be 2-3 short sentences because it is used directly in the newsletter.",
+        "Use comma-separated strings instead of arrays.",
       ].join(" "),
     },
     {
@@ -196,6 +200,10 @@ function buildMessages(
         "- Never use a target audience as companyName. Examples to reject: Any organization using contact centers, contact center organizations, companies, enterprises, customers, users.",
         "- For every extracted field, copy only what the article supports. If the article does not support the field, use an empty string.",
         "- Do not paraphrase missing details into plausible language. Blank is better than generic.",
+        "- workflowBefore must explain the old human, team, or process behavior in a complete sentence when the article states it.",
+        "- workflowAfter must explain what changed after AI was deployed or rolled out in a complete sentence when the article states it.",
+        "- evidenceSummary must give enough context for a newsletter reader to understand the actual use case without opening the link.",
+        "- evidenceSummary should mention the company, the workflow, what the AI system does, and the improvement or evidence of deployment when stated.",
         "",
         "For each accepted use case, extract:",
         "- real company or organization when stated",
@@ -219,7 +227,7 @@ function buildMessages(
         truncateContent(fetchedContentText, maxContentChars),
         "",
         "Set sourceUrl exactly to the candidate URL.",
-        "Keep evidenceSummary concise and analytical. Explain why the use case deserves its confidenceScore using only article evidence.",
+        "Keep evidenceSummary analytical and specific. Explain why the use case deserves its confidenceScore using only article evidence.",
         "Keep the full response compact enough to finish. If the article has many examples, pick the best few rather than listing all of them.",
         "",
         "Response shape:",
@@ -242,7 +250,8 @@ function buildRepairInstructions(): string {
     "All fields must be strings except confidenceScore, which must be a number from 1 to 5.",
     "Do not omit confidenceScore.",
     `Keep at most ${MAX_USE_CASES_PER_ARTICLE} use cases.`,
-    "Keep string fields concise so the JSON can complete without truncation.",
+    "Keep string fields concise so the JSON can complete without truncation, but keep evidenceSummary as 2-3 short complete sentences when evidence exists.",
+    "Keep workflowBefore and workflowAfter as complete sentences, not fragments, when the source states those details.",
     "Use comma-separated strings instead of arrays for list-like fields.",
     "Use empty strings for unavailable fields.",
     "Do not replace missing details with vague filler such as unknown, not stated, not available, unclear, generic, or N/A.",

@@ -4,6 +4,7 @@
 export {
   filesystemArtifactWriter,
   formatPipelineRunDate,
+  formatPipelineRunTime,
   renderOutputPath,
 } from "./artifactWriter.js";
 export { mapBatches, mapLimit } from "./concurrency.js";
@@ -17,8 +18,12 @@ export type {
 } from "./registry.js";
 export { runPipeline, validateConfiguredSourceIds } from "./orchestrator.js";
 export type { PipelineOrchestratorDependencies, PipelineRunItem } from "./orchestrator.js";
-export { selectWithAcceptanceBackfill } from "./selection.js";
-export type { BackfillSelectionResult, SelectWithAcceptanceBackfillOptions } from "./selection.js";
+export { selectWithAcceptanceBackfill, selectWithIncrementalAcceptance } from "./selection.js";
+export type {
+  BackfillSelectionResult,
+  SelectWithAcceptanceBackfillOptions,
+  SelectWithIncrementalAcceptanceOptions,
+} from "./selection.js";
 export {
   createInMemoryPipelineRunStore,
   normalizeRunStatus,

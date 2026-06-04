@@ -6,12 +6,15 @@ import {
   isEligibleEnterpriseUseCase,
   type EnterpriseUseCase,
 } from "./schema.js";
+import { isWithinAgeWindow } from "./freshness.js";
 
 export type EnterpriseUseCaseSelectorConfig = {
   maxUseCasesPerRun?: number;
   minConfidenceScore?: number;
   maxPerIndustry?: number;
   maxPerSource?: number;
+  maxUseCaseAgeDays?: number;
+  referenceDate?: Date;
 };
 
 const DEFAULT_SELECTOR_CONFIG = {
@@ -24,6 +27,7 @@ const DEFAULT_SELECTOR_CONFIG = {
 function resolvedConfig(config: EnterpriseUseCaseSelectorConfig = {}) {
   return {
     ...DEFAULT_SELECTOR_CONFIG,
+    referenceDate: new Date(),
     ...config,
   };
 }
@@ -95,7 +99,12 @@ export function selectEnterpriseUseCaseItems<TUseCase extends EnterpriseUseCase>
       return (
         parsed.success &&
         isEligibleEnterpriseUseCase(parsed.data) &&
-        parsed.data.confidenceScore >= selectionConfig.minConfidenceScore
+        parsed.data.confidenceScore >= selectionConfig.minConfidenceScore &&
+        isWithinAgeWindow({
+          maxAgeDays: selectionConfig.maxUseCaseAgeDays,
+          publishedAt: parsed.data.publishDate,
+          referenceDate: selectionConfig.referenceDate,
+        })
       );
     }),
   );

@@ -5,7 +5,10 @@ const DATE_ONLY_PATTERN = /(\d{4}-\d{2}-\d{2})/;
 const DATE_LENGTH = 10;
 const DATE_PART_TYPES = {
   DAY: "day",
+  HOUR: "hour",
+  MINUTE: "minute",
   MONTH: "month",
+  SECOND: "second",
   YEAR: "year",
 } as const;
 
@@ -57,4 +60,32 @@ export function formatDateOnlyInTimeZone(date: Date, timeZone?: string): string 
     partValue(DATE_PART_TYPES.MONTH),
     partValue(DATE_PART_TYPES.DAY),
   ].join("-");
+}
+
+export function formatTimeOnlyInTimeZone(date: Date, timeZone?: string): string {
+  if (!timeZone) {
+    return date.toISOString().slice(11, 19).replaceAll(":", "");
+  }
+
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    hour12: false,
+    minute: "2-digit",
+    second: "2-digit",
+    timeZone,
+  }).formatToParts(date);
+  const partValue = (type: string): string => {
+    const value = parts.find((part) => part.type === type)?.value;
+    if (!value) {
+      throw new Error(`Could not format time part: ${type}`);
+    }
+
+    return value;
+  };
+
+  return [
+    partValue(DATE_PART_TYPES.HOUR),
+    partValue(DATE_PART_TYPES.MINUTE),
+    partValue(DATE_PART_TYPES.SECOND),
+  ].join("");
 }

@@ -12,11 +12,15 @@ import {
 } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
-import { formatDateOnlyInTimeZone } from "../../utils/date.js";
+import { formatDateOnlyInTimeZone, formatTimeOnlyInTimeZone } from "../../utils/date.js";
 import type { ArtifactWriter, PipelineContext, PipelineMetadata } from "./types.js";
 
 export function formatPipelineRunDate(context: PipelineContext): string {
   return formatDateOnlyInTimeZone(context.startedAt, context.config.schedule?.timezone);
+}
+
+export function formatPipelineRunTime(context: PipelineContext): string {
+  return formatTimeOnlyInTimeZone(context.startedAt, context.config.schedule?.timezone);
 }
 
 export function renderOutputPath(context: PipelineContext): string {
@@ -24,6 +28,7 @@ export function renderOutputPath(context: PipelineContext): string {
   const filenameTemplate = context.config.output.filenameTemplate ?? `${context.pipelineId}.txt`;
   const filename = filenameTemplate
     .replaceAll("{date}", formatPipelineRunDate(context))
+    .replaceAll("{time}", formatPipelineRunTime(context))
     .replaceAll("{pipelineId}", context.pipelineId)
     .replaceAll("{runId}", context.runId);
   const unsafeParts = [directory, filename].flatMap((part) => part.split(/[\\/]+/));

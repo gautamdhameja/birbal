@@ -29,6 +29,7 @@ import type {
   SourceCollector,
   StructuredExtractor,
 } from "../../framework/pipeline/types.js";
+import { normalizeUrl } from "../../utils/url.js";
 import {
   asRunItem,
   collectionSourceIds,
@@ -40,7 +41,11 @@ import {
 } from "../componentHelpers.js";
 import { ENTERPRISE_USE_CASE_EXTRACTOR_VERSION, extractEnterpriseUseCases } from "./extractor.js";
 import { renderEnterpriseUseCaseDigest } from "./renderer.js";
-import { collectUseCaseSearchCandidates, searchSnapshotItemToCandidate } from "./search.js";
+import {
+  collectUseCaseSearchCandidates,
+  isRecentUseCaseSearchCandidate,
+  searchSnapshotItemToCandidate,
+} from "./search.js";
 import type { UseCaseSearchCandidate } from "./search.js";
 import type { EnterpriseUseCase } from "./schema.js";
 import { selectEnterpriseUseCaseItems, selectEnterpriseUseCases } from "./selector.js";
@@ -50,7 +55,6 @@ import {
   type EnterpriseUseCaseVerification,
   type VerificationEvidence,
 } from "./verification.js";
-import { normalizeUrl } from "../../utils/url.js";
 
 function asUseCaseCandidate(value: unknown): UseCaseSearchCandidate {
   return asRunItem(value).item as UseCaseSearchCandidate;
@@ -99,6 +103,8 @@ function useCaseScoutConfigFromContext(context: PipelineContext, method: Pipelin
     maxSearchQueries: context.config.limits.maxSearchQueries ?? 1,
     maxSearchResultsPerQuery: context.config.limits.maxSearchResultsPerQuery ?? 10,
     maxCandidatesForExtraction: context.config.limits.maxCandidatesForExtraction ?? 30,
+    maxCandidateAgeDays: context.config.limits.maxItemAgeDays,
+    referenceDate: context.startedAt,
   };
 }
 
@@ -116,6 +122,10 @@ function useCaseSelectorConfigFromContext(context: PipelineContext) {
     ...(typeof context.config.limits.maxPerSource === "number"
       ? { maxPerSource: context.config.limits.maxPerSource }
       : {}),
+    ...(typeof context.config.limits.maxItemAgeDays === "number"
+      ? { maxUseCaseAgeDays: context.config.limits.maxItemAgeDays }
+      : {}),
+    referenceDate: context.startedAt,
   };
 }
 
@@ -200,6 +210,29 @@ function cacheVerification(
   });
 }
 
+function selectWithoutVerification(
+  extractedUseCases: readonly EnterpriseUseCase[],
+  selectorConfig: ReturnType<typeof useCaseSelectorConfigFromContext>,
+) {
+  const selectedUseCases = selectEnterpriseUseCases(extractedUseCases, selectorConfig);
+
+  return {
+    candidatePool: selectedUseCases,
+    acceptedPool: selectedUseCases,
+    processedCandidateCount: 0,
+    selected: selectedUseCases.map((useCase) => ({
+      ...useCase,
+      verification: {
+        verified: true,
+        confidenceScore: useCase.confidenceScore,
+        unsupportedFields: [],
+        evidenceLinks: [],
+        notes: "Verification disabled by pipeline config.",
+      },
+    })),
+  };
+}
+
 export const braveWebSearchCollector: SourceCollector = {
   async collect(method, context) {
     const collectionMethod = method as PipelineCollectionMethod;
@@ -266,7 +299,14 @@ export const searchSnapshotCollector: SourceCollector = {
       );
     }
 
-    const candidates = listSearchSnapshotItems(snapshot.id).map(searchSnapshotItemToCandidate);
+    const candidates = listSearchSnapshotItems(snapshot.id)
+      .map(searchSnapshotItemToCandidate)
+      .filter((candidate) =>
+        isRecentUseCaseSearchCandidate(candidate, {
+          maxCandidateAgeDays: context.config.limits.maxItemAgeDays,
+          referenceDate: context.startedAt,
+        }),
+      );
     context.logger.info(
       {
         event: "pipeline.use_cases.search_snapshot_loaded",
@@ -360,25 +400,12 @@ export const enterpriseUseCaseSelector: Selector = {
               maxUseCasesPerRun: limit,
             }),
         })
-      : {
-          candidatePool: selectEnterpriseUseCases(extractedUseCases, selectorConfig),
-          acceptedPool: selectEnterpriseUseCases(extractedUseCases, selectorConfig),
-          processedCandidateCount: 0,
-          selected: selectEnterpriseUseCases(extractedUseCases, selectorConfig).map((useCase) => ({
-            ...useCase,
-            verification: {
-              verified: true,
-              confidenceScore: useCase.confidenceScore,
-              unsupportedFields: [],
-              evidenceLinks: [],
-              notes: "Verification disabled by pipeline config.",
-            },
-          })),
-        };
+      : selectWithoutVerification(extractedUseCases, selectorConfig);
 
     context.logger.info(
       {
         event: "pipeline.use_cases.verification",
+        extractedUseCases: extractedUseCases.length,
         selectedBeforeVerification: verified.candidatePool.length,
         verifiedBeforeFinalSelection: verified.acceptedPool.length,
         verified: verified.selected.length,

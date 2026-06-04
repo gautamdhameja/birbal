@@ -89,6 +89,9 @@ describe("enterprise use case extractor", () => {
 
     assert.match(prompt, /leave unsupported fields as empty strings/i);
     assert.match(prompt, /Blank is better than generic/i);
+    assert.match(prompt, /evidenceSummary must give enough context/i);
+    assert.match(prompt, /workflowBefore must explain the old/i);
+    assert.match(prompt, /workflowAfter must explain what changed/i);
     assert.doesNotMatch(prompt, /Use "unknown" for unavailable fields/);
   });
 

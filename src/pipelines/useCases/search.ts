@@ -4,6 +4,7 @@
 import type { SearchWebResult } from "../../brave-search/client.js";
 import { mapLimit } from "../../framework/pipeline/concurrency.js";
 import { normalizeUrl } from "../../utils/url.js";
+import { isWithinAgeWindow } from "./freshness.js";
 
 export type UseCaseSearchConfig = {
   prioritizedDomains: string[];
@@ -11,6 +12,8 @@ export type UseCaseSearchConfig = {
   maxSearchResultsPerQuery: number;
   maxCandidatesForExtraction: number;
   freshness?: string;
+  maxCandidateAgeDays?: number;
+  referenceDate?: Date;
 };
 
 export type UseCaseSearchCandidate = {
@@ -38,6 +41,64 @@ type UseCaseSearchFunction = (
 
 const SEARCH_CONCURRENCY = 3;
 const MAX_ERROR_MESSAGE_LENGTH = 500;
+const STRONG_RELEVANCE_PATTERNS = [
+  /\/case-studies?\//u,
+  /\/customers\/story\//u,
+  /\/customer-stories\//u,
+  /\/customers\//u,
+  /\/client-stories\//u,
+  /\bcustomer stories?\b/u,
+  /\bcase stud(?:y|ies)\b/u,
+  /\bclient story\b/u,
+  /\bproduction deployment\b/u,
+  /\brolled out\b/u,
+  /\blive deployment\b/u,
+] as const;
+const RELEVANCE_PATTERNS = [
+  /\bworkflow\b/u,
+  /\bdeployed\b/u,
+  /\bdeployment\b/u,
+  /\bproduction\b/u,
+  /\bbusiness outcome\b/u,
+  /\bmeasurable outcome\b/u,
+  /\broi\b/u,
+  /\bsaved\b/u,
+  /\breduced\b/u,
+  /\bincreased\b/u,
+  /\bautomated\b/u,
+  /\bemployees\b/u,
+  /\bcontact center\b/u,
+  /\bcustomer support\b/u,
+  /\bprocurement\b/u,
+  /\bfinance\b/u,
+  /\bsupply chain\b/u,
+  /\bassistant\b/u,
+  /\bcopilot\b/u,
+  /\bagent\b/u,
+  /\bagents\b/u,
+  /\bazure openai\b/u,
+  /\bbedrock\b/u,
+  /\bgemini\b/u,
+  /\bclaude\b/u,
+] as const;
+const LOW_RELEVANCE_PATTERNS = [
+  /\bstate of ai\b/u,
+  /\bstate of enterprise ai\b/u,
+  /\bbest practices?\b/u,
+  /\bbuyers? guide\b/u,
+  /\btop\s+\d+\b/u,
+  /\bbest ai\b/u,
+  /\bframework\b/u,
+  /\bmeasurement\b/u,
+  /\bevaluation\b/u,
+  /\bbenchmark\b/u,
+  /\bmetrics\b/u,
+  /\bmethodology\b/u,
+  /\bthought leadership\b/u,
+  /\beconomic potential\b/u,
+  /\bhow to get roi\b/u,
+  /\bwhat successful\b/u,
+] as const;
 
 function toTimestamp(value: string): number {
   const timestamp = Date.parse(value);
@@ -73,11 +134,45 @@ function domainPriority(url: string, prioritizedDomains: readonly string[]): num
   return priority === -1 ? prioritizedDomains.length : priority;
 }
 
+function relevanceText(candidate: UseCaseSearchCandidate): string {
+  return [candidate.title, candidate.description, candidate.url, candidate.sourceName ?? ""]
+    .join(" ")
+    .toLowerCase();
+}
+
+function patternScore(text: string, patterns: readonly RegExp[], points: number): number {
+  return patterns.reduce((score, pattern) => (pattern.test(text) ? score + points : score), 0);
+}
+
+function metricSignalScore(text: string): number {
+  const hasNumber =
+    /\b\d+(?:\.\d+)?(?:%| percent|x| hours?| minutes?| days?| weeks?| months?| million| billion| employees?)\b/u.test(
+      text,
+    );
+  return hasNumber ? 2 : 0;
+}
+
+export function useCaseSearchRelevanceScore(candidate: UseCaseSearchCandidate): number {
+  const text = relevanceText(candidate);
+
+  return (
+    patternScore(text, STRONG_RELEVANCE_PATTERNS, 5) +
+    patternScore(text, RELEVANCE_PATTERNS, 2) +
+    metricSignalScore(text) -
+    patternScore(text, LOW_RELEVANCE_PATTERNS, 5)
+  );
+}
+
 function compareCandidates(
   left: UseCaseSearchCandidate,
   right: UseCaseSearchCandidate,
   prioritizedDomains: readonly string[],
 ): number {
+  const relevanceOrder = useCaseSearchRelevanceScore(right) - useCaseSearchRelevanceScore(left);
+  if (relevanceOrder !== 0) {
+    return relevanceOrder;
+  }
+
   const priorityOrder =
     domainPriority(left.url, prioritizedDomains) - domainPriority(right.url, prioritizedDomains);
   if (priorityOrder !== 0) {
@@ -108,6 +203,17 @@ function toCandidate(query: string, result: SearchWebResult): UseCaseSearchCandi
     sourceName: result.sourceName,
     raw: result.raw,
   };
+}
+
+export function isRecentUseCaseSearchCandidate(
+  candidate: UseCaseSearchCandidate,
+  config: Pick<UseCaseSearchConfig, "maxCandidateAgeDays" | "referenceDate">,
+): boolean {
+  return isWithinAgeWindow({
+    maxAgeDays: config.maxCandidateAgeDays,
+    publishedAt: candidate.publishedAt,
+    referenceDate: config.referenceDate ?? new Date(),
+  });
 }
 
 function dedupeCandidates(candidates: UseCaseSearchCandidate[]): UseCaseSearchCandidate[] {
@@ -155,7 +261,9 @@ export async function collectUseCaseSearchCandidates(
       };
     }
   });
-  const candidates = searchResults.flatMap((result) => result.candidates);
+  const candidates = searchResults
+    .flatMap((result) => result.candidates)
+    .filter((candidate) => isRecentUseCaseSearchCandidate(candidate, config));
   const searchErrors = searchResults
     .map((result) => result.error)
     .filter((error): error is { query: string; error: string } => error !== null);

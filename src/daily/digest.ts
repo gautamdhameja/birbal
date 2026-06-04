@@ -1,8 +1,5 @@
-// Purpose: Implements the daily reading pipeline support: digest.
-// Scope: Contains Birbal-specific digest scoring, classification, and rendering helpers.
-
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+// Purpose: Renders daily reading items into Markdown.
+// Scope: Keeps daily-specific digest presentation helpers out of the generic framework.
 
 import { CANDIDATE_CATEGORIES } from "../constants/candidates.js";
 import { DIGEST } from "../constants/digest.js";
@@ -42,7 +39,7 @@ function renderDigestUrl(value: string): string {
   try {
     const parsedUrl = new URL(normalizedUrl);
     if (parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:") {
-      return parsedUrl.toString();
+      return `<${parsedUrl.toString()}>`;
     }
   } catch {
     return DIGEST.INVALID_URL;
@@ -197,19 +194,4 @@ export function writeDigest(items: ScoredCandidateItem[], date: DigestDate): str
   const sections = [`# ${DIGEST.TITLE} - ${digestDate}`, ...items.map(renderDigestItem)];
 
   return `${sections.join(`${DIGEST.LINE_SEPARATOR}${DIGEST.LINE_SEPARATOR}`)}${DIGEST.LINE_SEPARATOR}`;
-}
-
-export function saveDigest(
-  markdown: string,
-  date: DigestDate,
-  rootDirectory = process.cwd(),
-): string {
-  const digestDate = formatDigestDate(date);
-  const digestDirectory = join(rootDirectory, DIGEST.DIRECTORY);
-  const digestPath = join(digestDirectory, `${digestDate}${DIGEST.FILE_EXTENSION}`);
-
-  mkdirSync(digestDirectory, { recursive: true });
-  writeFileSync(digestPath, markdown);
-
-  return digestPath;
 }

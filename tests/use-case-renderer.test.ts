@@ -2,15 +2,9 @@
 // Scope: Covers regressions through the Node.js test runner.
 
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import {
-  renderEnterpriseUseCaseDigest,
-  saveEnterpriseUseCaseDigest,
-} from "../src/pipelines/useCases/renderer.js";
+import { renderEnterpriseUseCaseDigest } from "../src/pipelines/useCases/renderer.js";
 import type { EnterpriseUseCase } from "../src/pipelines/useCases/schema.js";
 
 function useCase(overrides: Partial<EnterpriseUseCase> = {}): EnterpriseUseCase {
@@ -45,16 +39,19 @@ describe("enterprise use case renderer", () => {
     const markdown = renderEnterpriseUseCaseDigest([useCase()], "2026-05-25");
 
     assert.match(markdown, /^# Enterprise AI Use Cases - 2026-05-25/);
-    assert.match(markdown, /- Use case: Customer support: Customer support AI assistant/);
     assert.match(
       markdown,
-      /- Workflow changed: Support ticket triage; before: Agents manually read and route incoming tickets\.; after: AI drafts responses and routes escalations\./,
+      /- Use case: Acme is using Customer support AI assistant for Support ticket triage in Customer support\. Named production deployment with measurable support outcome\./,
+    );
+    assert.match(
+      markdown,
+      /- Workflow changed: Support ticket triage\. Previously: Agents manually read and route incoming tickets\. Now: AI drafts responses and routes escalations\./,
     );
     assert.match(markdown, /- Business impact: 20% faster response time/);
-    assert.match(markdown, /- Enterprise lesson:/);
-    assert.match(markdown, /- Source: \[Example\]\(https:\/\/example\.com\/acme-support\)/);
+    assert.match(markdown, /- Source: \[Example\]\(<https:\/\/example\.com\/acme-support>\)/);
     assert.doesNotMatch(markdown, /## Summary Table/);
     assert.doesNotMatch(markdown, /- Human role change:/);
+    assert.doesNotMatch(markdown, /- Enterprise lesson:/);
   });
 
   it("escapes Markdown control characters from source content", () => {
@@ -77,6 +74,18 @@ describe("enterprise use case renderer", () => {
     assert.ok(markdown.includes("Example \\| Source"));
   });
 
+  it("wraps source URLs so punctuation cannot break Markdown links", () => {
+    const markdown = renderEnterpriseUseCaseDigest(
+      [useCase({ sourceUrl: "https://example.com/report)final?x=1)" })],
+      "2026-05-25",
+    );
+
+    assert.match(
+      markdown,
+      /- Source: \[Example\]\(<https:\/\/example\.com\/report\)final\?x=1\)>\)/,
+    );
+  });
+
   it("renders unsupported newsletter fields as blank instead of filler", () => {
     const markdown = renderEnterpriseUseCaseDigest(
       [
@@ -93,12 +102,15 @@ describe("enterprise use case renderer", () => {
       "2026-05-25",
     );
 
-    assert.match(markdown, /- Use case: Customer support AI assistant/);
+    assert.match(
+      markdown,
+      /- Use case: Acme is using Customer support AI assistant for Support ticket triage\. Named production deployment with measurable support outcome\./,
+    );
     assert.match(markdown, /- Workflow changed: Support ticket triage/);
     assert.match(markdown, /- Business impact: $/m);
-    assert.match(markdown, /- Enterprise lesson: $/m);
     assert.doesNotMatch(markdown, /unknown/);
     assert.doesNotMatch(markdown, /N\/A/);
+    assert.doesNotMatch(markdown, /- Enterprise lesson:/);
   });
 
   it("does not include missing before or after workflow fragments", () => {
@@ -113,18 +125,9 @@ describe("enterprise use case renderer", () => {
 
     assert.match(
       markdown,
-      /- Workflow changed: Support ticket triage; after AI: AI drafts responses and routes escalations\./,
+      /- Workflow changed: Support ticket triage\. Now: AI drafts responses and routes escalations\./,
     );
-    assert.doesNotMatch(markdown, /before:/);
-  });
-
-  it("saves use-case digests under digests/use-cases", () => {
-    const rootDirectory = mkdtempSync(join(tmpdir(), "birbal-use-case-digest-"));
-    const path = saveEnterpriseUseCaseDigest("# Test\n", "2026-05-25", rootDirectory);
-
-    assert.equal(path, join(rootDirectory, "digests", "use-cases", "2026-05-25.md"));
-    assert.equal(existsSync(path), true);
-    assert.equal(readFileSync(path, "utf8"), "# Test\n");
+    assert.doesNotMatch(markdown, /Previously:/);
   });
 
   it("rejects invalid digest dates", () => {

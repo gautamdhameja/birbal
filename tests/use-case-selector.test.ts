@@ -188,6 +188,35 @@ describe("enterprise use case selector", () => {
     assert.equal(selected.length, 1);
   });
 
+  it("filters use cases older than the configured age window", () => {
+    const selected = selectEnterpriseUseCases(
+      [
+        useCase({
+          id: "old-use-case",
+          publishDate: "2025-06-03",
+        }),
+        useCase({
+          id: "fresh-use-case",
+          companyName: "Beta",
+          workflowAffected: "Claims intake",
+          aiSystemOrCapability: "Claims assistant",
+          publishDate: "2025-06-04",
+          sourceUrl: "https://aws.amazon.com/case-studies/beta",
+          sourceName: "AWS",
+        }),
+      ],
+      {
+        maxUseCaseAgeDays: 365,
+        referenceDate: new Date("2026-06-04T12:00:00Z"),
+      },
+    );
+
+    assert.deepEqual(
+      selected.map((item) => item.id),
+      ["fresh-use-case"],
+    );
+  });
+
   it("preserves enriched item metadata while applying selection rules", () => {
     const enriched = {
       ...useCase({ id: "verified" }),

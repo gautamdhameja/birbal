@@ -66,7 +66,7 @@ function addPipelineOptions(command: Command): Command {
   return command
     .option("--trace", "enable debug tracing")
     .option("--dry-run", "print resolved config without running")
-    .option("--limit <number>", "limit candidate and output counts", parsePositiveInteger)
+    .option("--limit <number>", "limit final output count", parsePositiveInteger)
     .option("--config <path>", "load pipeline config from a file path");
 }
 
@@ -157,7 +157,7 @@ export async function runBirbalCli(args: readonly string[] = process.argv.slice(
   useCasesCommand
     .command("search")
     .description("run only use-case web search and store a reusable snapshot")
-    .option("--limit <number>", "limit candidate and output counts", parsePositiveInteger)
+    .option("--limit <number>", "limit search snapshot candidate count", parsePositiveInteger)
     .option("--config <path>", "load pipeline config from a file path")
     .action(async (optionsOrCommand: PipelineCommandOptions | Command, command?: Command) => {
       const options = commandOptions<PipelineCommandOptions>(optionsOrCommand, command);

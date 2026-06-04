@@ -9,6 +9,7 @@ import { describe, it } from "node:test";
 
 import { loadSourceRegistry } from "../src/config/sourceRegistry.js";
 import { loadPipelineConfig } from "../src/framework/pipeline/config.js";
+import { applyPipelineCliLimit } from "../src/runPipeline.js";
 
 function writeConfig(value: unknown): string {
   const configPath = join(mkdtempSync(join(tmpdir(), "birbal-pipeline-config-")), "pipeline.json");
@@ -68,13 +69,13 @@ describe("pipeline config", () => {
     assert.deepEqual(config.output, {
       format: "markdown",
       directory: "digests/use-cases",
-      filenameTemplate: "{date}.md",
+      filenameTemplate: "{date}-{time}.md",
       artifactWriterId: "filesystem_artifact_writer",
     });
     assert.deepEqual(config.contentFetchPolicy, {
       enabled: true,
       fetcherId: "url_text_fetcher",
-      fetchForTopN: 20,
+      fetchForTopN: 30,
       maxChars: 16000,
       maxResponseBytes: 8000000,
       preferFetchedContent: true,
@@ -85,14 +86,31 @@ describe("pipeline config", () => {
       continueOnContentFetchFailure: true,
       continueOnScoringFailure: true,
       continueOnStructuredExtractionFailure: true,
-      minItemsRequiredForSuccess: 1,
+      minItemsRequiredForSuccess: 5,
     });
-    assert.equal(config.limits.extractionMaxContentChars, 6000);
+    assert.equal(config.limits.extractionMaxContentChars, 9000);
+    assert.equal(config.limits.maxCandidates, 50);
+    assert.equal(config.limits.maxCandidatesForExtraction, 50);
+    assert.equal(config.limits.maxItemAgeDays, 365);
+    assert.equal(config.limits.maxResults, 5);
+    assert.equal(config.limits.maxUseCasesPerRun, 5);
     assert.equal(config.limits.maxSearchQueries, 5);
     assert.equal(config.limits.maxSearchResultsPerQuery, 20);
     assert.equal(config.limits.verificationBatchSize, 5);
+    assert.equal(config.limits.verificationCandidateMultiplier, 4);
     assert.equal(config.limits.maxVerificationLinks, 0);
     assert.equal(config.collectionMethods[0]?.collectorId, "brave_web_search_collector");
+  });
+
+  it("applies CLI limits only to final pipeline output", () => {
+    const config = loadPipelineConfig("use-cases");
+    const limited = applyPipelineCliLimit(config, 5);
+
+    assert.equal(limited.contentFetchPolicy.fetchForTopN, 30);
+    assert.equal(limited.limits.maxCandidates, 50);
+    assert.equal(limited.limits.maxCandidatesForExtraction, 50);
+    assert.equal(limited.limits.maxResults, 5);
+    assert.equal(limited.limits.limit, 5);
   });
 
   it("keeps configured pipeline source IDs present in the source registry", () => {

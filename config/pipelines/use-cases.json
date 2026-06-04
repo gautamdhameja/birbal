@@ -27,7 +27,7 @@
   "contentFetchPolicy": {
     "enabled": true,
     "fetcherId": "url_text_fetcher",
-    "fetchForTopN": 20,
+    "fetchForTopN": 30,
     "maxChars": 16000,
     "maxResponseBytes": 8000000,
     "preferFetchedContent": true
@@ -38,22 +38,23 @@
   "output": {
     "format": "markdown",
     "directory": "digests/use-cases",
-    "filenameTemplate": "{date}.md",
+    "filenameTemplate": "{date}-{time}.md",
     "artifactWriterId": "filesystem_artifact_writer"
   },
   "limits": {
-    "maxCandidates": 20,
+    "maxCandidates": 50,
+    "maxItemAgeDays": 365,
     "maxSearchQueries": 5,
     "maxSearchResultsPerQuery": 20,
-    "maxCandidatesForExtraction": 20,
-    "maxResults": 10,
-    "maxUseCasesPerRun": 10,
+    "maxCandidatesForExtraction": 50,
+    "maxResults": 5,
+    "maxUseCasesPerRun": 5,
     "minConfidenceScore": 3,
     "maxPerIndustry": 3,
     "maxPerSource": 3,
-    "extractionMaxContentChars": 6000,
+    "extractionMaxContentChars": 9000,
     "verificationBatchSize": 5,
-    "verificationCandidateMultiplier": 2,
+    "verificationCandidateMultiplier": 4,
     "maxVerificationLinks": 0,
     "verificationMaxChars": 8000,
     "verificationPromptLinkedMaxChars": 1500,
@@ -75,6 +76,6 @@
     "continueOnSourceFailure": true,
     "continueOnContentFetchFailure": true,
     "continueOnStructuredExtractionFailure": true,
-    "minItemsRequiredForSuccess": 1
+    "minItemsRequiredForSuccess": 5
   }
 }

@@ -53,7 +53,7 @@ It supports:
 
 - `--trace` for debug logs.
 - `--dry-run` to print the resolved pipeline config.
-- `--limit <number>` to cap candidate/output counts and content fetch volume.
+- `--limit <number>` to cap final output count for full pipeline runs.
 - `--config <path>` to load a custom JSON config file.
 
 Pipeline IDs are resolved from `config/pipelines/<id>.json`, with underscore-to-hyphen fallback. For example, `use_cases` resolves to `config/pipelines/use-cases.json`.
@@ -470,11 +470,11 @@ Key config:
 - Default Brave Search budget: five configured queries per run, enforced by `limits.maxSearchQueries`.
 - Each query requests the maximum allowed Brave result count so quota discipline does not also reduce the per-call candidate pool.
 - Content fetcher: `url_text_fetcher`.
-- Content fetch limit: top 30 items, max 24000 chars each.
+- Content fetch limit: top 30 relevance-ranked items, max 16000 chars each.
 - Structured extractor: `enterprise_use_case_extractor`.
 - Selector: `enterprise_use_case_selector`.
 - Renderer: `enterprise_use_case_markdown_renderer`.
-- Output: `digests/use-cases/{date}.md`.
+- Output: `digests/use-cases/{date}-{time}.md`.
 - Limits include max candidates, search results per query, extraction candidates, result count, confidence threshold, and diversity caps by industry and source.
 
 Candidate collection uses `src/pipelines/useCases/search.ts`:
@@ -484,7 +484,7 @@ Candidate collection uses `src/pipelines/useCases/search.ts`:
 - Converts results with URL, title, description, published date, source name, and raw payload into `UseCaseSearchCandidate`.
 - Drops candidates without URLs or published dates.
 - Dedupes by normalized URL.
-- Ranks by prioritized domain order, then recency, then title.
+- Ranks by enterprise use-case relevance signals, then prioritized domain order, recency, and title.
 - Caps extraction candidates.
 
 Use-case search snapshots are stored by `src/db/searchSnapshots.ts`:
@@ -501,7 +501,7 @@ It:
 - Asks for a top-level `{ "useCases": [...] }` object.
 - Requires every use case to include company, industry, business function, before/after workflow, AI capability, human role change, integrations, deployment stage, ROI metric, business outcome, governance/risk notes, implementation details, source fields, evidence summary, and `confidenceScore`.
 - Allows `unknown` for unavailable source facts but tells the model not to invent evidence.
-- Accepts multiple use cases per article.
+- Accepts multiple use cases per article, capped to the strongest few so aggregator pages do not overwhelm the run.
 - Normalizes common model shape mistakes such as arrays at the top level, `use_cases`, single objects, and `confidence`/`confidence_score`.
 - Overwrites model-supplied `sourceUrl` with the trusted candidate URL before downstream selection, storage, or rendering.
 - Throws `ModelParseError` if repair cannot produce valid output.
@@ -525,9 +525,9 @@ Selection in `src/pipelines/useCases/selector.ts`:
 
 Rendering in `src/pipelines/useCases/renderer.ts`:
 
-- Writes a dated enterprise AI use-case digest.
+- Renders a dated enterprise AI use-case digest.
 - Uses a compact newsletter-style format for every selected use case.
-- Includes only use case, workflow changed, business impact, enterprise lesson, and source.
+- Includes only use case, workflow changed, business impact, and source.
 - Escapes Markdown text and renders source links when URLs are valid HTTP(S).
 
 Persistence in `src/db/useCases.ts`:
@@ -760,7 +760,7 @@ For the use-case pipeline:
 6. `enterprise_use_case_selector` filters and diversifies extracted records.
 7. Selected records are upserted into SQLite.
 8. `enterprise_use_case_markdown_renderer` creates Markdown.
-9. `filesystem_artifact_writer` writes `digests/use-cases/{date}.md`.
+9. `filesystem_artifact_writer` writes `digests/use-cases/{date}-{time}.md`.
 10. The run is finalized in SQLite.
 
 For the agent CLI:
