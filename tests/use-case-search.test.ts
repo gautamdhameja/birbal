@@ -56,6 +56,36 @@ describe("enterprise use case search", () => {
     assert.equal(candidates.length, 1);
   });
 
+  it("supports offset query batches for bounded adaptive search retries", async () => {
+    const searchedQueries: string[] = [];
+    const { candidates, searchedQueries: searchedQueryCount } =
+      await collectUseCaseSearchCandidates(
+        config({
+          maxSearchQueries: 2,
+          queryOffset: 2,
+        }),
+        async (query) => {
+          searchedQueries.push(query);
+
+          return [
+            {
+              title: `${query} customer story`,
+              url: `https://openai.com/index/${query.replaceAll(" ", "-")}`,
+              description: "Named customer with production workflow metrics.",
+              publishedAt: "2026-05-20",
+              sourceName: "OpenAI",
+              raw: {},
+            },
+          ];
+        },
+        ["query one", "query two", "query three", "query four", "query five"],
+      );
+
+    assert.deepEqual(searchedQueries, ["query three", "query four"]);
+    assert.equal(searchedQueryCount, 2);
+    assert.equal(candidates.length, 2);
+  });
+
   it("deduplicates, drops undated results, and ranks by use-case relevance", async () => {
     const { candidates, searchErrors } = await collectUseCaseSearchCandidates(
       config({

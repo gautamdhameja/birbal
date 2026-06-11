@@ -111,7 +111,7 @@ export const EnterpriseUseCaseSchema = z.preprocess(
 
 export type EnterpriseUseCase = z.infer<typeof EnterpriseUseCaseSchema>;
 
-function isMissingText(value: string): boolean {
+export function isMissingEnterpriseUseCaseText(value: string): boolean {
   const normalizedValue = value.trim().toLowerCase();
   return (
     normalizedValue === "" ||
@@ -126,7 +126,7 @@ function isMissingText(value: string): boolean {
 }
 
 function hasGenericCompanyName(value: string): boolean {
-  if (isMissingText(value)) {
+  if (isMissingEnterpriseUseCaseText(value)) {
     return false;
   }
 
@@ -139,7 +139,14 @@ function hasGenericCompanyName(value: string): boolean {
 }
 
 function hasConcreteText(value: string): boolean {
-  return !isMissingText(value);
+  return !isMissingEnterpriseUseCaseText(value);
+}
+
+export function hasNamedEnterpriseCompany(useCase: EnterpriseUseCase): boolean {
+  return (
+    !isMissingEnterpriseUseCaseText(useCase.companyName) &&
+    !hasGenericCompanyName(useCase.companyName)
+  );
 }
 
 export type EnterpriseUseCaseEligibility = {

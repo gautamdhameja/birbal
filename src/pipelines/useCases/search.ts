@@ -11,6 +11,7 @@ export type UseCaseSearchConfig = {
   maxSearchQueries: number;
   maxSearchResultsPerQuery: number;
   maxCandidatesForExtraction: number;
+  queryOffset?: number;
   freshness?: string;
   maxCandidateAgeDays?: number;
   referenceDate?: Date;
@@ -214,12 +215,26 @@ function dedupeCandidates(candidates: UseCaseSearchCandidate[]): UseCaseSearchCa
   return deduped;
 }
 
+export function rankUseCaseSearchCandidates(
+  candidates: readonly UseCaseSearchCandidate[],
+  config: Pick<
+    UseCaseSearchConfig,
+    "maxCandidateAgeDays" | "maxCandidatesForExtraction" | "prioritizedDomains" | "referenceDate"
+  >,
+): UseCaseSearchCandidate[] {
+  return dedupeCandidates([...candidates])
+    .filter((candidate) => isRecentUseCaseSearchCandidate(candidate, config))
+    .sort((left, right) => compareCandidates(left, right, config.prioritizedDomains))
+    .slice(0, config.maxCandidatesForExtraction);
+}
+
 export async function collectUseCaseSearchCandidates(
   config: UseCaseSearchConfig,
   search: UseCaseSearchFunction,
   queries: readonly string[],
 ): Promise<UseCaseCandidateCollectionResult> {
-  const searchQueries = queries.slice(0, config.maxSearchQueries);
+  const queryOffset = Math.max(0, config.queryOffset ?? 0);
+  const searchQueries = queries.slice(queryOffset, queryOffset + config.maxSearchQueries);
   const searchResults = await mapLimit(searchQueries, SEARCH_CONCURRENCY, async (query) => {
     try {
       const results = await search(query, config.maxSearchResultsPerQuery, config.freshness);
@@ -242,17 +257,13 @@ export async function collectUseCaseSearchCandidates(
       };
     }
   });
-  const candidates = searchResults
-    .flatMap((result) => result.candidates)
-    .filter((candidate) => isRecentUseCaseSearchCandidate(candidate, config));
+  const candidates = searchResults.flatMap((result) => result.candidates);
   const searchErrors = searchResults
     .map((result) => result.error)
     .filter((error): error is { query: string; error: string } => error !== null);
 
   return {
-    candidates: dedupeCandidates(candidates)
-      .sort((left, right) => compareCandidates(left, right, config.prioritizedDomains))
-      .slice(0, config.maxCandidatesForExtraction),
+    candidates: rankUseCaseSearchCandidates(candidates, config),
     searchedQueries: searchQueries.length,
     searchErrors,
   };

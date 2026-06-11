@@ -87,6 +87,10 @@ describe("enterprise use case extractor", () => {
     assert.match(prompt, /leave unsupported fields as empty strings/i);
     assert.match(prompt, /Blank is better than generic/i);
     assert.match(prompt, /evidenceSummary is the final newsletter summary/i);
+    assert.match(prompt, /business problem and workflow being changed/i);
+    assert.match(prompt, /not like vendor marketing copy/i);
+    assert.match(prompt, /Do not make platform names the point/i);
+    assert.match(prompt, /Bad summary pattern/i);
     assert.match(prompt, /Treat marketing language as neutral/i);
     assert.match(prompt, /confidenceScore 5: named organization/i);
     assert.match(prompt, /real organization or clearly deployed internal enterprise team/i);
@@ -141,6 +145,79 @@ describe("enterprise use case extractor", () => {
     );
 
     assert.equal(useCases[0]?.sourceUrl, "https://trusted.example.com/acme-ai-support");
+  });
+
+  it("allows extracted source URLs from fetched same-site supporting evidence", async () => {
+    const sourceEvidence = {
+      source: {
+        url: "https://aws.amazon.com/ai/implementation/",
+        title: "AWS AI implementation",
+        plainText: "Blue Origin is mentioned in a high-level implementation overview.",
+      },
+      linkedEvidence: [
+        {
+          url: "https://aws.amazon.com/solutions/case-studies/blue-origin-case-study/",
+          title: "Blue Origin case study",
+          plainText:
+            "Blue Origin uses AWS generative AI in engineering workflows with detailed implementation evidence.",
+        },
+      ],
+    };
+    let prompt = "";
+
+    const useCases = await extractEnterpriseUseCases(
+      candidate({ url: "https://aws.amazon.com/ai/implementation/" }),
+      sourceEvidence.source.plainText,
+      {
+        sourceEvidence,
+        completeFn: async (messages) => {
+          prompt = messages.map((message) => message.content).join("\n");
+          return JSON.stringify({
+            useCases: [
+              extractedUseCase({
+                companyName: "Blue Origin",
+                sourceUrl: "https://aws.amazon.com/solutions/case-studies/blue-origin-case-study/",
+              }),
+            ],
+          });
+        },
+      },
+    );
+
+    assert.match(prompt, /Same-site supporting pages fetched from links/i);
+    assert.match(prompt, /Prefer a detailed supporting page over a broad landing page/i);
+    assert.equal(
+      useCases[0]?.sourceUrl,
+      "https://aws.amazon.com/solutions/case-studies/blue-origin-case-study/",
+    );
+  });
+
+  it("rejects untrusted supporting source URLs from model output", async () => {
+    const useCases = await extractEnterpriseUseCases(
+      candidate({ url: "https://aws.amazon.com/ai/implementation/" }),
+      "Blue Origin is mentioned in a high-level implementation overview.",
+      {
+        sourceEvidence: {
+          source: {
+            url: "https://aws.amazon.com/ai/implementation/",
+            title: "AWS AI implementation",
+            plainText: "Blue Origin is mentioned in a high-level implementation overview.",
+          },
+          linkedEvidence: [],
+        },
+        completeFn: async () =>
+          JSON.stringify({
+            useCases: [
+              extractedUseCase({
+                companyName: "Blue Origin",
+                sourceUrl: "https://attacker.example/blue-origin",
+              }),
+            ],
+          }),
+      },
+    );
+
+    assert.equal(useCases[0]?.sourceUrl, "https://aws.amazon.com/ai/implementation/");
   });
 
   it("accepts common model envelope variants without repair", async () => {

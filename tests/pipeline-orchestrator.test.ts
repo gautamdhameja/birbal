@@ -211,6 +211,9 @@ describe("pipeline orchestrator", () => {
           return () => dates.shift() ?? new Date("2026-05-23T08:00:05.000Z");
         })(),
         registry,
+        runMetadata: {
+          searchSnapshotId: "snapshot-1",
+        },
       },
     );
 
@@ -237,6 +240,7 @@ describe("pipeline orchestrator", () => {
       artifactsWritten: 1,
     });
     assert.deepEqual(result.errors, []);
+    assert.equal(result.metadata.searchSnapshotId, "snapshot-1");
     assert.equal(result.metadata.startedAt, "2026-05-23T08:00:00.000Z");
     assert.equal(result.metadata.finishedAt, "2026-05-23T08:00:05.000Z");
     assert.equal(result.metadata.durationMs, 5000);

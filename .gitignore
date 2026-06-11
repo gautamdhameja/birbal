@@ -11,3 +11,4 @@ digests/
 data/*.db
 data/*.db-shm
 data/*.db-wal
+data/google-cloud-generative-ai-use-cases/

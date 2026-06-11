@@ -6,6 +6,7 @@ import { describe, it } from "node:test";
 
 import {
   extractVerificationLinks,
+  fetchEnterpriseUseCaseEvidence,
   isAcceptedEnterpriseUseCaseVerification,
   verifyEnterpriseUseCase,
   verifySelectedEnterpriseUseCases,
@@ -89,6 +90,54 @@ describe("enterprise use case verification", () => {
 
     assert.equal(verification.verified, true);
     assert.equal(verification.confidenceScore, 4);
+  });
+
+  it("fetches same-site supporting evidence from content links", async () => {
+    const fetchedUrls: string[] = [];
+    const evidenceResult = await fetchEnterpriseUseCaseEvidence(useCase(), {
+      maxLinks: 1,
+      fetchPolicy: {
+        transport: async (url) => {
+          const requestedUrl = String(url);
+          fetchedUrls.push(requestedUrl);
+
+          if (requestedUrl.endsWith("/blue-origin-case-study/")) {
+            return new Response(
+              `<html><main><h1>Blue Origin case study</h1><p>Blue Origin uses generative AI in engineering workflows with detailed implementation evidence.</p></main></html>`,
+              {
+                status: 200,
+                headers: { "content-type": "text/html" },
+              },
+            );
+          }
+
+          return new Response(
+            `<html>
+              <footer><a href="/privacy">Privacy</a></footer>
+              <main>
+                <h1>AWS implementation</h1>
+                <p>Blue Origin appears in a high-level implementation overview.</p>
+                <a href="/solutions/case-studies/blue-origin-case-study/">Read the Blue Origin case study</a>
+              </main>
+            </html>`,
+            {
+              status: 200,
+              headers: { "content-type": "text/html" },
+            },
+          );
+        },
+      },
+    });
+
+    assert.deepEqual(fetchedUrls, [
+      "https://example.com/acme-support",
+      "https://example.com/solutions/case-studies/blue-origin-case-study/",
+    ]);
+    assert.equal(evidenceResult.linkedEvidence.length, 1);
+    assert.equal(
+      evidenceResult.linkedEvidence[0]?.url,
+      "https://example.com/solutions/case-studies/blue-origin-case-study/",
+    );
   });
 
   it("returns an unverified result when model verification cannot be parsed", async () => {

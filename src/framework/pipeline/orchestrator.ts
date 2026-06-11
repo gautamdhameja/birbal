@@ -58,6 +58,7 @@ export type PipelineOrchestratorDependencies = {
   now(): Date;
   registry: PipelineComponentRegistry;
   researchProfile: unknown;
+  runMetadata: PipelineMetadata;
   runStore: PipelineRunStore;
   startRun(pipelineId: string): string;
 };
@@ -116,6 +117,7 @@ const defaultDependencies: PipelineOrchestratorDependencies = {
   now: () => new Date(),
   registry: pipelineComponentRegistry,
   researchProfile: null,
+  runMetadata: {},
   runStore: defaultRunStore,
   startRun: defaultRunStore.startRun,
 };
@@ -1241,6 +1243,7 @@ export async function runPipeline(
   const counts: PipelineCounts = {};
   const errors: PipelineError[] = [];
   const metadata: PipelineMetadata = {
+    ...deps.runMetadata,
     configPathOrId,
     startedAt: startedAt.toISOString(),
   };

@@ -96,3 +96,16 @@ export const filesystemArtifactWriter: ArtifactWriter = {
     };
   },
 };
+
+export const noopArtifactWriter: ArtifactWriter = {
+  async write(_output, context) {
+    return {
+      id: `${context.pipelineId}_noop_artifact`,
+      type: context.config.output.format,
+      metadata: {
+        ...context.config.output.metadata,
+        skipped: true,
+      },
+    };
+  },
+};

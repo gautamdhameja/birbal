@@ -20,7 +20,17 @@
         "site:mckinsey.com OR site:deloitte.com OR site:bcg.com OR site:pwc.com OR site:accenture.com generative AI enterprise case study workflow ROI",
         "\"enterprise AI\" \"customer story\" workflow production measurable outcome",
         "\"AI agents\" enterprise \"rolled out\" workflow deployment business outcome",
-        "\"AI agent\" customer support enterprise deployed workflow metric"
+        "\"AI agent\" customer support enterprise deployed workflow metric",
+        "site:openai.com/index enterprise AI customer story workflow deployment production",
+        "site:microsoft.com/en/customers/story Azure OpenAI Copilot enterprise customer story workflow outcome",
+        "site:cloud.google.com/customers Vertex AI Gemini generative AI enterprise workflow customer story",
+        "site:anthropic.com/news Claude enterprise customer production workflow deployment",
+        "site:aws.amazon.com/solutions/case-studies generative AI enterprise customer story workflow",
+        "\"generative AI\" enterprise \"case study\" workflow measurable outcome",
+        "\"AI assistant\" enterprise production workflow business outcome",
+        "\"AI agent\" finance enterprise workflow deployment metric",
+        "\"AI agent\" procurement enterprise workflow deployment outcome",
+        "\"AI agent\" supply chain enterprise workflow production outcome"
       ]
     }
   ],
@@ -50,9 +60,11 @@
     "maxResults": 5,
     "maxUseCasesPerRun": 5,
     "minConfidenceScore": 3,
+    "maxPerCompany": 1,
     "maxPerIndustry": 3,
     "maxPerSource": 3,
-    "extractionMaxContentChars": 9000,
+    "extractionMaxContentChars": 12000,
+    "extractionMaxSupportingLinks": 2,
     "verificationBatchSize": 5,
     "verificationCandidateMultiplier": 4,
     "maxVerificationLinks": 0,
@@ -62,6 +74,14 @@
     "minVerificationConfidenceScore": 3
   },
   "settings": {
+    "searchRetry": {
+      "enabled": true,
+      "maxAttempts": 3
+    },
+    "dedupe": {
+      "allowPreviouslyPublished": false,
+      "previouslyPublishedLookback": 500
+    },
     "verification": {
       "enabled": true
     }

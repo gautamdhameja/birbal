@@ -123,6 +123,23 @@ function pipelineIdFromUseShortcut(target: string): string {
   throw new InvalidArgumentError(`unknown pipeline shortcut: ${target}`);
 }
 
+async function runUseCasesCommand(
+  options: PipelineCommandOptions,
+  program: Command,
+): Promise<void> {
+  if (traceEnabled(options, program)) {
+    process.env.LOG_LEVEL = LOGGING.DEBUG_LEVEL;
+    process.env.LOG_PRETTY = process.env.LOG_PRETTY?.trim() || LOGGING.PRETTY_ENABLED_VALUE;
+  }
+  const { runUseCaseAdaptivePipelineCommand } = await import("./pipelines/useCases/commands.js");
+  await runUseCaseAdaptivePipelineCommand({
+    configPath: options.config,
+    dryRun: dryRunEnabled(options),
+    limit: options.limit,
+    trace: traceEnabled(options, program),
+  });
+}
+
 export async function runBirbalCli(args: readonly string[] = process.argv.slice(2)): Promise<void> {
   const normalizedArgs = args.filter((arg) => arg !== "--");
   const program = new Command()
@@ -151,7 +168,7 @@ export async function runBirbalCli(args: readonly string[] = process.argv.slice(
     program.command("use-cases").alias("use_cases").description("run the full use-case pipeline"),
   ).action(async (optionsOrCommand: PipelineCommandOptions | Command) => {
     const options = commandOptions<PipelineCommandOptions>(optionsOrCommand);
-    await runPipelineFromCliOptions(pipelineOptions(options, "use_cases", program));
+    await runUseCasesCommand(options, program);
   });
 
   useCasesCommand
@@ -231,7 +248,7 @@ export async function runBirbalCli(args: readonly string[] = process.argv.slice(
       .description("explicit full use-case run including web search"),
   ).action(async (optionsOrCommand: PipelineCommandOptions | Command) => {
     const options = commandOptions<PipelineCommandOptions>(optionsOrCommand);
-    await runPipelineFromCliOptions(pipelineOptions(options, "use_cases", program));
+    await runUseCasesCommand(options, program);
   });
 
   addPipelineOptions(
@@ -250,9 +267,13 @@ export async function runBirbalCli(args: readonly string[] = process.argv.slice(
       .description('shortcut form, for example "birbal use cases"')
       .argument("<target>", "pipeline shortcut target"),
   ).action(async (target: string, options: PipelineCommandOptions) => {
-    await runPipelineFromCliOptions(
-      pipelineOptions(options, pipelineIdFromUseShortcut(target), program),
-    );
+    const pipelineId = pipelineIdFromUseShortcut(target);
+    if (pipelineId === "use_cases") {
+      await runUseCasesCommand(options, program);
+      return;
+    }
+
+    await runPipelineFromCliOptions(pipelineOptions(options, pipelineId, program));
   });
 
   program

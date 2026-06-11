@@ -143,6 +143,8 @@ birbal use-cases process --snapshot latest
 
 The search command stores a reusable URL snapshot in SQLite. The process command reuses that snapshot for fetch, extraction, verification, selection, and rendering without spending additional Brave Search calls.
 
+The full `birbal use-cases` command uses bounded adaptive search. It searches one configured query batch, processes the accumulated snapshot, and if the final selection is short of the requested report size it can search additional batches up to the configured retry limit.
+
 ## Documentation
 
 The publishable documentation lives in `docs/`. It includes an mdBook-compatible `SUMMARY.md` and `book.toml`, plus pages covering quickstart, architecture, the agent harness, tools, model adapters, pipelines, configuration, security, operations, and framework extension.

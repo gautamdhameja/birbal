@@ -489,6 +489,9 @@ Candidate collection uses `src/pipelines/useCases/search.ts`:
 
 Use-case search snapshots are stored by `src/db/searchSnapshots.ts`:
 
+- `birbal use-cases` uses an adaptive use-case workflow in `src/pipelines/useCases/commands.ts`.
+- It searches one bounded query batch, persists a snapshot, runs processing in probe mode, and searches the next query batch only when the verified selection is still below the requested report size.
+- Probe processing uses a no-op artifact writer and suppresses use-case publication, while still using extraction and verification caches.
 - `birbal use-cases search` runs only the Brave Search acquisition step and persists the normalized URL candidates.
 - `birbal use-cases process --snapshot latest` loads stored candidates through `search_snapshot_collector` and runs the model-heavy stages without making new Brave Search calls.
 - Snapshots let prompt, extraction, verification, selection, and renderer changes be tested repeatedly against a stable URL set.
@@ -498,13 +501,16 @@ The active enterprise extractor is `src/pipelines/useCases/extractor.ts`.
 It:
 
 - Converts a daily-style `CandidateItem` plus fetched article text into a structured extraction prompt.
+- Uses `src/pipelines/useCases/sourceEvidence.ts` to optionally re-fetch the source page, discover bounded same-site content links, and append linked-page evidence before model extraction.
 - Asks for a top-level `{ "useCases": [...] }` object.
 - Requires every use case to include company, industry, business function, AI capability, deployment/outcome fields, source fields, evidence summary, and `confidenceScore`.
 - Asks the model to judge whether the article contains a real enterprise AI use case, score the strength of the evidence, and write a self-contained newsletter-ready summary.
+- Tells the model to prefer a detailed supporting page over a broad landing page when that supporting page contains the actual use-case evidence.
+- Requires summaries to lead with the concrete workflow problem, AI action, operational change, and business impact rather than partnership or platform/vendor framing.
 - Preserves blank fields when details are unavailable and tells the model not to invent evidence or filler values.
 - Accepts multiple use cases per article, capped to the strongest few so aggregator pages do not overwhelm the run.
 - Normalizes common model shape mistakes such as arrays at the top level, `use_cases`, single objects, and `confidence`/`confidence_score`.
-- Overwrites model-supplied `sourceUrl` with the trusted candidate URL before downstream selection, storage, or rendering.
+- Overwrites model-supplied `sourceUrl` unless it matches the trusted candidate URL or a fetched same-site supporting evidence URL.
 - Throws `ModelParseError` if repair cannot produce valid output.
 
 The active use-case schema is `src/pipelines/useCases/schema.ts`. It normalizes arrays and empty values into string fields, strips extra keys, normalizes confidence field aliases, and coerces string confidence values to numbers in the 1 to 5 range.
@@ -522,14 +528,17 @@ Selection in `src/pipelines/useCases/selector.ts`:
 
 - Validates every use case through the schema.
 - Filters below `minConfidenceScore`.
-- Ranks by confidence score, then company and AI capability.
-- Enforces caps for max use cases, max per industry, and max per source. It does not drop similar-looking model outputs before verification.
+- Ranks named-company use cases ahead of anonymous examples, then by confidence score, company, and AI capability.
+- Enforces caps for max use cases, max per company, max per industry, and max per source.
+- Uses source-independent fingerprints from `src/pipelines/useCases/dedupe.ts` to skip previously published use cases unless pipeline settings explicitly allow repeats.
+- Keeps anonymous examples eligible as backfill, but they do not participate in company-based duplicate checks.
 
 Rendering in `src/pipelines/useCases/renderer.ts`:
 
 - Renders a dated enterprise AI use-case digest.
 - Uses a compact newsletter-style format for every selected use case.
 - Includes only summary, business impact, and source.
+- Renders a neutral placeholder such as `Midsize sales org` for anonymous examples instead of leaving the heading blank.
 - Escapes Markdown text and renders source links when URLs are valid HTTP(S).
 
 Persistence in `src/db/useCases.ts`:

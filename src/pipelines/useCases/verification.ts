@@ -1,28 +1,23 @@
 // Purpose: Verifies extracted enterprise use cases against source-grounded evidence.
 // Scope: Uses the original source URL and linked source-page evidence without web search.
 
-import { load } from "cheerio";
 import { z } from "zod";
 
 import { AGENT } from "../../constants/agent.js";
 import { MODEL_PROVIDERS } from "../../constants/model-providers.js";
-import { HTTP } from "../../constants/runtime.js";
-import { URL_TEXT } from "../../constants/url-text.js";
 import { completeStructuredWithRepair } from "../../framework/llm/repair.js";
 import type { ChatMessage, ModelClient, ModelCompleteOptions } from "../../framework/llm/types.js";
-import { fetchPublicHttpWithRetry } from "../../framework/network/fetch.js";
-import type { PublicHttpFetchOptions } from "../../framework/network/fetch.js";
-import { buildHttpStatusError, readResponseText } from "../../http/client.js";
-import {
-  assertSafePublicHttpUrl,
-  type HostResolver,
-  unsafeHttpUrlErrorMessage,
-} from "../../http/url.js";
 import { logger } from "../../logging/logger.js";
 import { getDefaultModelClient } from "../../model-providers/default.js";
-import { extractUrlText } from "../../url-text/extract.js";
 import { normalizeUrl } from "../../utils/url.js";
 import type { EnterpriseUseCase } from "./schema.js";
+import {
+  extractSourceEvidenceLinks,
+  fetchSourceEvidence,
+  type SourceEvidence,
+  type SourceEvidenceDocument,
+  type SourceEvidenceFetchPolicy,
+} from "./sourceEvidence.js";
 
 type CompleteFn = ModelClient["complete"];
 
@@ -41,16 +36,9 @@ export type VerifiedEnterpriseUseCase = EnterpriseUseCase & {
   verification: EnterpriseUseCaseVerification;
 };
 
-export type VerificationEvidenceDocument = {
-  url: string;
-  title: string;
-  plainText: string;
-};
+export type VerificationEvidenceDocument = SourceEvidenceDocument;
 
-export type VerificationEvidence = {
-  source: VerificationEvidenceDocument;
-  linkedEvidence: VerificationEvidenceDocument[];
-};
+export type VerificationEvidence = SourceEvidence;
 
 export type FetchVerificationEvidenceOptions = {
   maxLinks?: number;
@@ -58,19 +46,7 @@ export type FetchVerificationEvidenceOptions = {
   promptSourceMaxChars?: number;
   promptLinkedMaxChars?: number;
   sourceTextByUrl?: ReadonlyMap<string, string>;
-  fetchPolicy?: {
-    hostResolver?: HostResolver;
-    transport?(
-      input: string | URL,
-      init?: RequestInit,
-      options?: PublicHttpFetchOptions,
-    ): Promise<Response>;
-    timeoutMs?: number;
-    retries?: number;
-    minTimeoutMs?: number;
-    maxTimeoutMs?: number;
-    jitter?: boolean;
-  };
+  fetchPolicy?: SourceEvidenceFetchPolicy;
 };
 
 export type VerifyEnterpriseUseCaseOptions = Pick<
@@ -98,21 +74,13 @@ export type VerifySelectedEnterpriseUseCasesOptions = VerifyEnterpriseUseCaseOpt
     ): void;
   };
 
-type FetchedVerificationPage = VerificationEvidenceDocument & {
-  html: string;
-  links: string[];
-};
-
 const DEFAULT_MAX_LINKS = 2;
-const DEFAULT_MAX_CHARS = 8_000;
 const DEFAULT_PROMPT_SOURCE_MAX_CHARS = 5_000;
 const DEFAULT_PROMPT_LINKED_MAX_CHARS = 1_500;
 const MODEL_TEMPERATURE = 0;
 const MODEL_MAX_TOKENS = 1_200;
 const DEFAULT_MIN_VERIFICATION_CONFIDENCE_SCORE = 3;
 export const ENTERPRISE_USE_CASE_VERIFIER_VERSION = "enterprise-use-case-verifier:v6";
-const HTML_CONTENT_TYPES = ["", "text/html", "application/xhtml+xml", "text/plain"] as const;
-const MAX_REDIRECTS = 5;
 
 function truncate(value: string, maxChars: number): string {
   return value.length <= maxChars ? value : `${value.slice(0, maxChars)}\n[truncated]`;
@@ -125,145 +93,12 @@ function sourceTextForUrl(
   return sourceTextByUrl?.get(normalizeUrl(url));
 }
 
-function contentType(response: Response): string {
-  return response.headers.get(HTTP.CONTENT_TYPE_HEADER)?.split(";")[0]?.trim().toLowerCase() ?? "";
-}
-
-function isSupportedContentType(value: string): boolean {
-  return HTML_CONTENT_TYPES.some((supported) => supported === value);
-}
-
 export function extractVerificationLinks(
   html: string,
   baseUrl: string,
   maxLinks = DEFAULT_MAX_LINKS,
 ): string[] {
-  const $ = load(html);
-  const sourceHost = new URL(baseUrl).hostname;
-  const seen = new Set<string>();
-  const links: string[] = [];
-  const contentAnchors = $("main a[href], article a[href], [role='main'] a[href]");
-  const anchors = contentAnchors.length > 0 ? contentAnchors : $("a[href]");
-
-  anchors.each((_, element) => {
-    if (links.length >= maxLinks) {
-      return false;
-    }
-
-    const anchor = $(element);
-    if (
-      anchor.closest("nav, header, footer, aside, form, dialog, [aria-hidden='true']").length > 0
-    ) {
-      return;
-    }
-
-    const rawHref = anchor.attr("href")?.trim();
-    if (!rawHref || rawHref.startsWith("#")) {
-      return;
-    }
-
-    let parsed: URL;
-    try {
-      parsed = new URL(rawHref, baseUrl);
-    } catch {
-      return;
-    }
-
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return;
-    }
-
-    if (parsed.hostname !== sourceHost) {
-      return;
-    }
-
-    parsed.hash = "";
-    const normalized = normalizeUrl(parsed.toString());
-    if (normalized === normalizeUrl(baseUrl) || seen.has(normalized)) {
-      return;
-    }
-
-    seen.add(normalized);
-    links.push(normalized);
-  });
-
-  return links;
-}
-
-async function fetchVerificationResponse(
-  url: string,
-  options: FetchVerificationEvidenceOptions,
-  redirectCount = 0,
-): Promise<{ response: Response; finalUrl: string }> {
-  if (redirectCount > MAX_REDIRECTS) {
-    throw new Error(URL_TEXT.ERRORS.TOO_MANY_REDIRECTS);
-  }
-
-  await assertSafePublicHttpUrl(url, options.fetchPolicy?.hostResolver);
-  const transport = options.fetchPolicy?.transport ?? fetchPublicHttpWithRetry;
-  const response = await transport(
-    url,
-    {
-      redirect: "manual",
-      headers: {
-        accept: "text/html, application/xhtml+xml, text/plain;q=0.9, */*;q=0.8",
-        [HTTP.USER_AGENT_HEADER]: HTTP.USER_AGENT,
-      },
-    },
-    {
-      timeoutMs: options.fetchPolicy?.timeoutMs,
-      retries: options.fetchPolicy?.retries,
-      minTimeoutMs: options.fetchPolicy?.minTimeoutMs,
-      maxTimeoutMs: options.fetchPolicy?.maxTimeoutMs,
-      jitter: options.fetchPolicy?.jitter,
-      hostResolver: options.fetchPolicy?.hostResolver,
-    },
-  );
-
-  if (response.status >= 300 && response.status < 400) {
-    const location = response.headers.get("location");
-    if (!location) {
-      return { response, finalUrl: url };
-    }
-
-    const nextUrl = new URL(location, url).toString();
-    try {
-      await assertSafePublicHttpUrl(nextUrl, options.fetchPolicy?.hostResolver);
-    } catch {
-      throw new Error(unsafeHttpUrlErrorMessage());
-    }
-
-    return fetchVerificationResponse(nextUrl, options, redirectCount + 1);
-  }
-
-  return { response, finalUrl: url };
-}
-
-async function fetchVerificationPage(
-  url: string,
-  useCase: EnterpriseUseCase,
-  options: FetchVerificationEvidenceOptions,
-): Promise<FetchedVerificationPage> {
-  const { response, finalUrl } = await fetchVerificationResponse(url, options);
-  const type = contentType(response);
-  if (!response.ok) {
-    throw await buildHttpStatusError("Verification fetch failed with HTTP", response);
-  }
-
-  if (!isSupportedContentType(type)) {
-    throw new Error(`Unsupported verification content type: ${type || "unknown"}.`);
-  }
-
-  const html = await readResponseText(response);
-  const extracted = extractUrlText(html, options.maxChars ?? DEFAULT_MAX_CHARS);
-
-  return {
-    url: normalizeUrl(finalUrl),
-    title: extracted.title,
-    plainText: extracted.plainText,
-    html,
-    links: extractVerificationLinks(html, finalUrl, options.maxLinks ?? DEFAULT_MAX_LINKS),
-  };
+  return extractSourceEvidenceLinks(html, baseUrl, maxLinks);
 }
 
 export async function fetchEnterpriseUseCaseEvidence(
@@ -271,62 +106,11 @@ export async function fetchEnterpriseUseCaseEvidence(
   options: FetchVerificationEvidenceOptions = {},
 ): Promise<VerificationEvidence> {
   const fallbackSourceText = sourceTextForUrl(useCase.sourceUrl, options.sourceTextByUrl);
-  const maxLinks = options.maxLinks ?? DEFAULT_MAX_LINKS;
-  if (fallbackSourceText && maxLinks === 0) {
-    return {
-      source: {
-        url: normalizeUrl(useCase.sourceUrl),
-        title: useCase.sourceTitle,
-        plainText: fallbackSourceText,
-      },
-      linkedEvidence: [],
-    };
-  }
-
-  let sourcePage: FetchedVerificationPage;
-  try {
-    sourcePage = await fetchVerificationPage(useCase.sourceUrl, useCase, options);
-  } catch (error) {
-    if (!fallbackSourceText) {
-      throw error;
-    }
-
-    return {
-      source: {
-        url: normalizeUrl(useCase.sourceUrl),
-        title: useCase.sourceTitle,
-        plainText: fallbackSourceText,
-      },
-      linkedEvidence: [],
-    };
-  }
-
-  const linkedEvidence: VerificationEvidenceDocument[] = [];
-
-  for (const link of sourcePage.links) {
-    try {
-      const linkedPage = await fetchVerificationPage(link, useCase, {
-        ...options,
-        maxLinks: 0,
-      });
-      linkedEvidence.push({
-        url: linkedPage.url,
-        title: linkedPage.title,
-        plainText: linkedPage.plainText,
-      });
-    } catch {
-      // Verification links are supporting evidence only. Ignore failed links.
-    }
-  }
-
-  return {
-    source: {
-      url: sourcePage.url,
-      title: sourcePage.title,
-      plainText: sourcePage.plainText || fallbackSourceText || "",
-    },
-    linkedEvidence,
-  };
+  return fetchSourceEvidence(useCase.sourceUrl, {
+    ...options,
+    fallbackSourceText,
+    fallbackSourceTitle: useCase.sourceTitle,
+  });
 }
 
 function renderUseCaseForVerification(useCase: EnterpriseUseCase): string {

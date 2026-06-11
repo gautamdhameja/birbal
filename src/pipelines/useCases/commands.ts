@@ -1,7 +1,7 @@
 // Purpose: Provides use-case-specific CLI workflows for search snapshots and model processing.
 // Scope: Keeps app-specific acquisition/process commands out of the generic pipeline runner.
 
-import { searchWeb } from "../../brave-search/client.js";
+import { searchWeb, type SearchWebResult } from "../../brave-search/client.js";
 import { loadSourceRegistry } from "../../config/sourceRegistry.js";
 import { OUTPUT } from "../../constants/runtime.js";
 import {
@@ -13,12 +13,17 @@ import {
 import { sqlitePipelineRunStore } from "../../db/pipelineRuns.js";
 import { loadPipelineConfig } from "../../framework/pipeline/config.js";
 import { runPipeline } from "../../framework/pipeline/orchestrator.js";
-import type { PipelineConfig, PipelineCollectionMethod } from "../../framework/pipeline/types.js";
+import type {
+  PipelineConfig,
+  PipelineCollectionMethod,
+  PipelineLogger,
+  PipelineResult,
+} from "../../framework/pipeline/types.js";
 import { logger } from "../../logging/logger.js";
 import { getDefaultModelClient } from "../../model-providers/default.js";
 import { registerBirbalPipelineComponents } from "../register.js";
-import { collectUseCaseSearchCandidates } from "./search.js";
-import type { UseCaseSearchConfig } from "./search.js";
+import { collectUseCaseSearchCandidates, rankUseCaseSearchCandidates } from "./search.js";
+import type { UseCaseSearchCandidate, UseCaseSearchConfig } from "./search.js";
 
 export type UseCaseSearchCommandOptions = {
   configPath?: string;
@@ -31,9 +36,60 @@ export type UseCaseProcessCommandOptions = UseCaseSearchCommandOptions & {
   trace?: boolean;
 };
 
+type UseCaseSearchRetryConfig = {
+  enabled: boolean;
+  maxAttempts: number;
+};
+
+type UseCaseAdaptiveAttempt = {
+  attempt: number;
+  snapshotId: string;
+  searchedQueries: number;
+  totalSearchedQueries: number;
+  candidateCount: number;
+  selectedCount: number;
+  searchErrors: number;
+};
+
+type PersistedUseCaseSearchSnapshot = {
+  id: string;
+  pipelineId: string;
+};
+
+type UseCaseSnapshotProcessMode = "probe" | "final";
+
+type ProcessUseCaseSnapshotOptions = {
+  mode: UseCaseSnapshotProcessMode;
+  runMetadata?: Record<string, unknown>;
+};
+
+type UseCaseSearchFunction = (
+  query: string,
+  maxResults: number,
+  freshness?: string,
+) => Promise<SearchWebResult[]>;
+
+export type UseCaseAdaptivePipelineDependencies = {
+  logger?: PipelineLogger;
+  persistSnapshot?(
+    config: PipelineConfig,
+    candidates: readonly UseCaseSearchCandidate[],
+    queryCount: number,
+    metadata: unknown,
+  ): PersistedUseCaseSearchSnapshot;
+  processSnapshot?(
+    config: PipelineConfig,
+    snapshotId: string,
+    options: ProcessUseCaseSnapshotOptions,
+  ): Promise<PipelineResult>;
+  search?: UseCaseSearchFunction;
+};
+
 const USE_CASES_PIPELINE_ID = "use_cases";
 const SNAPSHOT_COLLECTION_METHOD_ID = "search_snapshot";
 const SNAPSHOT_COLLECTOR_ID = "search_snapshot_collector";
+const NOOP_ARTIFACT_WRITER_ID = "noop_artifact_writer";
+const DEFAULT_SEARCH_RETRY_ATTEMPTS = 3;
 
 function useCaseSearchConfig(configPath?: string, limit?: number): PipelineConfig {
   const config = loadPipelineConfig(configPath ?? USE_CASES_PIPELINE_ID);
@@ -62,6 +118,10 @@ function useCaseProcessConfig(configPath?: string, limit?: number): PipelineConf
 
   return {
     ...config,
+    failurePolicy: {
+      ...config.failurePolicy,
+      minItemsRequiredForSuccess: limit,
+    },
     limits: {
       ...config.limits,
       limit,
@@ -101,6 +161,34 @@ function searchConfig(config: PipelineConfig): UseCaseSearchConfig {
   };
 }
 
+function selectedUseCaseTarget(config: PipelineConfig): number {
+  const target = config.limits.limit ?? config.limits.maxResults ?? config.limits.maxUseCasesPerRun;
+  if (typeof target === "number" && Number.isInteger(target) && target > 0) {
+    return target;
+  }
+
+  return Math.max(1, config.failurePolicy.minItemsRequiredForSuccess);
+}
+
+function searchRetryConfig(config: PipelineConfig): UseCaseSearchRetryConfig {
+  const rawSettings = config.settings?.searchRetry;
+  const settings =
+    typeof rawSettings === "object" && rawSettings !== null && !Array.isArray(rawSettings)
+      ? (rawSettings as { enabled?: unknown; maxAttempts?: unknown })
+      : {};
+  const configuredMaxAttempts =
+    typeof settings.maxAttempts === "number" &&
+    Number.isInteger(settings.maxAttempts) &&
+    settings.maxAttempts > 0
+      ? settings.maxAttempts
+      : DEFAULT_SEARCH_RETRY_ATTEMPTS;
+
+  return {
+    enabled: settings.enabled !== false,
+    maxAttempts: Math.max(1, configuredMaxAttempts),
+  };
+}
+
 function snapshotCollectionMethod(snapshotId: string): PipelineCollectionMethod {
   return {
     id: SNAPSHOT_COLLECTION_METHOD_ID,
@@ -112,37 +200,64 @@ function snapshotCollectionMethod(snapshotId: string): PipelineCollectionMethod 
   };
 }
 
-function processConfigFromSnapshot(config: PipelineConfig, snapshotId: string): PipelineConfig {
+function processConfigFromSnapshot(
+  config: PipelineConfig,
+  snapshotId: string,
+  options: {
+    metadata?: Record<string, unknown>;
+    persistSelectedUseCases?: boolean;
+    writeArtifact?: boolean;
+  } = {},
+): PipelineConfig {
+  const writeArtifact = options.writeArtifact ?? true;
+  const persistSelectedUseCases = options.persistSelectedUseCases ?? true;
+
   return {
     ...config,
     collectionMethods: [snapshotCollectionMethod(snapshotId)],
+    output: writeArtifact
+      ? config.output
+      : {
+          ...config.output,
+          artifactWriterId: NOOP_ARTIFACT_WRITER_ID,
+          metadata: {
+            ...config.output.metadata,
+            probe: true,
+          },
+        },
     metadata: {
       ...config.metadata,
+      ...options.metadata,
       searchSnapshotId: snapshotId,
       processOnly: true,
+      suppressUseCasePersistence: !persistSelectedUseCases,
     },
   };
 }
 
-export async function runUseCaseSearchSnapshotCommand(
-  options: UseCaseSearchCommandOptions = {},
-): Promise<void> {
-  const config = useCaseSearchConfig(options.configPath, options.limit);
-  const queries = enabledUseCaseQueries(config);
-  const result = await collectUseCaseSearchCandidates(
-    searchConfig(config),
-    (query, maxResults, freshness) => searchWeb({ query, maxResults, freshness }),
-    queries,
-  );
+function processModeConfig(mode: UseCaseSnapshotProcessMode): {
+  persistSelectedUseCases: boolean;
+  writeArtifact: boolean;
+} {
+  return {
+    persistSelectedUseCases: mode === "final",
+    writeArtifact: mode === "final",
+  };
+}
+
+function persistSearchSnapshot(
+  config: PipelineConfig,
+  candidates: readonly UseCaseSearchCandidate[],
+  queryCount: number,
+  metadata: unknown,
+) {
   const snapshot = createSearchSnapshot({
     pipelineId: config.pipelineId,
-    queryCount: result.searchedQueries,
-    metadata: {
-      searchErrors: result.searchErrors,
-    },
+    queryCount,
+    metadata,
   });
 
-  result.candidates.forEach((candidate, index) => {
+  candidates.forEach((candidate, index) => {
     upsertSearchSnapshotItem({
       snapshotId: snapshot.id,
       rank: index + 1,
@@ -155,7 +270,44 @@ export async function runUseCaseSearchSnapshotCommand(
       raw: candidate.raw,
     });
   });
-  updateSearchSnapshotResultCount(snapshot.id, result.candidates.length);
+  updateSearchSnapshotResultCount(snapshot.id, candidates.length);
+
+  return snapshot;
+}
+
+async function processSnapshot(
+  config: PipelineConfig,
+  snapshotId: string,
+  options: ProcessUseCaseSnapshotOptions,
+) {
+  const loadConfig = () =>
+    processConfigFromSnapshot(config, snapshotId, {
+      ...processModeConfig(options.mode),
+    });
+
+  return runPipeline(USE_CASES_PIPELINE_ID, {
+    loadConfig,
+    loadSourceRegistry,
+    logger,
+    modelClient: getDefaultModelClient(),
+    runMetadata: options.runMetadata ?? {},
+    runStore: sqlitePipelineRunStore,
+  });
+}
+
+export async function runUseCaseSearchSnapshotCommand(
+  options: UseCaseSearchCommandOptions = {},
+): Promise<void> {
+  const config = useCaseSearchConfig(options.configPath, options.limit);
+  const queries = enabledUseCaseQueries(config);
+  const result = await collectUseCaseSearchCandidates(
+    searchConfig(config),
+    (query, maxResults, freshness) => searchWeb({ query, maxResults, freshness }),
+    queries,
+  );
+  const snapshot = persistSearchSnapshot(config, result.candidates, result.searchedQueries, {
+    searchErrors: result.searchErrors,
+  });
 
   console.log(
     JSON.stringify(
@@ -170,6 +322,155 @@ export async function runUseCaseSearchSnapshotCommand(
       OUTPUT.JSON_INDENT_SPACES,
     ),
   );
+}
+
+export async function runUseCaseAdaptivePipeline(
+  config: PipelineConfig,
+  dependencies: UseCaseAdaptivePipelineDependencies = {},
+): Promise<PipelineResult> {
+  const queries = enabledUseCaseQueries(config);
+  const retryConfig = searchRetryConfig(config);
+  const targetCount = selectedUseCaseTarget(config);
+  const maxAttempts = retryConfig.enabled ? retryConfig.maxAttempts : 1;
+  const baseSearchConfig = searchConfig(config);
+  const activeLogger = dependencies.logger ?? logger;
+  const persistSnapshot = dependencies.persistSnapshot ?? persistSearchSnapshot;
+  const processSearchSnapshot = dependencies.processSnapshot ?? processSnapshot;
+  const search =
+    dependencies.search ??
+    ((query, maxResults, freshness) => searchWeb({ query, maxResults, freshness }));
+  const attempts: UseCaseAdaptiveAttempt[] = [];
+  const accumulatedCandidates: UseCaseSearchCandidate[] = [];
+  const searchErrors: Array<{ query: string; error: string }> = [];
+  let totalSearchedQueries = 0;
+  let finalResult: PipelineResult | null = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const queryOffset = (attempt - 1) * baseSearchConfig.maxSearchQueries;
+    if (queryOffset >= queries.length) {
+      break;
+    }
+
+    const searchResult = await collectUseCaseSearchCandidates(
+      {
+        ...baseSearchConfig,
+        queryOffset,
+      },
+      search,
+      queries,
+    );
+    totalSearchedQueries += searchResult.searchedQueries;
+    searchErrors.push(...searchResult.searchErrors);
+    accumulatedCandidates.push(...searchResult.candidates);
+
+    const rankedCandidates = rankUseCaseSearchCandidates(accumulatedCandidates, baseSearchConfig);
+    const snapshot = persistSnapshot(config, rankedCandidates, totalSearchedQueries, {
+      adaptiveSearch: {
+        attempt,
+        maxAttempts,
+        targetCount,
+        searchedQueriesThisAttempt: searchResult.searchedQueries,
+        totalSearchedQueries,
+      },
+      searchErrors,
+    });
+    const isLastAttempt =
+      attempt === maxAttempts || queryOffset + searchResult.searchedQueries >= queries.length;
+    const probeResult = await processSearchSnapshot(config, snapshot.id, {
+      mode: "probe",
+    });
+    const selectedCount = probeResult.counts.selected ?? 0;
+    attempts.push({
+      attempt,
+      snapshotId: snapshot.id,
+      searchedQueries: searchResult.searchedQueries,
+      totalSearchedQueries,
+      candidateCount: rankedCandidates.length,
+      selectedCount,
+      searchErrors: searchResult.searchErrors.length,
+    });
+
+    activeLogger.info(
+      {
+        event: "pipeline.use_cases.adaptive_search_attempt",
+        attempt,
+        maxAttempts,
+        snapshotId: snapshot.id,
+        targetCount,
+        selectedCount,
+        searchedQueries: searchResult.searchedQueries,
+        totalSearchedQueries,
+        candidateCount: rankedCandidates.length,
+      },
+      "use-case adaptive search attempt completed",
+    );
+
+    if (selectedCount >= targetCount || isLastAttempt) {
+      finalResult = await processSearchSnapshot(config, snapshot.id, {
+        mode: "final",
+        runMetadata: {
+          adaptiveSearch: {
+            enabled: retryConfig.enabled,
+            targetCount,
+            maxAttempts,
+            attempts,
+            totalSearchedQueries,
+            searchErrors,
+          },
+        },
+      });
+      break;
+    }
+  }
+
+  if (!finalResult) {
+    throw new Error("Use-case adaptive pipeline did not run because no search queries were found.");
+  }
+
+  return finalResult;
+}
+
+export function renderUseCaseAdaptiveDryRun(config: PipelineConfig): unknown {
+  const queries = enabledUseCaseQueries(config);
+  const retryConfig = searchRetryConfig(config);
+  const targetCount = selectedUseCaseTarget(config);
+  const maxAttempts = retryConfig.enabled ? retryConfig.maxAttempts : 1;
+  const baseSearchConfig = searchConfig(config);
+
+  return {
+    dryRun: true,
+    config,
+    adaptiveSearch: {
+      enabled: retryConfig.enabled,
+      maxAttempts,
+      maxSearchQueriesPerAttempt: baseSearchConfig.maxSearchQueries,
+      maxSearchQueriesTotal: maxAttempts * baseSearchConfig.maxSearchQueries,
+      targetCount,
+      configuredQueryCount: queries.length,
+    },
+  };
+}
+
+export async function runUseCaseAdaptivePipelineCommand(
+  options: UseCaseProcessCommandOptions = {},
+): Promise<void> {
+  const config = useCaseProcessConfig(options.configPath, options.limit);
+
+  if (options.dryRun) {
+    console.log(
+      JSON.stringify(renderUseCaseAdaptiveDryRun(config), null, OUTPUT.JSON_INDENT_SPACES),
+    );
+    return;
+  }
+
+  registerBirbalPipelineComponents();
+
+  const finalResult = await runUseCaseAdaptivePipeline(config);
+  if (finalResult.status === "failed") {
+    process.exitCode = 1;
+  }
+
+  console.log(JSON.stringify(finalResult, null, OUTPUT.JSON_INDENT_SPACES));
 }
 
 export async function runUseCaseProcessSnapshotCommand(

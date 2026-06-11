@@ -3,7 +3,11 @@
 
 import { DIGEST } from "../../constants/digest.js";
 import { formatDateOnly } from "../../utils/date.js";
-import type { EnterpriseUseCase } from "./schema.js";
+import {
+  hasNamedEnterpriseCompany,
+  isMissingEnterpriseUseCaseText,
+  type EnterpriseUseCase,
+} from "./schema.js";
 
 type UseCaseDigestDate = Date | string;
 
@@ -48,6 +52,48 @@ function sentence(value: string): string {
 
 function escapeMarkdownText(value: string): string {
   return normalizeWhitespace(value).replace(/[\\`*_{}[\]()#+!|>]/g, "\\$&");
+}
+
+function lower(value: string): string {
+  return normalizeWhitespace(value).toLowerCase();
+}
+
+function anonymousCompanyPlaceholder(useCase: EnterpriseUseCase): string {
+  const summary = lower(useCase.evidenceSummary);
+  const businessFunction = lower(useCase.businessFunction);
+  const industry = lower(useCase.industry);
+
+  if (/\b(midmarket|mid-market|mid market|midsize|mid-size|mid size)\b/u.test(summary)) {
+    if (/\bsales\b/u.test(`${summary} ${businessFunction}`)) {
+      return "Midsize sales org";
+    }
+
+    if (businessFunction) {
+      return `Midsize ${businessFunction} team`;
+    }
+
+    return "Midsize enterprise org";
+  }
+
+  if (/\be-?commerce\b|\border processing\b|\bretailer\b/u.test(summary)) {
+    return "E-commerce operations team";
+  }
+
+  if (!isMissingEnterpriseUseCaseText(useCase.businessFunction)) {
+    return `${normalizeWhitespace(useCase.businessFunction)} team`;
+  }
+
+  if (!isMissingEnterpriseUseCaseText(useCase.industry)) {
+    return `${normalizeWhitespace(industry)} organization`;
+  }
+
+  return "Unnamed enterprise use case";
+}
+
+function displayCompanyName(useCase: EnterpriseUseCase): string {
+  return hasNamedEnterpriseCompany(useCase)
+    ? normalizeWhitespace(useCase.companyName)
+    : anonymousCompanyPlaceholder(useCase);
 }
 
 function sourceLabel(useCase: EnterpriseUseCase): string {
@@ -109,7 +155,7 @@ function renderBusinessImpact(useCase: EnterpriseUseCase): string {
 
 function renderUseCase(useCase: EnterpriseUseCase, index: number): string {
   return [
-    `### ${index + 1}. ${escapeMarkdownText(useCase.companyName)}`,
+    `### ${index + 1}. ${escapeMarkdownText(displayCompanyName(useCase))}`,
     "",
     renderDetailLine("Summary", renderUseCaseSummary(useCase)),
     renderDetailLine("Business impact", renderBusinessImpact(useCase)),

@@ -10,11 +10,13 @@ import { completeStructuredWithRepair, ModelParseError } from "../../framework/l
 import type { ChatMessage, ModelClient, ModelCompleteOptions } from "../../framework/llm/types.js";
 import { logger } from "../../logging/logger.js";
 import { getDefaultModelClient } from "../../model-providers/default.js";
+import { normalizeUrl } from "../../utils/url.js";
 import {
   EnterpriseUseCaseSchema,
   isEligibleEnterpriseUseCase,
   type EnterpriseUseCase,
 } from "./schema.js";
+import type { SourceEvidence } from "./sourceEvidence.js";
 
 type CompleteFn = ModelClient["complete"];
 
@@ -24,6 +26,7 @@ export type ExtractEnterpriseUseCasesOptions = Pick<
 > & {
   completeFn?: CompleteFn;
   maxContentChars?: number;
+  sourceEvidence?: SourceEvidence;
 };
 
 function normalizeExtractionEnvelope(value: unknown): unknown {
@@ -128,6 +131,48 @@ function renderCandidate(candidate: CandidateItem): string {
   });
 }
 
+function truncate(value: string, maxChars: number): string {
+  if (value.length <= maxChars) {
+    return value;
+  }
+
+  return `${value.slice(0, maxChars)}\n[truncated]`;
+}
+
+function renderEvidenceText(
+  fetchedContentText: string,
+  sourceEvidence: SourceEvidence | undefined,
+): string {
+  if (!sourceEvidence) {
+    return fetchedContentText;
+  }
+
+  const linkedEvidence = sourceEvidence.linkedEvidence.map((document, index) =>
+    [
+      `Supporting evidence ${index + 1}:`,
+      `URL: ${document.url}`,
+      `Title: ${document.title}`,
+      "Text:",
+      truncate(document.plainText, 1_500),
+    ].join("\n"),
+  );
+
+  return [
+    "Primary source page:",
+    `URL: ${sourceEvidence.source.url}`,
+    `Title: ${sourceEvidence.source.title}`,
+    "Text:",
+    sourceEvidence.source.plainText || fetchedContentText,
+    "",
+    linkedEvidence.length > 0
+      ? [
+          "Same-site supporting pages fetched from links on the primary source page:",
+          linkedEvidence.join("\n\n"),
+        ].join("\n")
+      : "No supporting pages were fetched.",
+  ].join("\n");
+}
+
 function responseShape(): string {
   return JSON.stringify({
     useCases: [
@@ -147,11 +192,11 @@ function responseShape(): string {
         governanceOrRiskNotes: "governance or risk notes; empty string if not stated",
         implementationDetails: "implementation details; empty string if not stated",
         sourceTitle: "source title",
-        sourceUrl: "source URL",
+        sourceUrl: "best source URL from the provided evidence URLs",
         sourceName: "source name",
         publishDate: "publish date; empty string if not stated",
         evidenceSummary:
-          "3-5 concise, self-contained newsletter sentences covering the company, use case, what the AI does, deployment evidence, implementation or human role details if stated, and business impact; empty string if unsupported",
+          "3-5 concise, self-contained newsletter sentences focused on the concrete problem, workflow, AI action, operational change, and business impact; empty string if unsupported",
       },
     ],
   });
@@ -161,7 +206,14 @@ function buildMessages(
   candidate: CandidateItem,
   fetchedContentText: string,
   maxContentChars: number,
+  sourceEvidence?: SourceEvidence,
 ): ChatMessage[] {
+  const evidenceText = renderEvidenceText(fetchedContentText, sourceEvidence);
+  const trustedUrls = [
+    candidate.url,
+    ...(sourceEvidence?.linkedEvidence.map((item) => item.url) ?? []),
+  ];
+
   return [
     {
       role: AGENT.ROLES.SYSTEM,
@@ -177,6 +229,10 @@ function buildMessages(
         "The confidenceScore is the extraction score: 5 means named organization, live deployment or rollout, clear AI role, concrete enterprise activity, and measurable business outcome; 4 means strong real deployment with one missing detail; 3 means real but incomplete evidence; 1-2 means weak evidence and should usually be omitted.",
         "Write businessOutcome and evidenceSummary as clear sentences, not keyword fragments.",
         "Keep most fields concise. evidenceSummary is the newsletter summary, so it must contain the useful context instead of relying on other fields.",
+        "Write evidenceSummary like an analyst explaining the use case, not like vendor marketing copy.",
+        "Do not lead evidenceSummary with partnership, vendor, or platform framing such as 'Company partnered with Google Cloud/AWS/OpenAI'. Lead with the business problem and workflow being changed.",
+        "Mention cloud providers, products, or partners only when they explain a concrete implementation detail that matters to the workflow.",
+        "The primary source page may be a summary or landing page. When a same-site supporting page has more specific evidence, use that supporting page for extraction.",
         "Use comma-separated strings instead of arrays.",
       ].join(" "),
     },
@@ -212,8 +268,12 @@ function buildMessages(
         "- Use specific, source-grounded wording. Avoid hype words unless they are part of a stated product or metric.",
         "- businessOutcome should be a clear sentence about operational or business impact when the article states one.",
         "- evidenceSummary is the final newsletter summary. It must be self-contained and useful even if the reader sees no other fields.",
-        "- evidenceSummary must include: who the organization is, what AI is doing, where it is used in the enterprise, evidence of deployment or usage when stated, and the business impact or operational change when stated.",
+        "- evidenceSummary must focus on: the enterprise problem, the workflow or decision being changed, what the AI does inside that workflow, what humans do differently, evidence of deployment or usage when stated, and the business impact or operational change when stated.",
         "- evidenceSummary should be 3-5 concise sentences. It may mention missing metrics only by omission; do not write that details were not stated.",
+        "- evidenceSummary should not read like an announcement. Do not write 'partnered with', 'collaborated with', 'leveraged the power of', 'transformed with', or similar promotional framing unless that exact relationship is the use case itself.",
+        "- Do not make platform names the point of the summary. If the source says AWS, Google Cloud, Azure, Bedrock, Vertex AI, OpenAI, Claude, or a vendor product was used, include it only after explaining the workflow problem and AI action.",
+        "- Bad summary pattern: 'Blue Origin partnered with AWS to transform engineering with generative AI.'",
+        "- Better summary pattern: 'Blue Origin is using generative AI to help engineers find and reuse technical knowledge during design work. The system reduces time spent searching across engineering material and supports faster decisions in aerospace workflows. AWS is implementation context, not the main point.'",
         "",
         "For each accepted use case, extract:",
         "- real company or organization when stated",
@@ -231,11 +291,14 @@ function buildMessages(
         "Candidate:",
         renderCandidate(candidate),
         "",
-        "Fetched content text:",
-        truncateContent(fetchedContentText, maxContentChars),
+        "Trusted source URLs you may cite in sourceUrl:",
+        trustedUrls.join("\n"),
         "",
-        "Set sourceUrl exactly to the candidate URL.",
-        "Keep evidenceSummary analytical and specific. It should explain the actual use case and why it deserves its confidenceScore using only article evidence.",
+        "Fetched content text:",
+        truncateContent(evidenceText, maxContentChars),
+        "",
+        "Set sourceUrl to the single trusted URL that best supports the extracted use case. Prefer a detailed supporting page over a broad landing page when the supporting page contains the actual evidence.",
+        "Keep evidenceSummary analytical and specific. It should explain the actual use case, the workflow problem, what AI changes, and why it deserves its confidenceScore using only article evidence.",
         "Keep the full response compact enough to finish. If the article has many examples, pick the best few rather than listing all of them.",
         "",
         "Response shape:",
@@ -266,13 +329,29 @@ function buildRepairInstructions(): string {
   ].join(" ");
 }
 
-function useCasesWithTrustedSourceUrl(
+function trustedSourceUrl(
+  useCase: EnterpriseUseCase,
+  candidate: CandidateItem,
+  sourceEvidence?: SourceEvidence,
+) {
+  const trustedUrls = new Set(
+    [candidate.url, ...(sourceEvidence?.linkedEvidence.map((item) => item.url) ?? [])].map((url) =>
+      normalizeUrl(url),
+    ),
+  );
+  const normalizedSourceUrl = normalizeUrl(useCase.sourceUrl);
+
+  return trustedUrls.has(normalizedSourceUrl) ? normalizedSourceUrl : normalizeUrl(candidate.url);
+}
+
+function useCasesWithTrustedSourceUrls(
   useCases: EnterpriseUseCase[],
   candidate: CandidateItem,
+  sourceEvidence?: SourceEvidence,
 ): EnterpriseUseCase[] {
   return useCases.slice(0, MAX_USE_CASES_PER_ARTICLE).map((useCase) => ({
     ...useCase,
-    sourceUrl: candidate.url,
+    sourceUrl: trustedSourceUrl(useCase, candidate, sourceEvidence),
   }));
 }
 
@@ -283,7 +362,7 @@ export async function extractEnterpriseUseCases(
 ): Promise<EnterpriseUseCase[]> {
   const maxContentChars = options.maxContentChars ?? DEFAULT_MAX_CONTENT_CHARS;
   const result = await completeStructuredWithRepair({
-    messages: buildMessages(candidate, fetchedContentText, maxContentChars),
+    messages: buildMessages(candidate, fetchedContentText, maxContentChars, options.sourceEvidence),
     schema: ExtractedEnterpriseUseCasesSchema,
     completeFn: options.completeFn ?? getDefaultModelClient().complete,
     logger,
@@ -303,7 +382,9 @@ export async function extractEnterpriseUseCases(
     throw new ModelParseError(result.error);
   }
 
-  return useCasesWithTrustedSourceUrl(result.value.useCases, candidate).filter(
-    isEligibleEnterpriseUseCase,
-  );
+  return useCasesWithTrustedSourceUrls(
+    result.value.useCases,
+    candidate,
+    options.sourceEvidence,
+  ).filter(isEligibleEnterpriseUseCase);
 }

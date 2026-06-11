@@ -101,6 +101,30 @@ describe("enterprise use case renderer", () => {
     assert.doesNotMatch(markdown, /- Workflow changed:/);
   });
 
+  it("renders a useful placeholder when company name is missing", () => {
+    const markdown = renderEnterpriseUseCaseDigest(
+      [
+        useCase({
+          companyName: "",
+          businessFunction: "Sales",
+          evidenceSummary:
+            "A mid-market B2B SaaS company deployed AI agents across its sales organization to reduce administrative work and improve lead handling.",
+        }),
+        useCase({
+          companyName: "",
+          businessFunction: "Operations",
+          evidenceSummary:
+            "E-commerce order processing requires teams to navigate retailer websites without native API access.",
+        }),
+      ],
+      "2026-05-25",
+    );
+
+    assert.match(markdown, /### 1\. Midsize sales org/);
+    assert.match(markdown, /### 2\. E-commerce operations team/);
+    assert.doesNotMatch(markdown, /### 1\. $/m);
+  });
+
   it("rejects invalid digest dates", () => {
     assert.throws(
       () => renderEnterpriseUseCaseDigest([], "not a date"),

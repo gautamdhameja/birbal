@@ -3,23 +3,30 @@
 
 import {
   EnterpriseUseCaseSchema,
+  hasNamedEnterpriseCompany,
   isEligibleEnterpriseUseCase,
   type EnterpriseUseCase,
 } from "./schema.js";
+import { enterpriseUseCaseCompanyKey, enterpriseUseCaseFingerprint } from "./dedupe.js";
 import { isWithinAgeWindow } from "./freshness.js";
 
 export type EnterpriseUseCaseSelectorConfig = {
+  allowPreviouslyPublished?: boolean;
   maxUseCasesPerRun?: number;
   minConfidenceScore?: number;
+  maxPerCompany?: number;
   maxPerIndustry?: number;
   maxPerSource?: number;
   maxUseCaseAgeDays?: number;
+  previouslyPublishedFingerprints?: ReadonlySet<string>;
   referenceDate?: Date;
 };
 
 const DEFAULT_SELECTOR_CONFIG = {
+  allowPreviouslyPublished: false,
   maxUseCasesPerRun: 10,
   minConfidenceScore: 3,
+  maxPerCompany: 1,
   maxPerIndustry: 3,
   maxPerSource: 3,
 } as const;
@@ -54,6 +61,12 @@ function rankedUseCases<TUseCase extends EnterpriseUseCase>(
   useCases: readonly TUseCase[],
 ): TUseCase[] {
   return [...useCases].sort((left, right) => {
+    const namedCompanyDifference =
+      Number(hasNamedEnterpriseCompany(right)) - Number(hasNamedEnterpriseCompany(left));
+    if (namedCompanyDifference !== 0) {
+      return namedCompanyDifference;
+    }
+
     const confidenceDifference = right.confidenceScore - left.confidenceScore;
     if (confidenceDifference !== 0) {
       return confidenceDifference;
@@ -91,6 +104,8 @@ export function selectEnterpriseUseCaseItems<TUseCase extends EnterpriseUseCase>
       return (
         parsed.success &&
         isEligibleEnterpriseUseCase(parsed.data) &&
+        (selectionConfig.allowPreviouslyPublished ||
+          !isPreviouslyPublished(parsed.data, selectionConfig.previouslyPublishedFingerprints)) &&
         parsed.data.confidenceScore >= selectionConfig.minConfidenceScore &&
         isWithinAgeWindow({
           maxAgeDays: selectionConfig.maxUseCaseAgeDays,
@@ -101,8 +116,10 @@ export function selectEnterpriseUseCaseItems<TUseCase extends EnterpriseUseCase>
     }),
   );
   const selected: TUseCase[] = [];
+  const companyCounts = new Map<string, number>();
   const industryCounts = new Map<string, number>();
   const sourceCounts = new Map<string, number>();
+  const selectedFingerprints = new Set<string>();
 
   for (const useCase of candidates) {
     if (selected.length >= selectionConfig.maxUseCasesPerRun) {
@@ -114,15 +131,40 @@ export function selectEnterpriseUseCaseItems<TUseCase extends EnterpriseUseCase>
       continue;
     }
 
+    const company = enterpriseUseCaseCompanyKey(useCase);
+    if (company && countFor(companyCounts, company) >= selectionConfig.maxPerCompany) {
+      continue;
+    }
+
     const source = sourceKey(useCase);
     if (countFor(sourceCounts, source) >= selectionConfig.maxPerSource) {
       continue;
     }
 
+    const fingerprint = enterpriseUseCaseFingerprint(useCase);
+    if (fingerprint && selectedFingerprints.has(fingerprint)) {
+      continue;
+    }
+
     selected.push(useCase);
+    if (company) {
+      increment(companyCounts, company);
+    }
     increment(industryCounts, industry);
     increment(sourceCounts, source);
+    if (fingerprint) {
+      selectedFingerprints.add(fingerprint);
+    }
   }
 
   return selected;
+}
+
+function isPreviouslyPublished(
+  useCase: EnterpriseUseCase,
+  previouslyPublishedFingerprints: ReadonlySet<string> | undefined,
+): boolean {
+  const fingerprint = enterpriseUseCaseFingerprint(useCase);
+
+  return fingerprint !== null && previouslyPublishedFingerprints?.has(fingerprint) === true;
 }

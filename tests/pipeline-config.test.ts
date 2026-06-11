@@ -88,17 +88,28 @@ describe("pipeline config", () => {
       continueOnStructuredExtractionFailure: true,
       minItemsRequiredForSuccess: 5,
     });
-    assert.equal(config.limits.extractionMaxContentChars, 9000);
+    assert.equal(config.limits.extractionMaxContentChars, 12000);
+    assert.equal(config.limits.extractionMaxSupportingLinks, 2);
     assert.equal(config.limits.maxCandidates, 50);
     assert.equal(config.limits.maxCandidatesForExtraction, 50);
     assert.equal(config.limits.maxItemAgeDays, 365);
     assert.equal(config.limits.maxResults, 5);
+    assert.equal(config.limits.maxPerCompany, 1);
     assert.equal(config.limits.maxUseCasesPerRun, 5);
     assert.equal(config.limits.maxSearchQueries, 5);
     assert.equal(config.limits.maxSearchResultsPerQuery, 20);
     assert.equal(config.limits.verificationBatchSize, 5);
     assert.equal(config.limits.verificationCandidateMultiplier, 4);
     assert.equal(config.limits.maxVerificationLinks, 0);
+    assert.deepEqual(config.settings?.dedupe, {
+      allowPreviouslyPublished: false,
+      previouslyPublishedLookback: 500,
+    });
+    assert.deepEqual(config.settings?.searchRetry, {
+      enabled: true,
+      maxAttempts: 3,
+    });
+    assert.equal(config.collectionMethods[0]?.queries?.length, 15);
     assert.equal(config.collectionMethods[0]?.collectorId, "brave_web_search_collector");
   });
 

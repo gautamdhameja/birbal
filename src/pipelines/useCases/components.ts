@@ -18,7 +18,7 @@ import {
   upsertUseCaseVerificationCache,
   useCaseHash,
 } from "../../db/useCaseModelCache.js";
-import { upsertUseCase } from "../../db/useCases.js";
+import { listRecentUseCases, upsertUseCase } from "../../db/useCases.js";
 import type { PipelineRunItem } from "../../framework/pipeline/orchestrator.js";
 import { selectWithIncrementalAcceptance } from "../../framework/pipeline/selection.js";
 import type {
@@ -47,6 +47,7 @@ import {
   searchSnapshotItemToCandidate,
 } from "./search.js";
 import type { UseCaseSearchCandidate } from "./search.js";
+import { enterpriseUseCaseFingerprint } from "./dedupe.js";
 import type { EnterpriseUseCase } from "./schema.js";
 import { selectEnterpriseUseCaseItems, selectEnterpriseUseCases } from "./selector.js";
 import {
@@ -55,6 +56,7 @@ import {
   type EnterpriseUseCaseVerification,
   type VerificationEvidence,
 } from "./verification.js";
+import { fetchSourceEvidence, type SourceEvidence } from "./sourceEvidence.js";
 
 function asUseCaseCandidate(value: unknown): UseCaseSearchCandidate {
   return asRunItem(value).item as UseCaseSearchCandidate;
@@ -110,11 +112,16 @@ function useCaseScoutConfigFromContext(context: PipelineContext, method: Pipelin
 
 function useCaseSelectorConfigFromContext(context: PipelineContext) {
   const maxUseCasesPerRun = outputLimit(context) ?? context.config.limits.maxUseCasesPerRun;
+  const dedupe = useCaseDedupeConfigFromContext(context);
 
   return {
+    allowPreviouslyPublished: dedupe.allowPreviouslyPublished,
     ...(typeof maxUseCasesPerRun === "number" ? { maxUseCasesPerRun } : {}),
     ...(typeof context.config.limits.minConfidenceScore === "number"
       ? { minConfidenceScore: context.config.limits.minConfidenceScore }
+      : {}),
+    ...(typeof context.config.limits.maxPerCompany === "number"
+      ? { maxPerCompany: context.config.limits.maxPerCompany }
       : {}),
     ...(typeof context.config.limits.maxPerIndustry === "number"
       ? { maxPerIndustry: context.config.limits.maxPerIndustry }
@@ -125,7 +132,42 @@ function useCaseSelectorConfigFromContext(context: PipelineContext) {
     ...(typeof context.config.limits.maxItemAgeDays === "number"
       ? { maxUseCaseAgeDays: context.config.limits.maxItemAgeDays }
       : {}),
+    previouslyPublishedFingerprints: dedupe.previouslyPublishedFingerprints,
     referenceDate: context.startedAt,
+  };
+}
+
+function useCaseDedupeConfigFromContext(context: PipelineContext): {
+  allowPreviouslyPublished: boolean;
+  previouslyPublishedFingerprints: ReadonlySet<string>;
+} {
+  const dedupe = context.config.settings?.dedupe;
+  const dedupeSettings =
+    typeof dedupe === "object" && dedupe !== null && !Array.isArray(dedupe)
+      ? (dedupe as { allowPreviouslyPublished?: unknown; previouslyPublishedLookback?: unknown })
+      : {};
+  const allowPreviouslyPublished = dedupeSettings.allowPreviouslyPublished === true;
+  if (allowPreviouslyPublished) {
+    return {
+      allowPreviouslyPublished,
+      previouslyPublishedFingerprints: new Set<string>(),
+    };
+  }
+
+  const lookback =
+    typeof dedupeSettings.previouslyPublishedLookback === "number" &&
+    Number.isInteger(dedupeSettings.previouslyPublishedLookback) &&
+    dedupeSettings.previouslyPublishedLookback > 0
+      ? dedupeSettings.previouslyPublishedLookback
+      : 500;
+
+  return {
+    allowPreviouslyPublished,
+    previouslyPublishedFingerprints: new Set(
+      listRecentUseCases(lookback)
+        .map(enterpriseUseCaseFingerprint)
+        .filter((fingerprint): fingerprint is string => fingerprint !== null),
+    ),
   };
 }
 
@@ -171,9 +213,44 @@ function verificationConfigFromContext(context: PipelineContext) {
   };
 }
 
+function shouldPersistSelectedUseCases(context: PipelineContext): boolean {
+  return context.config.metadata?.suppressUseCasePersistence !== true;
+}
+
 function extractionMaxContentChars(context: PipelineContext): number | undefined {
   const value = context.config.limits.extractionMaxContentChars;
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
+}
+
+function extractionSourceEvidenceConfigFromContext(
+  context: PipelineContext,
+  candidate: CandidateItem,
+  contentText: string,
+) {
+  return {
+    maxLinks: context.config.limits.extractionMaxSupportingLinks ?? 2,
+    maxChars: context.config.contentFetchPolicy.maxChars,
+    fallbackSourceText: contentText,
+    fallbackSourceTitle: candidate.title,
+    fetchPolicy: {
+      maxResponseBytes: context.config.contentFetchPolicy.maxResponseBytes,
+    },
+  };
+}
+
+function sourceEvidenceCacheText(sourceEvidence: SourceEvidence): string {
+  return JSON.stringify({
+    source: {
+      url: sourceEvidence.source.url,
+      title: sourceEvidence.source.title,
+      plainText: sourceEvidence.source.plainText,
+    },
+    linkedEvidence: sourceEvidence.linkedEvidence.map((document) => ({
+      url: document.url,
+      title: document.title,
+      plainText: document.plainText,
+    })),
+  });
 }
 
 function sourceTextByUrlFromItems(items: readonly PipelineRunItem[]): Map<string, string> {
@@ -328,7 +405,21 @@ export const enterpriseUseCaseExtractor: StructuredExtractor = {
     }
 
     const candidate = useCaseCandidateToCandidateItem(asUseCaseCandidate(item), context);
-    const hashedContent = contentHash(contentText);
+    const sourceEvidence = await fetchSourceEvidence(
+      candidate.url,
+      extractionSourceEvidenceConfigFromContext(context, candidate, contentText),
+    );
+    context.logger.debug(
+      {
+        event: "pipeline.use_cases.extraction_evidence",
+        sourceUrl: candidate.url,
+        linkedEvidenceCount: sourceEvidence.linkedEvidence.length,
+        linkedEvidenceUrls: sourceEvidence.linkedEvidence.map((document) => document.url),
+      },
+      "use-case extraction evidence prepared",
+    );
+
+    const hashedContent = contentHash(sourceEvidenceCacheText(sourceEvidence));
     const cached = getCachedUseCaseExtraction({
       contentHash: hashedContent,
       extractorVersion: ENTERPRISE_USE_CASE_EXTRACTOR_VERSION,
@@ -351,6 +442,7 @@ export const enterpriseUseCaseExtractor: StructuredExtractor = {
       traceLabel: "pipeline.use_cases.enterprise_use_case_extractor",
       completeFn: context.modelClient.complete,
       maxContentChars: extractionMaxContentChars(context),
+      sourceEvidence,
     });
 
     upsertUseCaseExtractionCache({
@@ -414,15 +506,17 @@ export const enterpriseUseCaseSelector: Selector = {
       "use-case verification completed",
     );
 
-    for (const useCase of verified.selected) {
-      upsertUseCase({
-        ...useCase,
-        runId: context.runId,
-        rawJson: {
-          useCase,
-          verification: useCase.verification,
-        },
-      });
+    if (shouldPersistSelectedUseCases(context)) {
+      for (const useCase of verified.selected) {
+        upsertUseCase({
+          ...useCase,
+          runId: context.runId,
+          rawJson: {
+            useCase,
+            verification: useCase.verification,
+          },
+        });
+      }
     }
 
     return verified.selected;

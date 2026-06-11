@@ -78,6 +78,9 @@ Pipeline-specific `limits` can further control model cost. The use-cases pipelin
 
 - `maxCandidates`: caps the deduplicated search results entering the pipeline.
 - `maxCandidatesForExtraction`: caps the search collector output before content fetching.
+- `maxSearchQueries`: caps search calls per use-case search attempt. The use-case CLI can repeat
+  bounded search attempts through `settings.searchRetry.maxAttempts`, stopping early when selection
+  reaches the requested report size.
 - `maxResults`: caps the final rendered output count. CLI `--limit` maps here and does not shrink
   the upstream candidate pool.
 - `maxItemAgeDays`: filters search candidates and extracted use cases older than the configured

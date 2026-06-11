@@ -31,6 +31,11 @@ Run the enterprise use-case scout:
 birbal use-cases
 ```
 
+`birbal use-cases` uses bounded adaptive search. By default it searches up to five configured
+queries, processes the accumulated URL snapshot, and repeats with the next query batch if the
+selector cannot fill the requested report size. The configured default is at most three attempts,
+so the normal cap is 15 Brave Search calls for one full use-case run.
+
 Search once, then rerun model processing against the stored URL snapshot:
 
 ```sh
