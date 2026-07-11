@@ -22,6 +22,11 @@ type PipelineCommandOptions = TraceOptions & {
   limit?: number;
 };
 
+type EvalCommandOptions = {
+  json?: boolean;
+  suite?: string[];
+};
+
 type UseCaseProcessCommandOptions = PipelineCommandOptions & {
   snapshot?: string;
 };
@@ -140,6 +145,23 @@ async function runUseCasesCommand(
   });
 }
 
+async function runEvalsCommand(options: EvalCommandOptions): Promise<void> {
+  try {
+    const { renderBirbalEvalResult, runBirbalEvals } = await import("./evals/run.js");
+    const result = await runBirbalEvals({
+      suiteIds: options.suite ?? [],
+    });
+
+    console.log(renderBirbalEvalResult(result, { json: Boolean(options.json) }));
+    if (result.status === "failed") {
+      process.exitCode = 1;
+    }
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  }
+}
+
 export async function runBirbalCli(args: readonly string[] = process.argv.slice(2)): Promise<void> {
   const normalizedArgs = args.filter((arg) => arg !== "--");
   const program = new Command()
@@ -155,6 +177,18 @@ export async function runBirbalCli(args: readonly string[] = process.argv.slice(
     .option("--trace", "enable debug tracing")
     .action(async (taskParts: string[], options: TraceOptions) => {
       await runAgentCommand(taskParts, options, program);
+    });
+
+  program
+    .command("evals")
+    .description("run deterministic Birbal eval suites")
+    .option("--json", "print the full eval result as JSON")
+    .option("--suite <id>", "run one eval suite by ID", (value, previous: string[] = []) => [
+      ...previous,
+      value,
+    ])
+    .action(async (options: EvalCommandOptions) => {
+      await runEvalsCommand(options);
     });
 
   addPipelineOptions(

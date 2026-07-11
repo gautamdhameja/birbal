@@ -13,7 +13,7 @@ const REDACTED_KEYS = new Set([
   "repairedOutput",
 ]);
 
-export function preview(value: unknown, maxLength = LOGGING.PREVIEW_MAX_LENGTH): string {
+export function preview(value: unknown, maxLength: number = LOGGING.PREVIEW_MAX_LENGTH): string {
   const rendered =
     typeof value === "string"
       ? value

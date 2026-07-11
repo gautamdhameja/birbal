@@ -16,4 +16,4 @@ Birbal supports provider-neutral model wiring with llama.cpp as the default loca
 
 ## Documentation Map
 
-Start with [Quickstart](quickstart.md) and [CLI](cli.md) if you want to run Birbal locally. Read [Architecture](architecture.md) and [Agent Harness](agent-harness.md) if you want to understand the framework. Read [Pipeline Framework](pipelines.md) and [Extension Guide](extension-guide.md) if you want to build your own pipeline or app on top of it.
+Start with [Quickstart](quickstart.md) and [CLI](cli.md) if you want to run Birbal locally. Read [Architecture](architecture.md), [Agent Harness](agent-harness.md), and [Evals](evals.md) if you want to understand the framework. Read [Pipeline Framework](pipelines.md) and [Extension Guide](extension-guide.md) if you want to build your own pipeline or app on top of it.

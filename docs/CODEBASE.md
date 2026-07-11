@@ -21,6 +21,7 @@ The project is intentionally modular. Runtime configuration is loaded from envir
 - `birbal use-cases`
 - `birbal use cases`
 - `birbal pipeline <pipelineId>`
+- `birbal evals`
 
 The package binary is `bin/birbal.js`, which launches the TypeScript CLI through the local `tsx` runtime for repo-local use.
 
@@ -67,6 +68,7 @@ Pipeline IDs are resolved from `config/pipelines/<id>.json`, with underscore-to-
 - `pnpm run-pipeline`: wrapper for `birbal pipeline`.
 - `pnpm daily`: wrapper for `birbal daily`.
 - `pnpm use-cases`: wrapper for `birbal use-cases`.
+- `pnpm evals`: wrapper for deterministic framework and app eval suites.
 - `pnpm format` / `format:check`: Prettier write/check.
 - `pnpm lint` / `lint:fix`: ESLint.
 - `pnpm typecheck`: `tsc --noEmit`.
@@ -101,7 +103,8 @@ Source folders:
 - `src/constants/`: domain-specific constants grouped by responsibility.
 - `src/daily/`: daily candidate collection, LLM scoring, classification, digest selection, and digest rendering.
 - `src/db/`: SQLite persistence for items, scores, pipeline runs, and enterprise use cases.
-- `src/framework/`: reusable framework modules for agent harness orchestration, tools, model contracts, pipelines, LLM JSON repair, scoring rubrics, content fetching, and network fetch helpers.
+- `src/evals/`: Birbal-specific deterministic eval suites for the harness and enterprise use-case app.
+- `src/framework/`: reusable framework modules for agent harness orchestration, tools, model contracts, pipelines, evals, LLM JSON repair, scoring rubrics, content fetching, and network fetch helpers.
 - `src/http/`: HTTP response helpers and URL safety checks.
 - `src/model-providers/`: configured model provider selection plus shared OpenAI-compatible HTTP transport and hosted OpenAI adapter.
 - `src/llama/`: llama.cpp-compatible model adapter and env config.
@@ -115,9 +118,10 @@ Source folders:
 - `src/url-text/`: HTML text extraction and URL text wrapper.
 - `src/utils/`: JSON, date, and URL helpers.
 
-Tests:
+Tests and evals:
 
 - `tests/*.test.ts`: unit and integration-style tests for agent behavior, source clients, pipeline config/registry/orchestration, concurrency, LLM repair, scoring, classification, daily digest behavior, URL fetching, preferences, DB storage, and use-case extraction/rendering/selection/storage.
+- `pnpm evals`: deterministic behavior evals using scripted model responses and OpenInference-style traces.
 
 Generated runtime data is intentionally outside source:
 

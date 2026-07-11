@@ -76,4 +76,5 @@ pnpm example:pipeline
 
 ```sh
 pnpm check
+pnpm evals
 ```

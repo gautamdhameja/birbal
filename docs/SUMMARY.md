@@ -9,6 +9,7 @@
 - [Tools](tools.md)
 - [Model Adapters](model-adapters.md)
 - [Structured Output Repair](structured-output.md)
+- [Evals](evals.md)
 - [Pipeline Framework](pipelines.md)
 - [Configuration](configuration.md)
 - [Birbal Research App](birbal-app.md)

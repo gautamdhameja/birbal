@@ -73,8 +73,10 @@ birbal agent "Use a tool to get the current time and tell me what it is."
 birbal daily
 birbal use-cases
 birbal use cases
+birbal evals
 pnpm example:agent
 pnpm example:pipeline
+pnpm evals
 pnpm check
 ```
 
@@ -84,9 +86,12 @@ The pnpm scripts still work for repo-local development:
 pnpm dev -- "Use a tool to get the current time and tell me what it is."
 pnpm daily
 pnpm use-cases
+pnpm evals
 ```
 
 See [docs/cli.md](docs/cli.md) for the complete command reference.
+
+Use `birbal evals` for deterministic harness and app evals. These run with scripted model responses and OpenInference-style traces, so they are useful for protocol and extraction regressions without spending tokens.
 
 Use `--trace` with the agent or pipeline commands for debug logs:
 
@@ -123,7 +128,8 @@ The important JSON config files are:
 
 ## Project Layout
 
-- `src/framework/`: reusable harness, tools, LLM, pipeline, content, network, and scoring modules.
+- `src/framework/`: reusable harness, tools, LLM, pipeline, eval, content, network, and scoring modules.
+- `src/evals/`: deterministic framework and Birbal app eval suites.
 - `src/model-providers/`: provider selection plus OpenAI-compatible model adapters.
 - `src/llama/`: llama.cpp-compatible model adapter.
 - `src/tools/`: Birbal's handwritten agent tools.

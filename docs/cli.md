@@ -49,6 +49,14 @@ Shortcut form:
 birbal use cases
 ```
 
+Run deterministic eval suites:
+
+```sh
+birbal evals
+birbal evals --suite agent_harness
+birbal evals --json
+```
+
 Run any configured pipeline by ID:
 
 ```sh
@@ -82,6 +90,7 @@ The pnpm scripts remain available for repo-local workflows, but they call the sa
 pnpm dev -- "Use a tool to get the current time."
 pnpm daily
 pnpm use-cases
+pnpm evals
 pnpm run-pipeline daily
 ```
 

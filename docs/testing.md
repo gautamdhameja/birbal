@@ -13,6 +13,16 @@ This runs:
 3. TypeScript typecheck.
 4. Node test runner through `tsx`.
 
+Run deterministic framework and app evals separately:
+
+```sh
+pnpm evals
+birbal evals --suite agent_harness
+birbal evals --suite use_case_extraction
+```
+
+These evals use scripted model responses, so they do not call a hosted model, local llama.cpp server, Brave Search, or external content sources.
+
 ## Useful Targeted Commands
 
 ```sh
@@ -20,6 +30,7 @@ pnpm format:check
 pnpm lint
 pnpm typecheck
 pnpm test
+pnpm evals
 ```
 
 ## What Tests Cover

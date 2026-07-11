@@ -65,6 +65,23 @@ Important types:
 - `Renderer`
 - `ArtifactWriter`
 
+## Evals
+
+- `runEvalSuites(suites, options?)`
+- `renderEvalRunSummary(result)`
+- `renderEvalRunJson(result)`
+- `OpenInferenceTraceRecorder`
+- `createOpenInferenceAgentHooks(recorder, options)`
+- `OPENINFERENCE`
+
+Important types:
+
+- `EvalSuite`
+- `EvalCase`
+- `EvalCaseOutput`
+- `EvalRunResult`
+- `EvalRunOptions`
+
 ## Content And Network
 
 - `fetchUrlContent(input)`
