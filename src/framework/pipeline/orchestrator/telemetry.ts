@@ -2,6 +2,7 @@
 // Scope: Keeps telemetry concerns out of stage and orchestration control flow.
 
 import type { PipelineOrchestratorDependencies } from "./contracts.js";
+import { errorMessage } from "./errors.js";
 import type {
   PipelineConfig,
   PipelineContext,
@@ -141,7 +142,7 @@ export async function runTimedStage<TResult>(
         finishedAt: finishedAt.toISOString(),
         durationMs: finishedAt.getTime() - startedAt.getTime(),
         inputCount,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
       },
       PIPELINE_LOG_MESSAGES.STAGE_FAILED,
     );

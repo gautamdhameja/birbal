@@ -659,6 +659,75 @@ describe("pipeline orchestrator", () => {
     assert.equal(result.errors.at(-1)?.code, "failure_policy_abort");
   });
 
+  it("stops dequeuing collection methods after a non-continuable source failure", async () => {
+    const registry = new PipelineComponentRegistry();
+    const startedMethods: string[] = [];
+
+    registry.registerCollector("collector", {
+      collect: async (method) => {
+        const collectionMethod = method as PipelineCollectionMethod;
+        startedMethods.push(collectionMethod.id);
+        if (collectionMethod.id === "web-1") {
+          await Promise.resolve();
+          throw new Error("source down");
+        }
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return [];
+      },
+    });
+    registry.registerSelector("selector", {
+      select: async (items) => items,
+    });
+    registry.registerRenderer("renderer", {
+      render: async () => "rendered",
+    });
+    registry.registerArtifactWriter("writer", {
+      write: async () => ({ id: "artifact", type: "markdown" }),
+    });
+
+    const result = await runPipeline(
+      writeConfig(
+        config({
+          collectionMethods: ["web-1", "web-2", "web-3", "web-4"].map((id) => ({
+            id,
+            collectorId: "collector",
+            sourceIds: ["source-a"],
+          })),
+          execution: {
+            collectionConcurrency: 2,
+          },
+          contentFetchPolicy: {
+            enabled: false,
+          },
+          scorerId: undefined,
+          classifierId: undefined,
+          structuredExtractorId: undefined,
+          failurePolicy: {
+            failFast: false,
+            continueOnSourceFailure: false,
+            continueOnContentFetchFailure: true,
+            continueOnScoringFailure: true,
+            continueOnStructuredExtractionFailure: true,
+            minItemsRequiredForSuccess: 1,
+          },
+        }),
+      ),
+      {
+        startRun: () => "run-source-fail-fast",
+        finishRun: () => undefined,
+        failRun: () => undefined,
+        loadSourceRegistry: testSourceRegistry,
+        logger: silentLogger(),
+        now: () => new Date("2026-05-23T08:00:00.000Z"),
+        registry,
+      },
+    );
+
+    assert.equal(result.status, "failed");
+    assert.deepEqual(startedMethods, ["web-1", "web-2"]);
+    assert.equal(result.counts.collectionErrors, 1);
+  });
+
   it("marks structured collector errors as partial when source failures are continuable", async () => {
     const registry = new PipelineComponentRegistry();
 

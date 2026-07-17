@@ -22,44 +22,73 @@ export async function collectItems(
   counts: PipelineCounts,
   errors: PipelineError[],
 ): Promise<PipelineRunItem[]> {
+  const continueAfterFailure = shouldContinueAfterSourceFailure(context.config);
+  const abortAfterFailure = (error: PipelineError, methodId: string): never => {
+    incrementCount(counts, "collectionErrors");
+    errors.push(error);
+    throw new PipelinePolicyAbortError(
+      `Pipeline stopped after source collection failure in ${methodId}.`,
+    );
+  };
+
   const collectionResults = await mapLimit(
     methods,
     executionLimit(context.config, "collectionConcurrency"),
     async (method) => {
       const collector = collectorsById.get(method.collectorId);
       if (!collector) {
+        const error = {
+          message: `Collector is not registered for method ${method.id}: ${method.collectorId}`,
+          stepId: method.id,
+          code: "collector_missing",
+        } satisfies PipelineError;
+        if (!continueAfterFailure) {
+          abortAfterFailure(error, method.id);
+        }
+
         return {
           items: [],
-          error: {
-            message: `Collector is not registered for method ${method.id}: ${method.collectorId}`,
-            stepId: method.id,
-            code: "collector_missing",
-          } satisfies PipelineError,
+          error,
         };
       }
 
+      let normalized;
       try {
         const collected = await collector.collect(method, context);
-        const normalized = normalizeCollectionResult(collected);
-        return {
-          items: normalized.items,
-          errors: normalized.errors,
-          method,
-        };
+        normalized = normalizeCollectionResult(collected);
       } catch (error) {
+        const pipelineError = toPipelineError(error, {
+          stepId: method.id,
+          code: "collection_failed",
+          metadata: {
+            collectorId: method.collectorId,
+          },
+        });
+        if (!continueAfterFailure) {
+          abortAfterFailure(pipelineError, method.id);
+        }
+
         return {
           items: [],
-          error: toPipelineError(error, {
-            stepId: method.id,
-            code: "collection_failed",
-            metadata: {
-              collectorId: method.collectorId,
-            },
-          }),
+          error: pipelineError,
         };
       }
+
+      if (normalized.errors.length > 0 && !continueAfterFailure) {
+        incrementCount(counts, "collectionErrors", normalized.errors.length);
+        errors.push(...normalized.errors);
+        throw new PipelinePolicyAbortError(
+          `Pipeline stopped after source collection failure in ${method.id}.`,
+        );
+      }
+
+      return {
+        items: normalized.items,
+        errors: normalized.errors,
+        method,
+      };
     },
-    { stopOnError: !shouldContinueAfterSourceFailure(context.config) },
+    { stopOnError: !continueAfterFailure },
   );
 
   const items: PipelineRunItem[] = [];
@@ -67,13 +96,6 @@ export async function collectItems(
     if (result.error) {
       incrementCount(counts, "collectionErrors");
       errors.push(result.error);
-
-      if (!shouldContinueAfterSourceFailure(context.config)) {
-        throw new PipelinePolicyAbortError(
-          `Pipeline stopped after source collection failure in ${result.error.stepId ?? "unknown source"}.`,
-        );
-      }
-
       continue;
     }
 
@@ -85,12 +107,6 @@ export async function collectItems(
     if (result.errors && result.errors.length > 0) {
       incrementCount(counts, "collectionErrors", result.errors.length);
       errors.push(...result.errors);
-
-      if (!shouldContinueAfterSourceFailure(context.config)) {
-        throw new PipelinePolicyAbortError(
-          `Pipeline stopped after source collection failure in ${method.id}.`,
-        );
-      }
     }
 
     incrementCount(counts, "collectionMethodsRun");

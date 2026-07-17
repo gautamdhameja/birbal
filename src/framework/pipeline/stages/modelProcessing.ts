@@ -1,11 +1,12 @@
 // Purpose: Executes scoring, classification, and structured extraction stages.
 // Scope: Owns model-stage batching, concurrency, and item-level failure handling.
 
-import { chunkItems as chunkPipelineItems, mapBatches, mapLimit } from "../concurrency.js";
+import { mapBatches, mapLimit } from "../concurrency.js";
 import type { PipelineRunItem } from "../orchestrator/contracts.js";
 import { PipelinePolicyAbortError, toPipelineError } from "../orchestrator/errors.js";
 import { incrementCount } from "../orchestrator/items.js";
 import {
+  assertBatchResultLength,
   batchSize,
   executionLimit,
   shouldContinueAfterNonPolicyFailure,
@@ -21,18 +22,6 @@ import type {
   Scorer,
   StructuredExtractor,
 } from "../types.js";
-
-function assertBatchResultLength<TValue>(
-  results: readonly TValue[],
-  expectedLength: number,
-  componentName: string,
-): void {
-  if (results.length !== expectedLength) {
-    throw new Error(
-      `${componentName} returned ${results.length} results for ${expectedLength} input items.`,
-    );
-  }
-}
 
 export async function scoreItems(
   items: PipelineRunItem[],
@@ -250,21 +239,13 @@ export async function classifyAndExtractStructured(
         context,
         "structured_extraction",
         output.length,
-        async () => {
-          if (!continueAfterStructuredExtractionFailure) {
-            const extractedItems: PipelineRunItem[] = [];
-            for (const item of output) {
-              extractedItems.push(await extractOne(item));
-            }
-            return extractedItems;
-          }
-
-          return mapLimit(
+        () =>
+          mapLimit(
             output,
             executionLimit(context.config, "structuredExtractionConcurrency"),
             extractOne,
-          );
-        },
+            { stopOnError: !continueAfterStructuredExtractionFailure },
+          ),
         {
           concurrency: executionLimit(context.config, "structuredExtractionConcurrency"),
         },
@@ -310,22 +291,12 @@ export async function classifyAndExtractStructured(
             }
           };
 
-          if (!continueAfterStructuredExtractionFailure) {
-            const extractedItems: PipelineRunItem[] = [];
-            for (const batch of chunkPipelineItems(
-              output,
-              batchSize(context.config, "structuredExtraction"),
-            )) {
-              extractedItems.push(...(await extractBatch(batch)));
-            }
-            return extractedItems;
-          }
-
           return mapBatches(
             output,
             batchSize(context.config, "structuredExtraction"),
             executionLimit(context.config, "structuredExtractionConcurrency"),
             extractBatch,
+            { stopOnError: !continueAfterStructuredExtractionFailure },
           );
         },
         {
