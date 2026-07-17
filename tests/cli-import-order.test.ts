@@ -9,7 +9,21 @@ function runCli(args: readonly string[]) {
   });
 }
 
+function runBinary(args: readonly string[]) {
+  return spawnSync(process.execPath, ["bin/birbal.js", ...args], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+  });
+}
+
 describe("CLI module loading", () => {
+  it("launches through the packaged binary after source files move", () => {
+    const result = runBinary(["--help"]);
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /^Usage: birbal/);
+  });
+
   it("does not initialize logging before trace options can be applied", () => {
     const script = [
       'await import("./src/app/cli.ts");',
