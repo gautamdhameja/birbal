@@ -37,6 +37,7 @@ export function registerBirbalPipelineComponents(
       ...dailyPipelineComponents.renderers,
       ...useCasePipelineComponents.renderers,
     },
+    finalizers: useCasePipelineComponents.finalizers,
     rubrics: dailyPipelineComponents.rubrics,
   });
 

@@ -24,6 +24,7 @@ import type {
   PipelineContext,
   PipelineCounts,
   PipelineError,
+  PipelineFinalizer,
   PipelineLogger,
   PipelineMetadata,
   PipelineResult,
@@ -1238,6 +1239,15 @@ async function renderAndWriteArtifact(
   return artifact;
 }
 
+async function finalizePipeline(
+  selectedItems: unknown[],
+  artifact: PipelineArtifact,
+  finalizer: PipelineFinalizer | undefined,
+  context: PipelineContext,
+): Promise<void> {
+  await finalizer?.finalize(selectedItems, artifact, context);
+}
+
 export async function runPipeline(
   configPathOrId: string,
   dependencies: Partial<PipelineOrchestratorDependencies> = {},
@@ -1413,6 +1423,11 @@ export async function runPipeline(
       ),
     );
     const artifacts = [artifact];
+    if (components.finalizers[0]) {
+      await runTimedStage(context, "finalization", selectedItems.length, () =>
+        finalizePipeline(selectedItems, artifact, components.finalizers[0], context),
+      );
+    }
     const finishedAt = deps.now();
 
     const result: PipelineResult = {

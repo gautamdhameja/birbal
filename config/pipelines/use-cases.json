@@ -45,6 +45,7 @@
   "structuredExtractorId": "enterprise_use_case_extractor",
   "selectorId": "enterprise_use_case_selector",
   "rendererId": "enterprise_use_case_markdown_renderer",
+  "finalizerId": "enterprise_use_case_finalizer",
   "output": {
     "format": "markdown",
     "directory": "digests/use-cases",

@@ -115,6 +115,7 @@ const PipelineConfigFileSchema = z.strictObject({
   structuredExtractorId: NonEmptyStringSchema.optional(),
   selectorId: NonEmptyStringSchema,
   rendererId: NonEmptyStringSchema,
+  finalizerId: NonEmptyStringSchema.optional(),
   output: PipelineOutputConfigSchema,
   limits: LimitsSchema,
   execution: PipelineExecutionConfigSchema.optional(),

@@ -7,6 +7,7 @@ import type {
   ContentExtractor,
   ContentFetcher,
   PipelineConfig,
+  PipelineFinalizer,
   Renderer,
   Scorer,
   Selector,
@@ -25,6 +26,7 @@ type ComponentKind =
   | "selectors"
   | "renderers"
   | "artifactWriters"
+  | "finalizers"
   | "rubrics";
 
 type ComponentKindMap = {
@@ -37,6 +39,7 @@ type ComponentKindMap = {
   selectors: Selector;
   renderers: Renderer;
   artifactWriters: ArtifactWriter;
+  finalizers: PipelineFinalizer;
   rubrics: Rubric;
 };
 
@@ -60,6 +63,7 @@ export type PipelineComponentRegistration = {
   selectors?: Record<string, Selector>;
   renderers?: Record<string, Renderer>;
   artifactWriters?: Record<string, ArtifactWriter>;
+  finalizers?: Record<string, PipelineFinalizer>;
   rubrics?: Record<string, Rubric>;
 };
 
@@ -73,6 +77,7 @@ export type ResolvedPipelineComponents = {
   selectors: Selector[];
   renderers: Renderer[];
   artifactWriters: ArtifactWriter[];
+  finalizers: PipelineFinalizer[];
   rubrics: Rubric[];
 };
 
@@ -93,6 +98,7 @@ function emptyResolvedComponents(): ResolvedPipelineComponents {
     selectors: [],
     renderers: [],
     artifactWriters: [],
+    finalizers: [],
     rubrics: [],
   };
 }
@@ -140,6 +146,7 @@ export class PipelineComponentRegistry {
     selectors: new Map(),
     renderers: new Map(),
     artifactWriters: new Map(),
+    finalizers: new Map(),
     rubrics: new Map(),
   };
 
@@ -181,6 +188,10 @@ export class PipelineComponentRegistry {
     this.register("artifactWriters", id, component);
   }
 
+  registerFinalizer(id: string, component: PipelineFinalizer): void {
+    this.register("finalizers", id, component);
+  }
+
   registerRubric(id: string, component: Rubric): void {
     this.register("rubrics", id, component);
   }
@@ -195,6 +206,7 @@ export class PipelineComponentRegistry {
     this.registerEntries("selectors", components.selectors);
     this.registerEntries("renderers", components.renderers);
     this.registerEntries("artifactWriters", components.artifactWriters);
+    this.registerEntries("finalizers", components.finalizers);
     this.registerEntries("rubrics", components.rubrics);
   }
 
@@ -234,6 +246,10 @@ export class PipelineComponentRegistry {
     return this.get("artifactWriters", id);
   }
 
+  getFinalizer(id: string): PipelineFinalizer {
+    return this.get("finalizers", id);
+  }
+
   getRubric(id: string): Rubric {
     return this.get("rubrics", id);
   }
@@ -264,6 +280,7 @@ export class PipelineComponentRegistry {
     resolved.artifactWriters.push(
       ...resolveSingle(config.output.artifactWriterId, (id) => this.getArtifactWriter(id)),
     );
+    resolved.finalizers.push(...resolveSingle(config.finalizerId, (id) => this.getFinalizer(id)));
     resolved.rubrics.push(...resolveSingle(config.rubricId, (id) => this.getRubric(id)));
 
     return resolved;

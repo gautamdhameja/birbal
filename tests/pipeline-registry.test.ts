@@ -79,12 +79,16 @@ describe("pipeline component registry", () => {
     const renderer = {
       render: async () => "markdown",
     };
+    const finalizer = {
+      finalize: async () => undefined,
+    };
     const registry = new PipelineComponentRegistry();
 
     registry.registerCollector("web_search_collector", collector);
     registry.registerScorer("enterprise_deployment_scorer", scorer);
     registry.registerSelector("daily_enterprise_mix_selector", selector);
     registry.registerRenderer("daily_markdown_renderer", renderer);
+    registry.registerFinalizer("daily_finalizer", finalizer);
     registry.registerArtifactWriter("test_writer", {
       write: async () => ({ id: "artifact", type: "markdown" }),
     });
@@ -99,6 +103,7 @@ describe("pipeline component registry", () => {
       scorerId: "enterprise_deployment_scorer",
       selectorId: "daily_enterprise_mix_selector",
       rendererId: "daily_markdown_renderer",
+      finalizerId: "daily_finalizer",
     });
 
     const resolved = registry.resolveFromConfig(config);
@@ -107,6 +112,7 @@ describe("pipeline component registry", () => {
     assert.deepEqual(resolved.scorers, [scorer]);
     assert.deepEqual(resolved.selectors, [selector]);
     assert.deepEqual(resolved.renderers, [renderer]);
+    assert.deepEqual(resolved.finalizers, [finalizer]);
     assert.deepEqual(resolved.contentFetchers, []);
   });
 

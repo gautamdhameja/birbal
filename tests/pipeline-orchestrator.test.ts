@@ -873,6 +873,55 @@ describe("pipeline orchestrator", () => {
     assert.equal(result.errors.at(-1)?.code, "failure_policy_abort");
   });
 
+  it("runs finalization only after the artifact writer succeeds", async () => {
+    const registry = new PipelineComponentRegistry();
+    let finalized = false;
+
+    registry.registerCollector("collector", {
+      collect: async () => [{ id: "first" }],
+    });
+    registry.registerSelector("selector", {
+      select: async (items) => items,
+    });
+    registry.registerRenderer("renderer", {
+      render: async () => "rendered",
+    });
+    registry.registerArtifactWriter("writer", {
+      write: async () => {
+        throw new Error("disk unavailable");
+      },
+    });
+    registry.registerFinalizer("finalizer", {
+      finalize: async () => {
+        finalized = true;
+      },
+    });
+
+    const result = await runPipeline(
+      writeConfig(
+        config({
+          contentFetchPolicy: { enabled: false },
+          scorerId: undefined,
+          classifierId: undefined,
+          structuredExtractorId: undefined,
+          finalizerId: "finalizer",
+        }),
+      ),
+      {
+        startRun: () => "run-finalizer-order",
+        finishRun: () => undefined,
+        failRun: () => undefined,
+        loadSourceRegistry: testSourceRegistry,
+        logger: silentLogger(),
+        now: () => new Date("2026-05-23T08:00:00.000Z"),
+        registry,
+      },
+    );
+
+    assert.equal(result.status, "failed");
+    assert.equal(finalized, false);
+  });
+
   it("sanitizes large error causes before returning pipeline errors", async () => {
     const registry = new PipelineComponentRegistry();
     const largeBody = "<html>".repeat(1_000);

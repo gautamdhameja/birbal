@@ -110,6 +110,7 @@ export interface PipelineConfig<TSettings = PipelineMetadata> {
   structuredExtractorId?: string;
   selectorId: string;
   rendererId: string;
+  finalizerId?: string;
   output: PipelineOutputConfig;
   limits: PipelineCounts;
   execution?: PipelineExecutionConfig;
@@ -240,4 +241,12 @@ export interface ArtifactWriter<
   TContext extends PipelineContext = PipelineContext,
 > {
   write(output: TRenderedOutput, context: TContext): Promise<TArtifact>;
+}
+
+export interface PipelineFinalizer<
+  TSelectedItem = unknown,
+  TArtifact extends PipelineArtifact = PipelineArtifact,
+  TContext extends PipelineContext = PipelineContext,
+> {
+  finalize(items: TSelectedItem[], artifact: TArtifact, context: TContext): Promise<void>;
 }

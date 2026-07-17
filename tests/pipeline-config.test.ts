@@ -66,6 +66,7 @@ describe("pipeline config", () => {
     assert.equal(config.structuredExtractorId, "enterprise_use_case_extractor");
     assert.equal(config.selectorId, "enterprise_use_case_selector");
     assert.equal(config.rendererId, "enterprise_use_case_markdown_renderer");
+    assert.equal(config.finalizerId, "enterprise_use_case_finalizer");
     assert.deepEqual(config.output, {
       format: "markdown",
       directory: "digests/use-cases",

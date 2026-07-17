@@ -24,6 +24,7 @@ import { selectWithIncrementalAcceptance } from "../../framework/pipeline/select
 import type {
   PipelineCollectionMethod,
   PipelineContext,
+  PipelineFinalizer,
   Renderer,
   Selector,
   SourceCollector,
@@ -55,6 +56,7 @@ import {
   verifySelectedEnterpriseUseCases,
   type EnterpriseUseCaseVerification,
   type VerificationEvidence,
+  type VerifiedEnterpriseUseCase,
 } from "./verification.js";
 import { fetchSourceEvidence, type SourceEvidence } from "./sourceEvidence.js";
 
@@ -506,20 +508,26 @@ export const enterpriseUseCaseSelector: Selector = {
       "use-case verification completed",
     );
 
-    if (shouldPersistSelectedUseCases(context)) {
-      for (const useCase of verified.selected) {
-        upsertUseCase({
-          ...useCase,
-          runId: context.runId,
-          rawJson: {
-            useCase,
-            verification: useCase.verification,
-          },
-        });
-      }
+    return verified.selected;
+  },
+};
+
+export const enterpriseUseCaseFinalizer: PipelineFinalizer = {
+  async finalize(items, _artifact, context) {
+    if (!shouldPersistSelectedUseCases(context)) {
+      return;
     }
 
-    return verified.selected;
+    for (const useCase of items as VerifiedEnterpriseUseCase[]) {
+      upsertUseCase({
+        ...useCase,
+        runId: context.runId,
+        rawJson: {
+          useCase,
+          verification: useCase.verification,
+        },
+      });
+    }
   },
 };
 
@@ -542,5 +550,8 @@ export const useCasePipelineComponents = {
   },
   renderers: {
     enterprise_use_case_markdown_renderer: enterpriseUseCaseMarkdownRenderer,
+  },
+  finalizers: {
+    enterprise_use_case_finalizer: enterpriseUseCaseFinalizer,
   },
 } as const;

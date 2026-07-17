@@ -52,6 +52,7 @@ export type {
   PipelineError,
   PipelineExecutionConfig,
   PipelineFailurePolicy,
+  PipelineFinalizer,
   PipelineId,
   PipelineLogger,
   PipelineMetadata,
