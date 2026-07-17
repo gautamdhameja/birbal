@@ -232,7 +232,7 @@ export async function runBirbalCli(args: readonly string[] = process.argv.slice(
 
   program
     .command("evals")
-    .description("run deterministic Birbal eval suites")
+    .description("run Birbal eval suites")
     .option("--json", "print the full eval result as JSON")
     .option("--suite <id>", "run one eval suite by ID", (value, previous: string[] = []) => [
       ...previous,

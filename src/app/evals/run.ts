@@ -1,6 +1,7 @@
 import { renderEvalRunJson, renderEvalRunSummary } from "../../framework/evals/report.js";
 import { runEvalSuites } from "../../framework/evals/runner.js";
 import type { EvalRunResult } from "../../framework/evals/types.js";
+import { LOCAL_MODEL_SMOKE_EVAL_SUITE_ID } from "./constants.js";
 import { birbalEvalSuites } from "./suites/index.js";
 
 export type RunBirbalEvalsOptions = {
@@ -12,8 +13,15 @@ export type RenderBirbalEvalOptions = {
 };
 
 export async function runBirbalEvals(options: RunBirbalEvalsOptions = {}): Promise<EvalRunResult> {
-  return runEvalSuites(birbalEvalSuites, {
-    suiteIds: options.suiteIds ?? [],
+  const suiteIds = options.suiteIds ?? [];
+  const suites = [...birbalEvalSuites];
+  if (suiteIds.includes(LOCAL_MODEL_SMOKE_EVAL_SUITE_ID)) {
+    const { localModelSmokeEvalSuite } = await import("./suites/localModelSmoke.js");
+    suites.push(localModelSmokeEvalSuite);
+  }
+
+  return runEvalSuites(suites, {
+    suiteIds,
   });
 }
 
