@@ -7,9 +7,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { loadSourceRegistry } from "../src/config/sourceRegistry.js";
-import { SOURCE_REGISTRY } from "../src/constants/source-registry.js";
-import { SOURCES } from "../src/constants/sources.js";
+import { loadSourceRegistry } from "../src/app/config/sourceRegistry.js";
+import { SOURCE_REGISTRY } from "../src/app/constants/source-registry.js";
+import { SOURCES } from "../src/app/constants/sources.js";
 
 function writeSourceRegistryConfig(value: unknown): string {
   const configPath = join(

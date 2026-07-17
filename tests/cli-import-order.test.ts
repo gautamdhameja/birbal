@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { describe, it } from "node:test";
 
 function runCli(args: readonly string[]) {
-  return spawnSync(process.execPath, ["--import", "tsx", "src/cli.ts", ...args], {
+  return spawnSync(process.execPath, ["--import", "tsx", "src/app/cli.ts", ...args], {
     cwd: process.cwd(),
     encoding: "utf8",
   });
@@ -12,9 +12,9 @@ function runCli(args: readonly string[]) {
 describe("CLI module loading", () => {
   it("does not initialize logging before trace options can be applied", () => {
     const script = [
-      'await import("./src/cli.ts");',
+      'await import("./src/app/cli.ts");',
       'process.env.LOG_LEVEL = "debug";',
-      'const { logger } = await import("./src/logging/logger.ts");',
+      'const { logger } = await import("./src/app/logging/logger.ts");',
       "process.stdout.write(logger.level);",
     ].join("\n");
     const { LOG_LEVEL: _logLevel, LOG_PRETTY: _logPretty, ...environment } = process.env;

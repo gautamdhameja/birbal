@@ -5,8 +5,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { PipelineComponentRegistry } from "../src/framework/pipeline/registry.js";
-import { registerBirbalPipelineComponents } from "../src/pipelines/register.js";
-import { ENTERPRISE_DAILY_READING_RUBRIC_ID } from "../src/pipelines/daily/rubric.js";
+import { registerBirbalPipelineComponents } from "../src/app/pipelines/register.js";
+import { ENTERPRISE_DAILY_READING_RUBRIC_ID } from "../src/app/pipelines/daily/rubric.js";
 import type { PipelineConfig } from "../src/framework/pipeline/types.js";
 
 function pipelineConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {

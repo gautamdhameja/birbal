@@ -4,22 +4,22 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
 
-import { buildArxivSearchQuery, parseArxivAtomFeed } from "../src/arxiv/client.js";
+import { buildArxivSearchQuery, parseArxivAtomFeed } from "../src/app/arxiv/client.js";
 import {
   normalizeBraveWebResult,
   resetBraveSearchQuotaForTests,
   searchWeb,
-} from "../src/brave-search/client.js";
-import { CONTENT_FETCH_STATUSES } from "../src/constants/candidates.js";
-import { HTTP } from "../src/constants/runtime.js";
-import { SOURCE_REGISTRY } from "../src/constants/source-registry.js";
-import { normalizeHackerNewsHit } from "../src/hackernews/client.js";
-import { searchSourceDomain } from "../src/source-search/domain.js";
-import { formatLocalIsoString } from "../src/tools/get-time.js";
-import { listTools, renderToolsForPrompt } from "../src/tools/registry.js";
-import { runTool } from "../src/tools/executor.js";
-import { fetchUrlText } from "../src/url-text/client.js";
-import { extractUrlText } from "../src/url-text/extract.js";
+} from "../src/app/brave-search/client.js";
+import { CONTENT_FETCH_STATUSES } from "../src/app/constants/candidates.js";
+import { HTTP } from "../src/app/constants/runtime.js";
+import { SOURCE_REGISTRY } from "../src/app/constants/source-registry.js";
+import { normalizeHackerNewsHit } from "../src/app/hackernews/client.js";
+import { searchSourceDomain } from "../src/app/source-search/domain.js";
+import { formatLocalIsoString } from "../src/app/tools/get-time.js";
+import { listTools, renderToolsForPrompt } from "../src/app/tools/registry.js";
+import { runTool } from "../src/app/tools/executor.js";
+import { fetchUrlText } from "../src/app/url-text/client.js";
+import { extractUrlText } from "../src/app/url-text/extract.js";
 
 function assertRecord(value: unknown): asserts value is Record<string, unknown> {
   assert.equal(typeof value, "object");

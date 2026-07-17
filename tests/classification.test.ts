@@ -4,15 +4,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { CANDIDATE_CATEGORIES, CONTENT_FETCH_STATUSES } from "../src/constants/candidates.js";
-import { SOURCE_REGISTRY } from "../src/constants/source-registry.js";
-import { SOURCES } from "../src/constants/sources.js";
+import { CANDIDATE_CATEGORIES, CONTENT_FETCH_STATUSES } from "../src/app/constants/candidates.js";
+import { SOURCE_REGISTRY } from "../src/app/constants/source-registry.js";
+import { SOURCES } from "../src/app/constants/sources.js";
 import {
   classifyCandidateCategory,
   fallbackCategoryFromScore,
   parseCategoryClassification,
-} from "../src/daily/classification.js";
-import type { CandidateItem, ItemScore } from "../src/daily/types.js";
+} from "../src/app/daily/classification.js";
+import type { CandidateItem, ItemScore } from "../src/app/daily/types.js";
 
 function candidate(overrides: Partial<CandidateItem> = {}): CandidateItem {
   return {

@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { CONTENT_FETCH_STATUSES } from "../src/constants/candidates.js";
+import { CONTENT_FETCH_STATUSES } from "../src/app/constants/candidates.js";
 import { fetchUrlContent } from "../src/framework/content/fetchUrl.js";
 
 const publicHostResolver = async () => [{ address: "93.184.216.34", family: 4 as const }];

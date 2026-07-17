@@ -4,11 +4,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { CONTENT_FETCH_STATUSES } from "../src/constants/candidates.js";
-import { SOURCE_REGISTRY } from "../src/constants/source-registry.js";
-import { SOURCES } from "../src/constants/sources.js";
-import type { CandidateItem } from "../src/daily/types.js";
-import { extractEnterpriseUseCases } from "../src/pipelines/useCases/extractor.js";
+import { CONTENT_FETCH_STATUSES } from "../src/app/constants/candidates.js";
+import { SOURCE_REGISTRY } from "../src/app/constants/source-registry.js";
+import { SOURCES } from "../src/app/constants/sources.js";
+import type { CandidateItem } from "../src/app/daily/types.js";
+import { extractEnterpriseUseCases } from "../src/app/pipelines/useCases/extractor.js";
 
 function candidate(overrides: Partial<CandidateItem> = {}): CandidateItem {
   return {

@@ -8,7 +8,7 @@ import {
   collectUseCaseSearchCandidates,
   useCaseSearchRelevanceScore,
   type UseCaseSearchConfig,
-} from "../src/pipelines/useCases/search.js";
+} from "../src/app/pipelines/useCases/search.js";
 
 function config(overrides: Partial<UseCaseSearchConfig> = {}): UseCaseSearchConfig {
   return {

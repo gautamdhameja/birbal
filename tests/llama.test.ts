@@ -4,9 +4,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { AGENT } from "../src/constants/agent.js";
-import { MODEL_PROVIDERS } from "../src/constants/model-providers.js";
-import { LlamaChatCompletionRequestSchema, LlamaConfigSchema } from "../src/llama/schema.js";
+import { AGENT } from "../src/app/constants/agent.js";
+import { MODEL_PROVIDERS } from "../src/app/constants/model-providers.js";
+import { LlamaChatCompletionRequestSchema, LlamaConfigSchema } from "../src/app/llama/schema.js";
 
 describe("llama chat request schema", () => {
   it("allows JSON object response format requests", () => {

@@ -4,11 +4,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { CANDIDATE_CATEGORIES, CONTENT_FETCH_STATUSES } from "../src/constants/candidates.js";
-import { SOURCE_REGISTRY } from "../src/constants/source-registry.js";
-import { selectDigestItems, selectDigestItemsWithTrace } from "../src/daily/digestSelection.js";
-import type { CandidateCategory, ItemScore, ScoredCandidateItem } from "../src/daily/types.js";
-import type { UserPreferences } from "../src/memory/types.js";
+import { CANDIDATE_CATEGORIES, CONTENT_FETCH_STATUSES } from "../src/app/constants/candidates.js";
+import { SOURCE_REGISTRY } from "../src/app/constants/source-registry.js";
+import { selectDigestItems, selectDigestItemsWithTrace } from "../src/app/daily/digestSelection.js";
+import type { CandidateCategory, ItemScore, ScoredCandidateItem } from "../src/app/daily/types.js";
+import type { UserPreferences } from "../src/app/memory/types.js";
 
 function preferences(overrides: Partial<UserPreferences> = {}): UserPreferences {
   return {

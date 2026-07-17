@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { decodePersistedJson } from "../src/db/json.js";
+import { decodePersistedJson } from "../src/app/db/json.js";
 
 describe("persisted JSON decoding", () => {
   it("decodes valid JSON values", () => {

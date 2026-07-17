@@ -4,8 +4,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { renderEnterpriseUseCaseDigest } from "../src/pipelines/useCases/renderer.js";
-import type { EnterpriseUseCase } from "../src/pipelines/useCases/schema.js";
+import { renderEnterpriseUseCaseDigest } from "../src/app/pipelines/useCases/renderer.js";
+import type { EnterpriseUseCase } from "../src/app/pipelines/useCases/schema.js";
 
 function useCase(overrides: Partial<EnterpriseUseCase> = {}): EnterpriseUseCase {
   return {

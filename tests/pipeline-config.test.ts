@@ -7,13 +7,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { loadSourceRegistry } from "../src/config/sourceRegistry.js";
+import { loadSourceRegistry } from "../src/app/config/sourceRegistry.js";
 import { loadPipelineConfig } from "../src/framework/pipeline/config.js";
 import {
   loadUseCasePipelineConfig,
   parseUseCasePipelineConfig,
-} from "../src/pipelines/useCases/config.js";
-import { applyPipelineCliLimit } from "../src/runPipeline.js";
+} from "../src/app/pipelines/useCases/config.js";
+import { applyPipelineCliLimit } from "../src/app/runPipeline.js";
 
 function writeConfig(value: unknown): string {
   const configPath = join(mkdtempSync(join(tmpdir(), "birbal-pipeline-config-")), "pipeline.json");

@@ -4,17 +4,17 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 
-import { MODEL_PROVIDERS } from "../src/constants/model-providers.js";
+import { MODEL_PROVIDERS } from "../src/app/constants/model-providers.js";
 import {
   getConfiguredModelProviderId,
   getDefaultModelClient,
-} from "../src/model-providers/default.js";
+} from "../src/app/model-providers/default.js";
 import {
   chatCompletionsUrl,
   createOpenAICompatibleModelClient,
-} from "../src/model-providers/openai-compatible/client.js";
-import { getLlamaConfig } from "../src/llama/config.js";
-import { getOpenAIConfig } from "../src/model-providers/openai/config.js";
+} from "../src/app/model-providers/openai-compatible/client.js";
+import { getLlamaConfig } from "../src/app/llama/config.js";
+import { getOpenAIConfig } from "../src/app/model-providers/openai/config.js";
 
 const ORIGINAL_ENV = { ...process.env };
 

@@ -11,12 +11,12 @@ import {
   fetchWithTimeout,
   RetryableFetchStatusError,
 } from "../src/framework/network/fetch.js";
-import { buildHttpStatusError, readResponseText } from "../src/http/client.js";
+import { buildHttpStatusError, readResponseText } from "../src/app/http/client.js";
 import {
   assertSafePublicHttpUrl,
   type HostResolver,
   isSafePublicHttpUrl,
-} from "../src/http/url.js";
+} from "../src/app/http/url.js";
 
 describe("HTTP client helpers", () => {
   it("rejects unsafe public fetch URL host encodings", () => {

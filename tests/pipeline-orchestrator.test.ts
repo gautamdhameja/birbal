@@ -11,7 +11,7 @@ import { PipelineComponentRegistry } from "../src/framework/pipeline/registry.js
 import { runPipeline } from "../src/framework/pipeline/orchestrator.js";
 import { ModelParseError } from "../src/framework/llm/repair.js";
 import { registerFrameworkPipelineComponents } from "../src/framework/pipeline/defaultComponents.js";
-import { HttpStatusError } from "../src/http/client.js";
+import { HttpStatusError } from "../src/app/http/client.js";
 import type { PipelineRunItem } from "../src/framework/pipeline/orchestrator.js";
 import type {
   PipelineCollectionMethod,

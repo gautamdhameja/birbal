@@ -9,9 +9,9 @@ import { describe, it } from "node:test";
 
 import Database from "better-sqlite3";
 
-import { CONTENT_FETCH_STATUSES } from "../src/constants/candidates.js";
-import { SOURCE_REGISTRY } from "../src/constants/source-registry.js";
-import { SOURCES } from "../src/constants/sources.js";
+import { CONTENT_FETCH_STATUSES } from "../src/app/constants/candidates.js";
+import { SOURCE_REGISTRY } from "../src/app/constants/source-registry.js";
+import { SOURCES } from "../src/app/constants/sources.js";
 import {
   closeDb,
   getItemByUrl,
@@ -23,8 +23,8 @@ import {
   listTopScoredItemsByIds,
   upsertItem,
   upsertScore,
-} from "../src/db/items.js";
-import { failRun, finishRun, getRecentRuns, startRun } from "../src/db/pipelineRuns.js";
+} from "../src/app/db/items.js";
+import { failRun, finishRun, getRecentRuns, startRun } from "../src/app/db/pipelineRuns.js";
 import {
   createSearchSnapshot,
   getLatestSearchSnapshot,
@@ -32,9 +32,9 @@ import {
   listSearchSnapshots,
   updateSearchSnapshotResultCount,
   upsertSearchSnapshotItem,
-} from "../src/db/searchSnapshots.js";
+} from "../src/app/db/searchSnapshots.js";
 import { createInMemoryPipelineRunStore } from "../src/framework/pipeline/runStore.js";
-import type { CandidateItem, ItemScore } from "../src/daily/types.js";
+import type { CandidateItem, ItemScore } from "../src/app/daily/types.js";
 
 function item(overrides: Partial<CandidateItem>): CandidateItem {
   return {

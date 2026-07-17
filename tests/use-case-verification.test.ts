@@ -11,8 +11,8 @@ import {
   verifyEnterpriseUseCase,
   verifySelectedEnterpriseUseCases,
   type VerificationEvidence,
-} from "../src/pipelines/useCases/verification.js";
-import type { EnterpriseUseCase } from "../src/pipelines/useCases/schema.js";
+} from "../src/app/pipelines/useCases/verification.js";
+import type { EnterpriseUseCase } from "../src/app/pipelines/useCases/schema.js";
 
 function useCase(overrides: Partial<EnterpriseUseCase> = {}): EnterpriseUseCase {
   return {

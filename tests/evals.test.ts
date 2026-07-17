@@ -7,8 +7,8 @@ import { describe, it } from "node:test";
 import { OPENINFERENCE, OpenInferenceTraceRecorder } from "../src/framework/evals/openInference.js";
 import { runEvalSuites } from "../src/framework/evals/runner.js";
 import type { EvalSuite } from "../src/framework/evals/types.js";
-import { runBirbalEvals, renderBirbalEvalResult } from "../src/evals/run.js";
-import { TOOLS } from "../src/constants/tools.js";
+import { runBirbalEvals, renderBirbalEvalResult } from "../src/app/evals/run.js";
+import { TOOLS } from "../src/app/constants/tools.js";
 
 function evalSuite(id: string, delayMs = 0): EvalSuite {
   return {

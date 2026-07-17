@@ -7,9 +7,9 @@ import { describe, it } from "node:test";
 import {
   selectEnterpriseUseCaseItems,
   selectEnterpriseUseCases,
-} from "../src/pipelines/useCases/selector.js";
-import { enterpriseUseCaseFingerprint } from "../src/pipelines/useCases/dedupe.js";
-import type { EnterpriseUseCase } from "../src/pipelines/useCases/schema.js";
+} from "../src/app/pipelines/useCases/selector.js";
+import { enterpriseUseCaseFingerprint } from "../src/app/pipelines/useCases/dedupe.js";
+import type { EnterpriseUseCase } from "../src/app/pipelines/useCases/schema.js";
 
 function useCase(overrides: Partial<EnterpriseUseCase> = {}): EnterpriseUseCase {
   return {

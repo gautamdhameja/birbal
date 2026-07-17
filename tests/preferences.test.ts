@@ -7,9 +7,9 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
 
-import { PREFERENCES } from "../src/constants/preferences.js";
-import { loadPreferences } from "../src/memory/preferences.js";
-import type { UserPreferences } from "../src/memory/types.js";
+import { PREFERENCES } from "../src/app/constants/preferences.js";
+import { loadPreferences } from "../src/app/memory/preferences.js";
+import type { UserPreferences } from "../src/app/memory/types.js";
 
 function preferences(overrides: Partial<UserPreferences> = {}): UserPreferences {
   return {

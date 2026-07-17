@@ -12,12 +12,12 @@ import {
   rankDailyCandidates,
   toArxivCandidate,
   toHackerNewsCandidate,
-} from "../src/daily/pipeline.js";
-import { CONTENT_FETCH_STATUSES } from "../src/constants/candidates.js";
-import { SOURCE_REGISTRY } from "../src/constants/source-registry.js";
-import { SOURCES } from "../src/constants/sources.js";
-import type { CandidateItem } from "../src/daily/types.js";
-import type { SourceRegistry } from "../src/config/sourceRegistry.js";
+} from "../src/app/daily/pipeline.js";
+import { CONTENT_FETCH_STATUSES } from "../src/app/constants/candidates.js";
+import { SOURCE_REGISTRY } from "../src/app/constants/source-registry.js";
+import { SOURCES } from "../src/app/constants/sources.js";
+import type { CandidateItem } from "../src/app/daily/types.js";
+import type { SourceRegistry } from "../src/app/config/sourceRegistry.js";
 
 function candidate(overrides: Partial<CandidateItem>): CandidateItem {
   return {

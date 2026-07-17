@@ -7,7 +7,7 @@ import { describe, it } from "node:test";
 import {
   EnterpriseUseCaseSchema,
   isEligibleEnterpriseUseCase,
-} from "../src/pipelines/useCases/schema.js";
+} from "../src/app/pipelines/useCases/schema.js";
 
 function useCase(overrides: Record<string, unknown> = {}) {
   return {

@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { initDb } from "../src/db/items.js";
+import { initDb } from "../src/app/db/items.js";
 import {
   contentHash,
   evidenceHash,
@@ -16,9 +16,9 @@ import {
   upsertUseCaseExtractionCache,
   upsertUseCaseVerificationCache,
   useCaseHash,
-} from "../src/db/useCaseModelCache.js";
-import { listRecentUseCases, listUseCasesByRun, upsertUseCase } from "../src/db/useCases.js";
-import type { EnterpriseUseCaseStorageInput } from "../src/db/useCases.js";
+} from "../src/app/db/useCaseModelCache.js";
+import { listRecentUseCases, listUseCasesByRun, upsertUseCase } from "../src/app/db/useCases.js";
+import type { EnterpriseUseCaseStorageInput } from "../src/app/db/useCases.js";
 
 function dbPath(): string {
   return join(mkdtempSync(join(tmpdir(), "birbal-use-cases-db-")), "agent.db");

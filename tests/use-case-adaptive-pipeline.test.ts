@@ -4,10 +4,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { SearchWebResult } from "../src/brave-search/client.js";
+import type { SearchWebResult } from "../src/app/brave-search/client.js";
 import { loadPipelineConfig } from "../src/framework/pipeline/config.js";
 import type { PipelineConfig, PipelineResult } from "../src/framework/pipeline/types.js";
-import { runUseCaseAdaptivePipeline } from "../src/pipelines/useCases/commands.js";
+import { runUseCaseAdaptivePipeline } from "../src/app/pipelines/useCases/commands.js";
 
 function config(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
   const base = loadPipelineConfig("use-cases");
