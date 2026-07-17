@@ -150,16 +150,6 @@ export interface PipelineResult<TArtifact extends PipelineArtifact = PipelineArt
   metadata: PipelineMetadata;
 }
 
-export interface PipelineStep<
-  TInput = unknown,
-  TOutput = unknown,
-  TContext extends PipelineContext = PipelineContext,
-> {
-  id: string;
-  description?: string;
-  run(input: TInput, context: TContext): Promise<TOutput>;
-}
-
 export interface SourceCollector<
   TQuery = unknown,
   TCollectedItem = unknown,

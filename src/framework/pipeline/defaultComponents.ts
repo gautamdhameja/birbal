@@ -20,5 +20,3 @@ export function registerFrameworkPipelineComponents(
 
   registeredRegistries.add(registry);
 }
-
-export { filesystemArtifactWriter, noopArtifactWriter };

@@ -1,22 +1,19 @@
 import pLimit from "p-limit";
 
-export type IndexedResult<TValue> = {
-  index: number;
-  value: TValue;
-};
-
 export type MapLimitOptions = {
   stopOnError?: boolean;
 };
 
-function assertPositiveInteger(value: number, label: string): void {
+export function positiveInteger(value: number, label: string): number {
   if (!Number.isInteger(value) || value < 1) {
     throw new Error(`${label} must be a positive integer.`);
   }
+
+  return value;
 }
 
 export function chunkItems<TItem>(items: readonly TItem[], batchSize: number): TItem[][] {
-  assertPositiveInteger(batchSize, "batchSize");
+  positiveInteger(batchSize, "batchSize");
 
   const chunks: TItem[][] = [];
   for (let index = 0; index < items.length; index += batchSize) {
@@ -32,7 +29,7 @@ export async function mapLimit<TItem, TResult>(
   mapper: (item: TItem, index: number) => Promise<TResult>,
   options: MapLimitOptions = {},
 ): Promise<TResult[]> {
-  assertPositiveInteger(concurrency, "concurrency");
+  positiveInteger(concurrency, "concurrency");
 
   if (items.length === 0) {
     return [];

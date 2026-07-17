@@ -122,10 +122,6 @@ const PipelineConfigFileSchema = z.strictObject({
   metadata: MetadataSchema.optional(),
 });
 
-const PipelineConfigSchema = PipelineConfigFileSchema;
-
-export type ValidatedPipelineConfig = z.infer<typeof PipelineConfigSchema>;
-
 function getDefaultPipelineConfigPath(configName: string): string {
   return join(
     process.cwd(),
@@ -160,7 +156,7 @@ function parsePipelineConfigJson(rawConfig: string): unknown {
 }
 
 export function loadPipelineConfig(configPathOrName: string): PipelineConfig {
-  const parsed = PipelineConfigSchema.safeParse(
+  const parsed = PipelineConfigFileSchema.safeParse(
     parsePipelineConfigJson(readFileSync(resolvePipelineConfigPath(configPathOrName), "utf8")),
   );
   if (!parsed.success) {

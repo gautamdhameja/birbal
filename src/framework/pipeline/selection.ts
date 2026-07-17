@@ -1,3 +1,5 @@
+import { positiveInteger } from "./concurrency.js";
+
 export type BackfillSelectionResult<TCandidate, TAccepted = TCandidate> = {
   candidatePool: TCandidate[];
   acceptedPool: TAccepted[];
@@ -20,14 +22,6 @@ export type SelectWithIncrementalAcceptanceOptions<
 > = SelectWithAcceptanceBackfillOptions<TCandidate, TAccepted> & {
   batchSize: number;
 };
-
-function positiveInteger(value: number, name: string): number {
-  if (!Number.isInteger(value) || value < 1) {
-    throw new Error(`${name} must be a positive integer.`);
-  }
-
-  return value;
-}
 
 export async function selectWithAcceptanceBackfill<TCandidate, TAccepted = TCandidate>({
   candidates,

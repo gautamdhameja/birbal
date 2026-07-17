@@ -84,22 +84,6 @@ function assertComponentId(id: string): void {
   }
 }
 
-function emptyResolvedComponents(): ResolvedPipelineComponents {
-  return {
-    collectors: [],
-    contentFetchers: [],
-    contentExtractors: [],
-    scorers: [],
-    classifiers: [],
-    structuredExtractors: [],
-    selectors: [],
-    renderers: [],
-    artifactWriters: [],
-    finalizers: [],
-    rubrics: [],
-  };
-}
-
 function resolveSingle<TComponent>(
   id: string | undefined,
   resolve: (id: string) => TComponent,
@@ -252,35 +236,29 @@ export class PipelineComponentRegistry {
   }
 
   resolveFromConfig(config: PipelineConfig): ResolvedPipelineComponents {
-    const resolved = emptyResolvedComponents();
-
-    resolved.collectors.push(
-      ...resolveMany(uniqueIds(enabledCollectorIds(config)), (id) => this.getCollector(id)),
-    );
-    resolved.contentFetchers.push(
-      ...resolveMany(uniqueIds(enabledContentFetcherIds(config)), (id) =>
+    return {
+      collectors: resolveMany(uniqueIds(enabledCollectorIds(config)), (id) =>
+        this.getCollector(id),
+      ),
+      contentFetchers: resolveMany(uniqueIds(enabledContentFetcherIds(config)), (id) =>
         this.getContentFetcher(id),
       ),
-    );
-    resolved.contentExtractors.push(
-      ...resolveMany(enabledContentExtractorIds(config), (id) => this.getContentExtractor(id)),
-    );
-    resolved.scorers.push(...resolveSingle(config.scorerId, (id) => this.getScorer(id)));
-    resolved.classifiers.push(
-      ...resolveSingle(config.classifierId, (id) => this.getClassifier(id)),
-    );
-    resolved.structuredExtractors.push(
-      ...resolveSingle(config.structuredExtractorId, (id) => this.getStructuredExtractor(id)),
-    );
-    resolved.selectors.push(...resolveSingle(config.selectorId, (id) => this.getSelector(id)));
-    resolved.renderers.push(...resolveSingle(config.rendererId, (id) => this.getRenderer(id)));
-    resolved.artifactWriters.push(
-      ...resolveSingle(config.output.artifactWriterId, (id) => this.getArtifactWriter(id)),
-    );
-    resolved.finalizers.push(...resolveSingle(config.finalizerId, (id) => this.getFinalizer(id)));
-    resolved.rubrics.push(...resolveSingle(config.rubricId, (id) => this.getRubric(id)));
-
-    return resolved;
+      contentExtractors: resolveMany(enabledContentExtractorIds(config), (id) =>
+        this.getContentExtractor(id),
+      ),
+      scorers: resolveSingle(config.scorerId, (id) => this.getScorer(id)),
+      classifiers: resolveSingle(config.classifierId, (id) => this.getClassifier(id)),
+      structuredExtractors: resolveSingle(config.structuredExtractorId, (id) =>
+        this.getStructuredExtractor(id),
+      ),
+      selectors: resolveSingle(config.selectorId, (id) => this.getSelector(id)),
+      renderers: resolveSingle(config.rendererId, (id) => this.getRenderer(id)),
+      artifactWriters: resolveSingle(config.output.artifactWriterId, (id) =>
+        this.getArtifactWriter(id),
+      ),
+      finalizers: resolveSingle(config.finalizerId, (id) => this.getFinalizer(id)),
+      rubrics: resolveSingle(config.rubricId, (id) => this.getRubric(id)),
+    };
   }
 
   private register<K extends ComponentKind>(

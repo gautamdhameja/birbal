@@ -9,6 +9,19 @@ const DATE_PART_TYPES = {
   YEAR: "year",
 } as const;
 
+function partValue(
+  parts: readonly Intl.DateTimeFormatPart[],
+  type: string,
+  valueKind: "date" | "time",
+): string {
+  const value = parts.find((part) => part.type === type)?.value;
+  if (!value) {
+    throw new Error(`Could not format ${valueKind} part: ${type}`);
+  }
+
+  return value;
+}
+
 export function formatDateOnly(value: Date | string | null | undefined, fallback: string): string {
   if (value instanceof Date) {
     return value.toISOString().slice(0, DATE_LENGTH);
@@ -43,19 +56,10 @@ export function formatDateOnlyInTimeZone(date: Date, timeZone?: string): string 
     timeZone,
     year: "numeric",
   }).formatToParts(date);
-  const partValue = (type: string): string => {
-    const value = parts.find((part) => part.type === type)?.value;
-    if (!value) {
-      throw new Error(`Could not format date part: ${type}`);
-    }
-
-    return value;
-  };
-
   return [
-    partValue(DATE_PART_TYPES.YEAR),
-    partValue(DATE_PART_TYPES.MONTH),
-    partValue(DATE_PART_TYPES.DAY),
+    partValue(parts, DATE_PART_TYPES.YEAR, "date"),
+    partValue(parts, DATE_PART_TYPES.MONTH, "date"),
+    partValue(parts, DATE_PART_TYPES.DAY, "date"),
   ].join("-");
 }
 
@@ -71,18 +75,9 @@ export function formatTimeOnlyInTimeZone(date: Date, timeZone?: string): string 
     second: "2-digit",
     timeZone,
   }).formatToParts(date);
-  const partValue = (type: string): string => {
-    const value = parts.find((part) => part.type === type)?.value;
-    if (!value) {
-      throw new Error(`Could not format time part: ${type}`);
-    }
-
-    return value;
-  };
-
   return [
-    partValue(DATE_PART_TYPES.HOUR),
-    partValue(DATE_PART_TYPES.MINUTE),
-    partValue(DATE_PART_TYPES.SECOND),
+    partValue(parts, DATE_PART_TYPES.HOUR, "time"),
+    partValue(parts, DATE_PART_TYPES.MINUTE, "time"),
+    partValue(parts, DATE_PART_TYPES.SECOND, "time"),
   ].join("");
 }

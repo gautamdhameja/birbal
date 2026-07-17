@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { PipelineArtifact, PipelineError, PipelineMetadata } from "./types.js";
+import type { PipelineArtifact, PipelineError, PipelineMetadata, PipelineStatus } from "./types.js";
 
 export const PIPELINE_RUN_STATUSES = {
   SUCCESS: "success",
@@ -12,10 +12,10 @@ export const PIPELINE_RUN_TYPES = {
   MANUAL: "manual",
 } as const;
 
-export type StoredRunStatus = (typeof PIPELINE_RUN_STATUSES)[keyof typeof PIPELINE_RUN_STATUSES];
+export type StoredRunStatus = PipelineStatus;
 
 export type RunSummary = {
-  status?: StoredRunStatus | "partial";
+  status?: StoredRunStatus;
   sourcesAttempted?: number;
   sourcesSucceeded?: number;
   sourcesFailed?: number;
@@ -25,7 +25,7 @@ export type RunSummary = {
   itemsRejected?: number;
   itemsSelected?: number;
   artifacts?: PipelineArtifact[];
-  errors?: PipelineError[] | Array<{ error?: string; message?: string }>;
+  errors?: PipelineError[];
   errorSummary?: string | null;
   metadata?: PipelineMetadata;
 };
@@ -62,10 +62,6 @@ export type InMemoryPipelineRunStoreOptions = {
 };
 
 export function normalizeRunStatus(status: RunSummary["status"]): StoredRunStatus {
-  if (status === "partial") {
-    return PIPELINE_RUN_STATUSES.PARTIAL_SUCCESS;
-  }
-
   return status ?? PIPELINE_RUN_STATUSES.SUCCESS;
 }
 
@@ -75,14 +71,7 @@ export function summarizeRunErrors(errors: RunSummary["errors"]): string | null 
   }
 
   return errors
-    .map((error) => {
-      if (error.message) {
-        return error.message;
-      }
-
-      return "error" in error ? error.error : undefined;
-    })
-    .filter((message): message is string => Boolean(message))
+    .map((error) => error.message)
     .slice(0, 5)
     .join("; ");
 }

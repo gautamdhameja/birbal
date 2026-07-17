@@ -57,7 +57,6 @@ export type {
   PipelineResult,
   PipelineScheduleConfig,
   PipelineStatus,
-  PipelineStep,
   Renderer,
   Scorer,
   Selector,
