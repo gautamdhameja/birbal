@@ -13,6 +13,7 @@ import {
 } from "../pipelines/useCases/verification.js";
 import { normalizeUrl } from "../utils/url.js";
 import { getDb } from "./items.js";
+import { decodePersistedJson } from "./json.js";
 
 const EnterpriseUseCaseArraySchema = z.array(EnterpriseUseCaseSchema);
 
@@ -30,14 +31,6 @@ export function stableHash(value: string): string {
 
 function cacheKey(parts: readonly string[]): string {
   return stableHash(parts.join("\0"));
-}
-
-function parseJsonValue(value: string): unknown | undefined {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return undefined;
-  }
 }
 
 export function contentHash(contentText: string): string {
@@ -78,7 +71,9 @@ export function getCachedUseCaseExtraction({
     return null;
   }
 
-  const parsed = EnterpriseUseCaseArraySchema.safeParse(parseJsonValue(row.use_cases_json));
+  const parsed = EnterpriseUseCaseArraySchema.safeParse(
+    decodePersistedJson(row.use_cases_json, undefined),
+  );
   return parsed.success ? parsed.data : null;
 }
 
@@ -123,7 +118,7 @@ export function getCachedUseCaseVerification({
   }
 
   const parsed = EnterpriseUseCaseVerificationSchema.safeParse(
-    parseJsonValue(row.verification_json),
+    decodePersistedJson(row.verification_json, undefined),
   );
   return parsed.success ? parsed.data : null;
 }

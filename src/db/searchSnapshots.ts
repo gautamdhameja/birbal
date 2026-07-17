@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { DATABASE } from "../constants/database.js";
 import { normalizeUrl } from "../utils/url.js";
 import { assertValidLimit, getDb } from "./items.js";
+import { decodePersistedJson } from "./json.js";
 
 export type SearchSnapshotInput = {
   pipelineId: string;
@@ -60,21 +61,13 @@ type SearchSnapshotItemRow = {
   created_at: string;
 };
 
-function parseJson(value: string): unknown {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return value;
-  }
-}
-
 function snapshotFromRow(row: SearchSnapshotRow): SearchSnapshot {
   return {
     id: row.id,
     pipelineId: row.pipeline_id,
     queryCount: row.query_count,
     resultCount: row.result_count,
-    metadata: parseJson(row.metadata_json),
+    metadata: decodePersistedJson(row.metadata_json, row.metadata_json),
     createdAt: row.created_at,
   };
 }
@@ -89,7 +82,7 @@ function snapshotItemFromRow(row: SearchSnapshotItemRow): SearchSnapshotItem {
     description: row.description,
     publishedAt: row.published_at,
     ...(row.source_name ? { sourceName: row.source_name } : {}),
-    raw: parseJson(row.raw_json),
+    raw: decodePersistedJson(row.raw_json, row.raw_json),
     createdAt: row.created_at,
   };
 }

@@ -7,6 +7,7 @@ import { DATABASE } from "../constants/database.js";
 import { EnterpriseUseCaseSchema, type EnterpriseUseCase } from "../pipelines/useCases/schema.js";
 import { normalizeUrl } from "../utils/url.js";
 import { assertValidLimit, getDb } from "./items.js";
+import { decodePersistedJson } from "./json.js";
 
 export type StoredEnterpriseUseCase = EnterpriseUseCase & {
   runId?: string;
@@ -43,14 +44,6 @@ type UseCaseRow = {
   raw_json: string;
 };
 
-function parseRawJson(rawJson: string): unknown {
-  try {
-    return JSON.parse(rawJson);
-  } catch {
-    return rawJson;
-  }
-}
-
 function useCaseFromRow(row: UseCaseRow): StoredEnterpriseUseCase {
   return {
     id: row.id,
@@ -73,7 +66,7 @@ function useCaseFromRow(row: UseCaseRow): StoredEnterpriseUseCase {
     evidenceSummary: row.evidence_summary,
     confidenceScore: row.confidence_score,
     createdAt: row.created_at,
-    rawJson: parseRawJson(row.raw_json),
+    rawJson: decodePersistedJson(row.raw_json, row.raw_json),
   };
 }
 

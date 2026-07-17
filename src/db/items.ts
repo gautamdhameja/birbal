@@ -19,6 +19,7 @@ import type {
   ItemScore,
   ScoredCandidateItem,
 } from "../daily/types.js";
+import { decodePersistedJson } from "./json.js";
 
 let db: DatabaseConnection | null = null;
 let activeDbPath: string | null = null;
@@ -348,14 +349,6 @@ type ScoreRow = {
 
 type ScoredItemRow = ItemRow & ScoreRow;
 
-function parseRawJson(rawJson: string): unknown {
-  try {
-    return JSON.parse(rawJson);
-  } catch {
-    return rawJson;
-  }
-}
-
 function itemFromRow(row: ItemRow): CandidateItem {
   const item: CandidateItem = {
     id: row.id,
@@ -368,7 +361,7 @@ function itemFromRow(row: ItemRow): CandidateItem {
     publishedAt: row.published_at,
     discoveredAt: row.discovered_at,
     contentFetchStatus: row.content_fetch_status,
-    raw: parseRawJson(row.raw_json),
+    raw: decodePersistedJson(row.raw_json, row.raw_json),
   };
 
   if (row.content_text !== null) {

@@ -13,6 +13,7 @@ import {
 import type { PipelineMetadata, StoredRun, StoredRunStatus } from "../framework/pipeline/index.js";
 import type { RunSummary, PipelineRunStore } from "../framework/pipeline/runStore.js";
 import { getDb } from "./items.js";
+import { decodePersistedJson } from "./json.js";
 
 type RunRow = {
   id: string;
@@ -38,14 +39,6 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-function parseJson(value: string, fallback: unknown): unknown {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return fallback;
-  }
-}
-
 function runFromRow(row: RunRow): StoredRun {
   return {
     id: row.id,
@@ -62,9 +55,9 @@ function runFromRow(row: RunRow): StoredRun {
     itemsScored: row.items_scored,
     itemsRejected: row.items_rejected,
     itemsSelected: row.items_selected,
-    artifacts: parseJson(row.artifacts_json, []) as unknown[],
+    artifacts: decodePersistedJson(row.artifacts_json, []) as unknown[],
     errorSummary: row.error_summary,
-    metadata: parseJson(row.metadata_json, {}) as PipelineMetadata,
+    metadata: decodePersistedJson(row.metadata_json, {}) as PipelineMetadata,
   };
 }
 
