@@ -1,6 +1,6 @@
 # Tools
 
-Generic tool primitives live in `src/framework/tools/`. Birbal's concrete tool definitions live in `src/tools/`.
+Generic tool primitives live in `src/framework/tools/`. Birbal's concrete tool definitions live in `src/app/tools/`.
 
 ## Tool Definition
 

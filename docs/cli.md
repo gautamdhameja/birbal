@@ -9,7 +9,7 @@ pnpm install
 pnpm link --global
 ```
 
-The package binary is `bin/birbal.js`. It launches the TypeScript CLI in `src/cli.ts` through the local `tsx` runtime, so the command works without a separate build step.
+The package binary is `bin/birbal.js`. It launches the TypeScript CLI in `src/app/cli.ts` through the local `tsx` runtime, so the command works without a separate build step.
 
 ## Commands
 

@@ -62,7 +62,9 @@ Pipeline config
        source registry   fetch policy   rubrics/LLM   selectors  renderers  digests/
 ```
 
-Pipeline behavior is data-driven by `config/pipelines/*.json`. Generic framework code lives under `src/framework/`; Birbal-specific collectors, scorers, extractors, selectors, and renderers are registered from `src/pipelines/register.ts`.
+Pipeline behavior is data-driven by `config/pipelines/*.json`. Reusable framework code lives
+under `src/framework/`; the concrete application lives under `src/app/`, where its collectors,
+scorers, extractors, selectors, and renderers are registered.
 
 ## Main Commands
 
@@ -129,12 +131,13 @@ The important JSON config files are:
 ## Project Layout
 
 - `src/framework/`: reusable harness, tools, LLM, pipeline, eval, content, network, and scoring modules.
-- `src/evals/`: deterministic framework and Birbal app eval suites.
-- `src/model-providers/`: provider selection plus OpenAI-compatible model adapters.
-- `src/llama/`: llama.cpp-compatible model adapter.
-- `src/tools/`: Birbal's handwritten agent tools.
-- `src/pipelines/`: Birbal pipeline component registration and use-case/daily modules.
-- `src/db/`: SQLite persistence for items, scores, runs, and extracted use cases.
+- `src/app/`: the concrete research application, including its CLI, integrations, pipelines, persistence, and configuration.
+- `src/app/evals/`: deterministic application-specific eval suites.
+- `src/app/model-providers/`: provider selection plus OpenAI-compatible model adapters.
+- `src/app/llama/`: llama.cpp-compatible model adapter.
+- `src/app/tools/`: Birbal's handwritten agent tools.
+- `src/app/pipelines/`: Birbal pipeline component registration and use-case/daily modules.
+- `src/app/db/`: SQLite persistence for items, scores, runs, and extracted use cases.
 - `examples/`: small framework examples that do not depend on the enterprise research app.
 - `docs/CODEBASE.md`: extended codebase documentation.
 

@@ -23,7 +23,7 @@ Supported provider IDs:
 - `llama_cpp`: local llama.cpp server, default.
 - `openai`: hosted OpenAI API using `MODEL_API_KEY`.
 
-The selected provider is exposed through `getDefaultModelClient()` in `src/model-providers/default.ts`.
+The selected provider is exposed through `getDefaultModelClient()` in `src/app/model-providers/default.ts`.
 
 ## llama.cpp Adapter
 

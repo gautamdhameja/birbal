@@ -109,4 +109,4 @@ This lets one pipeline tolerate partial source failures while another stops imme
 
 ## Run Store
 
-The framework exposes a `PipelineRunStore` interface and an in-memory implementation. Birbal injects a SQLite implementation from `src/db/pipelineRuns.ts`.
+The framework exposes a `PipelineRunStore` interface and an in-memory implementation. Birbal injects a SQLite implementation from `src/app/db/pipelineRuns.ts`.

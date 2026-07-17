@@ -48,7 +48,7 @@ Unknown suite IDs fail instead of returning an empty passing run.
 
 ## Design Notes
 
-The eval framework is generic and lives in `src/framework/evals/`. It defines suites, cases, assertions, results, and trace records without referencing daily digests or enterprise use cases. App-specific suites live in `src/evals/`.
+The eval framework is generic and lives in `src/framework/evals/`. It defines suites, cases, assertions, results, and trace records without referencing daily digests or enterprise use cases. App-specific suites live in `src/app/evals/`.
 
 The generic runner owns suite selection, pass/fail aggregation, timing, and bounded concurrency. Eval cases return only their evidence: assertions, optional metadata, and optional trace data.
 

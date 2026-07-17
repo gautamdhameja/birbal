@@ -4,7 +4,7 @@ This guide explains how to add a new app or pipeline without changing the framew
 
 ## Add A Tool
 
-1. Create a tool definition under `src/tools/`.
+1. Create a tool definition under `src/app/tools/`.
 2. Define `argsSchema` and `resultSchema` with Zod.
 3. Implement `run()`.
 4. Register it in the Birbal tool registry.

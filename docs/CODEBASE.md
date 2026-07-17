@@ -6,7 +6,7 @@ The main production-like workflows are:
 
 - A daily enterprise AI reading digest pipeline (`daily`) that collects candidates from configured sources, fetches source text, scores and classifies items with the configured model provider, selects a balanced digest mix, persists results, and writes Markdown under `digests/`.
 - An enterprise AI use-case scout pipeline (`use_cases`) that searches web sources, fetches article text, extracts structured enterprise use cases with the configured model provider, selects a diverse set, stores them in SQLite, and writes Markdown under `digests/use-cases/`.
-- A lightweight agent CLI (`src/cli.ts`) that runs a JSON-protocol chat agent with handwritten tools.
+- A lightweight agent CLI (`src/app/cli.ts`) that runs a JSON-protocol chat agent with handwritten tools.
 
 The project is intentionally modular. Runtime configuration is loaded from environment variables and JSON config files. Shared shapes are validated with Zod. LLM calls, tool registration, pipeline orchestration, source clients, storage, prompts, constants, and renderers live in separate modules.
 
@@ -14,7 +14,7 @@ The project is intentionally modular. Runtime configuration is loaded from envir
 
 ### Top-Level CLI
 
-`src/cli.ts` powers the package `birbal` executable and routes:
+`src/app/cli.ts` powers the package `birbal` executable and routes:
 
 - `birbal agent [task...]`
 - `birbal daily`
@@ -27,7 +27,7 @@ The package binary is `bin/birbal.js`, which launches the TypeScript CLI through
 
 ### Agent CLI
 
-Agent and pipeline commands share `src/cli.ts`; `pnpm dev` routes through its `agent` command.
+Agent and pipeline commands share `src/app/cli.ts`; `pnpm dev` routes through its `agent` command.
 
 It:
 
@@ -41,7 +41,7 @@ The default task is `Say hello through the final response protocol.`
 
 ### Pipeline CLI
 
-`src/runPipeline.ts` contains reusable pipeline CLI execution helpers used by:
+`src/app/runPipeline.ts` contains reusable pipeline CLI execution helpers used by:
 
 - `birbal pipeline <pipelineId>`
 - `birbal daily`
@@ -63,7 +63,7 @@ Pipeline IDs are resolved from `config/pipelines/<id>.json`, with underscore-to-
 
 `package.json` defines:
 
-- `pnpm cli`: run the top-level CLI via `tsx src/cli.ts`.
+- `pnpm cli`: run the top-level CLI via `tsx src/app/cli.ts`.
 - `pnpm dev`: wrapper for `birbal agent`.
 - `pnpm run-pipeline`: wrapper for `birbal pipeline`.
 - `pnpm daily`: wrapper for `birbal daily`.
@@ -95,28 +95,31 @@ Configuration:
 - `config/pipelines/daily.json`: current daily digest pipeline definition.
 - `config/pipelines/use-cases.json`: current enterprise use-case pipeline definition.
 
+Source code has two explicit roots: `src/framework/` contains reusable, application-independent
+primitives, while `src/app/` contains the concrete CLI, integrations, pipelines, and persistence.
+
 Source folders:
 
-- `src/agent/`: JSON-protocol agent loop, prompts, response schemas, and parsing.
-- `src/arxiv/`, `src/hackernews/`, `src/brave-search/`: source/search clients and environment config.
-- `src/config/`: JSON config loading for source registries.
-- `src/constants/`: domain-specific constants grouped by responsibility.
-- `src/daily/`: daily candidate collection, LLM scoring, classification, digest selection, and digest rendering.
-- `src/db/`: SQLite persistence for items, scores, pipeline runs, and enterprise use cases.
-- `src/evals/`: Birbal-specific deterministic eval suites for the harness and enterprise use-case app.
+- `src/app/agent/`: JSON-protocol agent loop, prompts, response schemas, and parsing.
+- `src/app/arxiv/`, `src/app/hackernews/`, `src/app/brave-search/`: source/search clients and environment config.
+- `src/app/config/`: JSON config loading for source registries.
+- `src/app/constants/`: domain-specific constants grouped by responsibility.
+- `src/app/daily/`: daily candidate collection, LLM scoring, classification, digest selection, and digest rendering.
+- `src/app/db/`: SQLite persistence for items, scores, pipeline runs, and enterprise use cases.
+- `src/app/evals/`: Birbal-specific deterministic eval suites for the harness and enterprise use-case app.
 - `src/framework/`: reusable framework modules for agent harness orchestration, tools, model contracts, pipelines, evals, LLM JSON repair, scoring rubrics, content fetching, and network fetch helpers.
-- `src/http/`: HTTP response helpers and URL safety checks.
-- `src/model-providers/`: configured model provider selection plus shared OpenAI-compatible HTTP transport and hosted OpenAI adapter.
-- `src/llama/`: llama.cpp-compatible model adapter and env config.
-- `src/logging/`: Pino logger and safe preview helper.
-- `src/memory/`: user preference schema and loader.
-- `src/pipelines/register.ts`: Birbal-specific pipeline component registration.
-- `src/pipelines/daily/`: current daily rubric.
-- `src/pipelines/useCases/`: enterprise use-case search, schema, extractor, selector, and renderer.
-- `src/source-search/`: domain-constrained Brave Search helper.
-- `src/tools/`: Birbal agent tool definitions, registry, and executor adapter.
-- `src/url-text/`: HTML text extraction and URL text wrapper.
-- `src/utils/`: JSON, date, and URL helpers.
+- `src/app/http/`: HTTP response helpers and URL safety checks.
+- `src/app/model-providers/`: configured model provider selection plus shared OpenAI-compatible HTTP transport and hosted OpenAI adapter.
+- `src/app/llama/`: llama.cpp-compatible model adapter and env config.
+- `src/app/logging/`: Pino logger and safe preview helper.
+- `src/app/memory/`: user preference schema and loader.
+- `src/app/pipelines/register.ts`: Birbal-specific pipeline component registration.
+- `src/app/pipelines/daily/`: current daily rubric.
+- `src/app/pipelines/useCases/`: enterprise use-case search, schema, extractor, selector, and renderer.
+- `src/app/source-search/`: domain-constrained Brave Search helper.
+- `src/app/tools/`: Birbal agent tool definitions, registry, and executor adapter.
+- `src/app/url-text/`: HTML text extraction and URL text wrapper.
+- `src/app/utils/`: JSON, date, and URL helpers.
 
 Tests and evals:
 
@@ -152,8 +155,8 @@ Environment variables configure runtime clients:
 
 JSON files configure domain behavior:
 
-- Preferences are loaded by `src/memory/preferences.ts` and validated by `src/memory/schema.ts`.
-- Source registry entries are loaded by `src/config/sourceRegistry.ts`.
+- Preferences are loaded by `src/app/memory/preferences.ts` and validated by `src/app/memory/schema.ts`.
+- Source registry entries are loaded by `src/app/config/sourceRegistry.ts`.
 - Pipeline configs are loaded by `src/framework/pipeline/config.ts`.
 
 All config loaders parse JSON and validate with Zod before returning typed data.
@@ -170,9 +173,9 @@ type ModelClient = {
 };
 ```
 
-This keeps the harness independent of a specific model provider. Runtime provider selection lives in `src/model-providers/default.ts`. The app supports `MODEL_PROVIDER=llama_cpp` by default and `MODEL_PROVIDER=openai` for hosted OpenAI.
+This keeps the harness independent of a specific model provider. Runtime provider selection lives in `src/app/model-providers/default.ts`. The app supports `MODEL_PROVIDER=llama_cpp` by default and `MODEL_PROVIDER=openai` for hosted OpenAI.
 
-The shared OpenAI-compatible transport lives in `src/model-providers/openai-compatible/`. It composes the endpoint from `MODEL_BASE_URL` plus the common `/v1/chat/completions` path. The hosted OpenAI adapter adds bearer-token auth through `MODEL_API_KEY`. The llama.cpp adapter in `src/llama/` delegates to the same transport without auth.
+The shared OpenAI-compatible transport lives in `src/app/model-providers/openai-compatible/`. It composes the endpoint from `MODEL_BASE_URL` plus the common `/v1/chat/completions` path. The hosted OpenAI adapter adds bearer-token auth through `MODEL_API_KEY`. The llama.cpp adapter in `src/app/llama/` delegates to the same transport without auth.
 
 Model adapters build an OpenAI-style chat completion request. The framework-level option is
 `maxOutputTokens`; the transport serializes it as `max_tokens` for llama.cpp-compatible local
@@ -214,7 +217,7 @@ The reusable agent harness orchestrator lives in `src/framework/agent/harnessOrc
 - a response parser
 - optional logging and protocol labels
 
-The Birbal-specific adapter lives in `src/agent/run.ts`.
+The Birbal-specific adapter lives in `src/app/agent/run.ts`.
 
 The framework JSON protocol lives in `src/framework/agent/protocol.ts`. The base prompt in `prompts/system-agent.txt` tells the model to return exactly one JSON object using one of three response types:
 
@@ -222,7 +225,7 @@ The framework JSON protocol lives in `src/framework/agent/protocol.ts`. The base
 - `{"type":"tool_call","tool":"...","args":{}}`
 - `{"type":"clarify","question":"..."}`
 
-`buildSystemPrompt()` appends rendered tool definitions from `src/tools/registry.ts`. `parseAgentResponse()` delegates to the framework parser and rejects responses that are too large, non-JSON, or invalid against the final/tool/clarify discriminated union.
+`buildSystemPrompt()` appends rendered tool definitions from `src/app/tools/registry.ts`. `parseAgentResponse()` delegates to the framework parser and rejects responses that are too large, non-JSON, or invalid against the final/tool/clarify discriminated union.
 
 The framework harness keeps a message history for up to the configured max steps. On a tool call it runs the injected tool executor, appends a `tool_result` user message, and continues. On `final` or `clarify`, it returns text to the caller. Invalid model JSON or protocol errors are returned as an agent error string instead of thrown.
 
@@ -240,9 +243,9 @@ Framework consumers should import reusable APIs from `src/framework/index.ts` or
 
 ## Agent Tools
 
-Generic tool primitives live under `src/framework/tools/`. Birbal's concrete handwritten tools live under `src/tools/`. Each tool has:
+Generic tool primitives live under `src/framework/tools/`. Birbal's concrete handwritten tools live under `src/app/tools/`. Each tool has:
 
-- A stable name and description from `src/constants/tools.ts`.
+- A stable name and description from `src/app/constants/tools.ts`.
 - A Zod args schema.
 - A Zod result schema.
 - A `run()` implementation that receives parsed args and an optional abort signal.
@@ -256,7 +259,7 @@ Current tools:
 - `search_source_domain`: searches configured source domains through Brave Search.
 - `fetch_url_text`: fetches a public URL and extracts readable text.
 
-`src/framework/tools/registry.ts` owns the reusable `ToolRegistry`. `src/framework/tools/executor.ts` handles lookup, argument validation, timeout, result validation, structured logging, and error wrapping. `src/tools/registry.ts` and `src/tools/executor.ts` are thin Birbal adapters around those framework primitives.
+`src/framework/tools/registry.ts` owns the reusable `ToolRegistry`. `src/framework/tools/executor.ts` handles lookup, argument validation, timeout, result validation, structured logging, and error wrapping. `src/app/tools/registry.ts` and `src/app/tools/executor.ts` are thin Birbal adapters around those framework primitives.
 
 ## Pipeline Framework
 
@@ -298,7 +301,7 @@ The registry has separate buckets for collectors, fetchers, extractors, scorers,
 
 `resolveFromConfig()` resolves all component IDs referenced by the pipeline config, including derived `components` entries. Unknown IDs fail the run before work begins.
 
-`src/framework/pipeline/defaultComponents.ts` registers only generic framework components, currently the filesystem artifact writer. Birbal app components are registered from `src/pipelines/register.ts` using `registerBirbalPipelineComponents()`.
+`src/framework/pipeline/defaultComponents.ts` registers only generic framework components, currently the filesystem artifact writer. Birbal app components are registered from `src/app/pipelines/register.ts` using `registerBirbalPipelineComponents()`.
 
 ### Orchestration Stages
 
@@ -350,7 +353,7 @@ These helpers are used by collection, content fetch, scoring, classification, st
 
 ### Run Persistence
 
-`src/framework/pipeline/runStore.ts` defines the generic `PipelineRunStore` contract and an in-memory implementation for tests and framework examples. `src/db/pipelineRuns.ts` is Birbal's SQLite implementation; it starts, finishes, fails, and lists pipeline runs through the shared SQLite connection from `src/db/items.ts`.
+`src/framework/pipeline/runStore.ts` defines the generic `PipelineRunStore` contract and an in-memory implementation for tests and framework examples. `src/app/db/pipelineRuns.ts` is Birbal's SQLite implementation; it starts, finishes, fails, and lists pipeline runs through the shared SQLite connection from `src/app/db/items.ts`.
 
 Runs start as `failed` by default and are updated on completion. This makes interrupted runs visible as failed/incomplete records.
 
@@ -358,7 +361,7 @@ The framework-level `PipelineRunStore` interface captures the storage boundary. 
 
 ## Birbal Pipeline Components
 
-`src/pipelines/register.ts` adapts Birbal domain modules into framework components.
+`src/app/pipelines/register.ts` adapts Birbal domain modules into framework components.
 
 Registered Birbal collectors:
 
@@ -421,7 +424,7 @@ Key config:
 
 The source registry currently enables Hacker News and disables arXiv. Preferences currently target advanced LLM-agent and AI-engineering topics, avoid generic AI news and similar low-value material, require a minimum final score for digest inclusion, limit items per source, and use a Hacker News-only daily mix.
 
-Daily collection in `src/daily/pipeline.ts`:
+Daily collection in `src/app/daily/pipeline.ts`:
 
 - Lists enabled daily sources from the source registry.
 - Applies academic fallback and daily source mix preferences.
@@ -433,7 +436,7 @@ Daily collection in `src/daily/pipeline.ts`:
 - Ranks by publish date, source ID, and title.
 - Applies source quotas from `dailyMix`.
 
-Scoring in `src/daily/scoring.ts`:
+Scoring in `src/app/daily/scoring.ts`:
 
 - Builds a prompt containing user preferences, the enterprise rubric, candidate metadata, summary, and fetched content.
 - Requests strict JSON with eight numeric criteria, rejection fields, and a short reason.
@@ -441,14 +444,14 @@ Scoring in `src/daily/scoring.ts`:
 - Computes `finalScore` from rubric weights.
 - Supports batch scoring with explicit candidate IDs and response cardinality validation.
 
-Classification in `src/daily/classification.ts`:
+Classification in `src/app/daily/classification.ts`:
 
 - Hard-rejects rejected or zero-score items.
 - Tries deterministic keyword hints first.
 - Falls back to an LLM classification prompt when deterministic classification is ambiguous.
 - Uses score-derived fallback if the model output cannot be repaired.
 
-Selection in `src/daily/digestSelection.ts`:
+Selection in `src/app/daily/digestSelection.ts`:
 
 - Filters rejected items, low-score items, and weak evergreen items.
 - Targets digest slots for workflow redesign, agentic implementation, FDE/customer deployment, enterprise use cases, and backfill.
@@ -456,7 +459,7 @@ Selection in `src/daily/digestSelection.ts`:
 - Prefers higher scores, source diversity for close scores, fetched content, and practical depth.
 - Produces a trace with source/category counts, selected items, and skipped constraints.
 
-Rendering in `src/daily/digest.ts`:
+Rendering in `src/app/daily/digest.ts`:
 
 - Writes a dated Markdown digest.
 - Escapes Markdown-sensitive text.
@@ -481,7 +484,7 @@ Key config:
 - Output: `digests/use-cases/{date}-{time}.md`.
 - Limits include max candidates, search results per query, extraction candidates, result count, confidence threshold, and diversity caps by industry and source.
 
-Candidate collection uses `src/pipelines/useCases/search.ts`:
+Candidate collection uses `src/app/pipelines/useCases/search.ts`:
 
 - Uses the configured queries from `config/pipelines/use-cases.json`.
 - Searches with Brave Search concurrently.
@@ -491,21 +494,21 @@ Candidate collection uses `src/pipelines/useCases/search.ts`:
 - Ranks by enterprise use-case relevance signals, then prioritized domain order, recency, and title.
 - Caps extraction candidates.
 
-Use-case search snapshots are stored by `src/db/searchSnapshots.ts`:
+Use-case search snapshots are stored by `src/app/db/searchSnapshots.ts`:
 
-- `birbal use-cases` uses an adaptive use-case workflow in `src/pipelines/useCases/commands.ts`.
+- `birbal use-cases` uses an adaptive use-case workflow in `src/app/pipelines/useCases/commands.ts`.
 - It searches one bounded query batch, persists a snapshot, runs processing in probe mode, and searches the next query batch only when the verified selection is still below the requested report size.
 - Probe processing uses a no-op artifact writer and suppresses use-case publication, while still using extraction and verification caches.
 - `birbal use-cases search` runs only the Brave Search acquisition step and persists the normalized URL candidates.
 - `birbal use-cases process --snapshot latest` loads stored candidates through `search_snapshot_collector` and runs the model-heavy stages without making new Brave Search calls.
 - Snapshots let prompt, extraction, verification, selection, and renderer changes be tested repeatedly against a stable URL set.
 
-The active enterprise extractor is `src/pipelines/useCases/extractor.ts`.
+The active enterprise extractor is `src/app/pipelines/useCases/extractor.ts`.
 
 It:
 
 - Converts a daily-style `CandidateItem` plus fetched article text into a structured extraction prompt.
-- Uses `src/pipelines/useCases/sourceEvidence.ts` to optionally re-fetch the source page, discover bounded same-site content links, and append linked-page evidence before model extraction.
+- Uses `src/app/pipelines/useCases/sourceEvidence.ts` to optionally re-fetch the source page, discover bounded same-site content links, and append linked-page evidence before model extraction.
 - Asks for a top-level `{ "useCases": [...] }` object.
 - Requires every use case to include company, industry, business function, AI capability, deployment/outcome fields, source fields, evidence summary, and `confidenceScore`.
 - Asks the model to judge whether the article contains a real enterprise AI use case, score the strength of the evidence, and write a self-contained newsletter-ready summary.
@@ -517,9 +520,9 @@ It:
 - Overwrites model-supplied `sourceUrl` unless it matches the trusted candidate URL or a fetched same-site supporting evidence URL.
 - Throws `ModelParseError` if repair cannot produce valid output.
 
-The active use-case schema is `src/pipelines/useCases/schema.ts`. It normalizes arrays and empty values into string fields, strips extra keys, normalizes confidence field aliases, and coerces string confidence values to numbers in the 1 to 5 range.
+The active use-case schema is `src/app/pipelines/useCases/schema.ts`. It normalizes arrays and empty values into string fields, strips extra keys, normalizes confidence field aliases, and coerces string confidence values to numbers in the 1 to 5 range.
 
-Verification in `src/pipelines/useCases/verification.ts`:
+Verification in `src/app/pipelines/useCases/verification.ts`:
 
 - Runs after initial use-case selection and before storage/rendering.
 - Re-fetches the selected source URL without using web search.
@@ -528,16 +531,16 @@ Verification in `src/pipelines/useCases/verification.ts`:
 - Makes a semantic source-grounded judgment rather than exact wording or field-name matching.
 - Filters out selected items when the evidence does not support a real enterprise AI use case.
 
-Selection in `src/pipelines/useCases/selector.ts`:
+Selection in `src/app/pipelines/useCases/selector.ts`:
 
 - Validates every use case through the schema.
 - Filters below `minConfidenceScore`.
 - Ranks named-company use cases ahead of anonymous examples, then by confidence score, company, and AI capability.
 - Enforces caps for max use cases, max per company, max per industry, and max per source.
-- Uses source-independent fingerprints from `src/pipelines/useCases/dedupe.ts` to skip previously published use cases unless pipeline settings explicitly allow repeats.
+- Uses source-independent fingerprints from `src/app/pipelines/useCases/dedupe.ts` to skip previously published use cases unless pipeline settings explicitly allow repeats.
 - Keeps anonymous examples eligible as backfill, but they do not participate in company-based duplicate checks.
 
-Rendering in `src/pipelines/useCases/renderer.ts`:
+Rendering in `src/app/pipelines/useCases/renderer.ts`:
 
 - Renders a dated enterprise AI use-case digest.
 - Uses a compact newsletter-style format for every selected use case.
@@ -545,7 +548,7 @@ Rendering in `src/pipelines/useCases/renderer.ts`:
 - Renders a neutral placeholder such as `Midsize sales org` for anonymous examples instead of leaving the heading blank.
 - Escapes Markdown text and renders source links when URLs are valid HTTP(S).
 
-Persistence in `src/db/useCases.ts`:
+Persistence in `src/app/db/useCases.ts`:
 
 - Generates stable IDs from a SHA-256 hash of `sourceUrl`, `companyName`, and `aiSystemOrCapability`.
 - Upserts into the `use_cases` table.
@@ -556,7 +559,7 @@ Persistence in `src/db/useCases.ts`:
 
 SQLite persistence uses `better-sqlite3`.
 
-`src/db/items.ts` owns the shared connection lifecycle:
+`src/app/db/items.ts` owns the shared connection lifecycle:
 
 - Default path: `data/agent.db`.
 - `initDb()` creates the parent directory, opens the DB, enables foreign keys, sets WAL mode, creates schema, and runs lightweight migrations.
@@ -570,7 +573,7 @@ Tables:
 - `runs`: pipeline run metadata, counts, status, artifact JSON, error summary, and additional metadata.
 - `use_cases`: structured enterprise use cases with run ID, source metadata, evidence fields, confidence score, and raw JSON.
 
-`src/db/items.ts` also provides:
+`src/app/db/items.ts` also provides:
 
 - `getItemByUrl()`
 - `upsertItem()`
@@ -580,7 +583,7 @@ Tables:
 - `listTopScoredItems()`
 - `listTopScoredItemsByIds()`
 
-`src/db/pipelineRuns.ts` provides the Birbal SQLite run store:
+`src/app/db/pipelineRuns.ts` provides the Birbal SQLite run store:
 
 - `startRun()`
 - `finishRun()`
@@ -601,14 +604,14 @@ Outbound network helpers are deliberately defensive.
 - structured timeout, abort, and retryable-status errors
 - retry handling through `p-retry`
 
-`src/http/client.ts` provides:
+`src/app/http/client.ts` provides:
 
 - bounded response body reading
 - JSON parsing from responses
 - HTTP status error construction
 - bot-protection/body summarization for logs and pipeline errors
 
-`src/http/url.ts` provides URL validation and SSRF-style protections:
+`src/app/http/url.ts` provides URL validation and SSRF-style protections:
 
 - Only HTTP(S) URLs without credentials are allowed.
 - Localhost, `.localhost`, `.local`, metadata hostnames, and non-public IPs are rejected.
@@ -628,25 +631,25 @@ Outbound network helpers are deliberately defensive.
 - Detects paywall-like content.
 - Returns a structured `FetchUrlContentResult` instead of throwing for normal fetch failures.
 
-`src/url-text/client.ts` wraps this for agent tools and older callers. It throws when the structured fetch status is `failed` and maps paywalls to `detectedPaywall`.
+`src/app/url-text/client.ts` wraps this for agent tools and older callers. It throws when the structured fetch status is `failed` and maps paywalls to `detectedPaywall`.
 
 ## Source Clients
 
 ### Brave Search
 
-`src/brave-search/` reads `BRAVE_SEARCH_API_KEY` and an allowed-host search URL. `searchWeb()` calls Brave Search, requests web results only, does not automatically retry failed Brave requests, parses loosely with Zod, and normalizes title, URL, description, publish age/date, source name, and raw payload.
+`src/app/brave-search/` reads `BRAVE_SEARCH_API_KEY` and an allowed-host search URL. `searchWeb()` calls Brave Search, requests web results only, does not automatically retry failed Brave requests, parses loosely with Zod, and normalizes title, URL, description, publish age/date, source name, and raw payload.
 
 ### Hacker News
 
-`src/hackernews/` reads `HACKERNEWS_SEARCH_URL` from the environment and validates it against `hn.algolia.com`. `searchHackerNews()` queries Algolia story hits and normalizes them into title, URL, HN item URL, points, author, and creation timestamp.
+`src/app/hackernews/` reads `HACKERNEWS_SEARCH_URL` from the environment and validates it against `hn.algolia.com`. `searchHackerNews()` queries Algolia story hits and normalizes them into title, URL, HN item URL, points, author, and creation timestamp.
 
 ### arXiv
 
-`src/arxiv/` reads `ARXIV_QUERY_URL` from the environment and validates it against `export.arxiv.org`. `searchArxiv()` first tries a phrase query, then falls back to an all-terms query if the phrase query returns no results. It parses Atom XML with `fast-xml-parser`, normalizes authors and whitespace, and rate-limits requests through a small in-process queue.
+`src/app/arxiv/` reads `ARXIV_QUERY_URL` from the environment and validates it against `export.arxiv.org`. `searchArxiv()` first tries a phrase query, then falls back to an all-terms query if the phrase query returns no results. It parses Atom XML with `fast-xml-parser`, normalizes authors and whitespace, and rate-limits requests through a small in-process queue.
 
 ### Source-Domain Search
 
-`src/source-search/domain.ts` loads the source registry and searches each configured domain for a source using Brave Search `site:` queries. It filters returned URLs back to the configured domains, dedupes by normalized URL, and emits daily-style source-domain candidates.
+`src/app/source-search/domain.ts` loads the source registry and searches each configured domain for a source using Brave Search `site:` queries. It filters returned URLs back to the configured domains, dedupes by normalized URL, and emits daily-style source-domain candidates.
 
 ## Rubrics and Scoring
 
@@ -664,7 +667,7 @@ A `Rubric` defines:
 
 `scoreItem()` builds a rubric prompt, asks the model for strict JSON, validates/repairs the response, and calculates `finalScore` with `calculateWeightedFinalScore()`. Rejected items get final score `0`.
 
-The current daily rubric is `src/pipelines/daily/rubric.ts`. It scores:
+The current daily rubric is `src/app/pipelines/daily/rubric.ts`. It scores:
 
 - enterprise relevance
 - workflow redesign depth
@@ -675,11 +678,11 @@ The current daily rubric is `src/pipelines/daily/rubric.ts`. It scores:
 - recency
 - non-generic insight
 
-Weights live in `src/constants/scoring.ts`.
+Weights live in `src/app/constants/scoring.ts`.
 
 ## Logging and Tracing
 
-Logging uses Pino through `src/logging/logger.ts`.
+Logging uses Pino through `src/app/logging/logger.ts`.
 
 Default logs go to stderr. `LOG_LEVEL` controls severity. `LOG_PRETTY=true` enables `pino-pretty`.
 
@@ -694,15 +697,15 @@ The agent, tools, LLM client, structured repair flow, pipeline orchestrator, sel
 - `pipeline.stage.failed`
 - `pipeline.daily.selection`
 
-`src/logging/preview.ts` truncates logged payload previews to avoid dumping large prompts, model outputs, or content bodies.
+`src/app/logging/preview.ts` truncates logged payload previews to avoid dumping large prompts, model outputs, or content bodies.
 
 ## JSON Utilities
 
-`src/utils/json.ts` is used by strict structured-output callers. It is designed to parse model outputs that may contain JSON-like text and produce useful parse errors. Constants for JSON parsing behavior are grouped in `src/constants/json.ts`.
+`src/app/utils/json.ts` is used by strict structured-output callers. It is designed to parse model outputs that may contain JSON-like text and produce useful parse errors. Constants for JSON parsing behavior are grouped in `src/app/constants/json.ts`.
 
-`src/utils/url.ts` normalizes URLs consistently for deduplication. Candidate collection, source-domain search, pipeline item dedupe, and use-case ranking all rely on normalized URLs to avoid duplicate work.
+`src/app/utils/url.ts` normalizes URLs consistently for deduplication. Candidate collection, source-domain search, pipeline item dedupe, and use-case ranking all rely on normalized URLs to avoid duplicate work.
 
-`src/utils/date.ts` provides date formatting helpers used by digest and report renderers.
+`src/app/utils/date.ts` provides date formatting helpers used by digest and report renderers.
 
 ## Testing Coverage
 
@@ -790,8 +793,8 @@ For the agent CLI:
 
 - Environment variables are the source of truth for runtime endpoints, models, API keys, and logging behavior.
 - JSON files are the source of truth for pipeline, source, preference, and use-case query settings.
-- Constants are grouped by domain under `src/constants/`.
-- Database SQL lives in `src/constants/database.ts`; DB access functions live under `src/db/`.
+- Constants are grouped by domain under `src/app/constants/`.
+- Database SQL lives in `src/app/constants/database.ts`; DB access functions live under `src/app/db/`.
 - Prompt text for the agent base prompt lives in `prompts/`; task-specific LLM prompts are colocated with the domain modules that use them.
 - Pipeline orchestration does not know domain shapes. Domain components adapt run items into concrete candidate or use-case types.
 - The model-provider boundary is always schema-validated, with repair where structured output is required.
