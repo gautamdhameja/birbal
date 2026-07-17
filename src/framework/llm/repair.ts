@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { parseJson, parseStrictJson } from "./json.js";
+import { parseStrictJson } from "./json.js";
 import type { ChatMessage, ModelClient, ModelCompleteOptions } from "./types.js";
 
 type CompleteFn = ModelClient["complete"];
@@ -84,7 +84,7 @@ function truncateValidationError(validationError: string): string {
 function jsonShapeSummary(raw: string): Record<string, unknown> | undefined {
   let parsed: unknown;
   try {
-    parsed = parseJson(raw);
+    parsed = parseStrictJson(raw);
   } catch {
     return undefined;
   }
@@ -104,23 +104,9 @@ function jsonShapeSummary(raw: string): Record<string, unknown> | undefined {
     };
   }
 
-  const record = parsed as Record<string, unknown>;
-  const useCases = Array.isArray(record.useCases)
-    ? record.useCases
-    : Array.isArray(record.use_cases)
-      ? record.use_cases
-      : undefined;
-
   return {
     topLevelType: "object",
-    topLevelKeys: Object.keys(record),
-    ...(useCases
-      ? {
-          useCasesLength: useCases.length,
-          firstUseCaseKeys:
-            typeof useCases[0] === "object" && useCases[0] !== null ? Object.keys(useCases[0]) : [],
-        }
-      : {}),
+    topLevelKeys: Object.keys(parsed),
   };
 }
 
@@ -236,7 +222,7 @@ export async function completeStructuredWithRepair<T>({
   completeFn,
   logger = noopLogger,
   repairInstructions,
-  schemaDescription = describeJsonSchema(schema),
+  schemaDescription,
 }: CompleteStructuredWithRepairOptions<T>): Promise<StructuredModelOutputResult<T>> {
   const initialOutput = await completeFn(messages, completeOptions);
   const initialParsed = parseModelOutput(initialOutput, schema);
@@ -248,6 +234,8 @@ export async function completeStructuredWithRepair<T>({
       repaired: false,
     };
   }
+
+  const resolvedSchemaDescription = schemaDescription ?? describeJsonSchema(schema);
 
   logger.debug(
     {
@@ -273,7 +261,7 @@ export async function completeStructuredWithRepair<T>({
       content: buildRepairPrompt({
         invalidOutput: initialOutput,
         repairInstructions,
-        schemaDescription,
+        schemaDescription: resolvedSchemaDescription,
         validationError: initialParsed.validationError,
       }),
     },
@@ -322,6 +310,6 @@ export async function completeStructuredWithRepair<T>({
     initialValidationError: initialParsed.validationError,
     repairedOutput,
     repairValidationError: repairedParsed.validationError,
-    schemaDescription,
+    schemaDescription: resolvedSchemaDescription,
   });
 }

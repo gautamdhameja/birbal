@@ -76,7 +76,7 @@ export class FetchAbortError extends FetchStructuredError {
   }
 }
 
-export class RetryableFetchStatusError extends FetchStructuredError {
+class RetryableFetchStatusError extends FetchStructuredError {
   readonly details: FetchErrorDetails;
 
   constructor(

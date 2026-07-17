@@ -14,8 +14,7 @@ import { extractUrlText } from "./extractText.js";
 import { CONTENT_FETCH_STATUSES } from "./status.js";
 import type { ContentFetchStatus } from "./status.js";
 
-export { CONTENT_FETCH_STATUSES, CONTENT_FETCH_STATUSES as URL_CONTENT_FETCH_STATUSES };
-export type UrlContentFetchStatus = ContentFetchStatus;
+export { CONTENT_FETCH_STATUSES };
 
 export type UrlContentFetchError = {
   message: string;
@@ -54,7 +53,7 @@ export type FetchUrlContentResult = {
   title: string;
   plainText: string;
   contentLength: number;
-  fetchStatus: UrlContentFetchStatus;
+  fetchStatus: ContentFetchStatus;
   error?: UrlContentFetchError;
 };
 
@@ -68,7 +67,7 @@ const HTML_CONTENT_TYPES = ["text/html", "application/xhtml+xml", "text/plain"] 
 
 function emptyResult(
   url: string,
-  fetchStatus: UrlContentFetchStatus,
+  fetchStatus: ContentFetchStatus,
   error?: UrlContentFetchError,
   contentType = "",
 ): FetchUrlContentResult {

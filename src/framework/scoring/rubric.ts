@@ -1,10 +1,6 @@
 import type { z } from "zod";
 
-import {
-  completeStructuredWithRepair,
-  describeJsonSchema,
-  ModelParseError,
-} from "../llm/repair.js";
+import { completeStructuredWithRepair, ModelParseError } from "../llm/repair.js";
 import type { ChatMessage, ModelClient } from "../llm/types.js";
 
 type CompleteFn = ModelClient["complete"];
@@ -144,13 +140,11 @@ export async function scoreItem<TScore extends Record<string, unknown>>(
     throw new Error("Rubric scoring requires a model completion function.");
   }
 
-  const schemaDescription = describeJsonSchema(rubric.outputSchema);
   const result = await completeStructuredWithRepair({
     messages: buildScoreMessages(item, rubric),
     schema: rubric.outputSchema,
     completeFn: context.completeFn,
     logger: context.logger,
-    schemaDescription,
     repairInstructions:
       "Repair the rubric score response so it is valid JSON and matches the output schema exactly.",
     completeOptions: {

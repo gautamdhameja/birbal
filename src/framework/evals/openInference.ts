@@ -54,10 +54,6 @@ type TraceMessage = {
 const DEFAULT_MAX_ATTRIBUTE_CHARS = 2_000;
 const DEFAULT_MAX_MESSAGES = 12;
 
-function iso(value: Date): string {
-  return value.toISOString();
-}
-
 export class OpenInferenceTraceRecorder {
   readonly traceId: string;
   private readonly spans: EvalTraceSpan[] = [];
@@ -104,8 +100,8 @@ export class OpenInferenceTraceRecorder {
       spanId: active.spanId,
       ...(active.parentSpanId ? { parentSpanId: active.parentSpanId } : {}),
       name: active.name,
-      startedAt: iso(active.startedAt),
-      endedAt: iso(endedAt),
+      startedAt: active.startedAt.toISOString(),
+      endedAt: endedAt.toISOString(),
       status: options.status ?? "ok",
       attributes: {
         ...active.attributes,

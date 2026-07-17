@@ -9,7 +9,6 @@ import {
   FetchTimeoutError,
   fetchWithRetry,
   fetchWithTimeout,
-  RetryableFetchStatusError,
 } from "../src/framework/network/fetch.js";
 import { buildHttpStatusError, readResponseText } from "../src/framework/network/client.js";
 import {
@@ -173,17 +172,5 @@ describe("HTTP client helpers", () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
-  });
-
-  it("returns structured fetch retry errors", () => {
-    const error = new RetryableFetchStatusError(503, "Service Unavailable", 2);
-
-    assert.deepEqual(error.toJSON(), {
-      error: "Fetch attempt 2 returned retryable HTTP 503 Service Unavailable.",
-      kind: "retryable_status",
-      status: 503,
-      statusText: "Service Unavailable",
-      attemptNumber: 2,
-    });
   });
 });

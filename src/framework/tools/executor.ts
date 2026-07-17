@@ -11,25 +11,37 @@ export type ToolRunnerOptions = {
   logger?: Pick<PipelineLogger, "debug">;
 };
 
-function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, timeoutMs: number): Promise<T> {
-  const signal = AbortSignal.timeout(timeoutMs);
-  const timeout = new Promise<never>((_resolve, reject) => {
-    signal.addEventListener(
-      "abort",
-      () => reject(new Error(`${FRAMEWORK_TOOLS.ERRORS.TIMEOUT_PREFIX} ${timeoutMs}ms.`)),
-      { once: true },
-    );
-  });
+async function withTimeout<T>(
+  run: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number,
+): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-  return Promise.race([run(signal), timeout]);
+  try {
+    return await Promise.race([
+      run(controller.signal),
+      new Promise<never>((_resolve, reject) => {
+        controller.signal.addEventListener(
+          "abort",
+          () => reject(new Error(`${FRAMEWORK_TOOLS.ERRORS.TIMEOUT_PREFIX} ${timeoutMs}ms.`)),
+          { once: true },
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function logDebug(
   logger: ToolRunnerOptions["logger"],
-  payload: Record<string, unknown>,
+  payload: () => Record<string, unknown>,
   message: string,
 ): void {
-  logger?.debug(payload, message);
+  if (logger) {
+    logger.debug(payload(), message);
+  }
 }
 
 export function createToolExecutor(
@@ -47,11 +59,11 @@ export function createToolExecutor(
     if (!tool) {
       logDebug(
         options.logger,
-        {
+        () => ({
           ...traceContext,
           event: FRAMEWORK_TOOLS.RUNNER_EVENTS.LOOKUP_FAILED,
           tool: name,
-        },
+        }),
         FRAMEWORK_TOOLS.RUNNER_MESSAGES.LOOKUP_FAILED,
       );
       return { error: `${FRAMEWORK_TOOLS.ERRORS.UNKNOWN_PREFIX} ${name}` };
@@ -59,31 +71,32 @@ export function createToolExecutor(
 
     const parsedArgs = tool.argsSchema.safeParse(args);
     if (!parsedArgs.success) {
+      const validationError = z.prettifyError(parsedArgs.error);
       logDebug(
         options.logger,
-        {
+        () => ({
           ...traceContext,
           event: FRAMEWORK_TOOLS.RUNNER_EVENTS.ARGS_INVALID,
           tool: name,
           argsPreview: preview(args),
-          validationError: z.prettifyError(parsedArgs.error),
-        },
+          validationError,
+        }),
         FRAMEWORK_TOOLS.RUNNER_MESSAGES.ARGS_INVALID,
       );
       return {
-        error: `${FRAMEWORK_TOOLS.ERRORS.INVALID_ARGS_PREFIX} "${name}": ${z.prettifyError(parsedArgs.error)}`,
+        error: `${FRAMEWORK_TOOLS.ERRORS.INVALID_ARGS_PREFIX} "${name}": ${validationError}`,
       };
     }
 
     try {
       logDebug(
         options.logger,
-        {
+        () => ({
           ...traceContext,
           event: FRAMEWORK_TOOLS.RUNNER_EVENTS.RUN_START,
           tool: name,
           argsPreview: preview(parsedArgs.data),
-        },
+        }),
         FRAMEWORK_TOOLS.RUNNER_MESSAGES.RUN_START,
       );
 
@@ -100,12 +113,12 @@ export function createToolExecutor(
 
       logDebug(
         options.logger,
-        {
+        () => ({
           ...traceContext,
           event: FRAMEWORK_TOOLS.RUNNER_EVENTS.RUN_SUCCESS,
           tool: name,
           resultPreview: preview(parsedResult.data),
-        },
+        }),
         FRAMEWORK_TOOLS.RUNNER_MESSAGES.RUN_SUCCESS,
       );
 
@@ -115,12 +128,12 @@ export function createToolExecutor(
 
       logDebug(
         options.logger,
-        {
+        () => ({
           ...traceContext,
           event: FRAMEWORK_TOOLS.RUNNER_EVENTS.RUN_ERROR,
           tool: name,
           error: message,
-        },
+        }),
         FRAMEWORK_TOOLS.RUNNER_MESSAGES.RUN_ERROR,
       );
 

@@ -55,7 +55,7 @@ export async function readResponseJson(response: Response): Promise<unknown> {
   return JSON.parse(await readResponseText(response));
 }
 
-export async function readErrorBody(response: Response): Promise<string> {
+async function readErrorBody(response: Response): Promise<string> {
   return readResponseText(response, HTTP.MAX_ERROR_RESPONSE_BYTES).catch(
     () => HTTP.FAILED_RESPONSE_BODY,
   );
