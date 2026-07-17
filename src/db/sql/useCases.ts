@@ -1,6 +1,29 @@
 // Purpose: Defines SQLite statements for the useCases database domain.
 // Scope: Owns persisted enterprise use-case statements.
 
+const USE_CASE_PROJECTION = `
+        id,
+        run_id,
+        company_name,
+        industry,
+        business_function,
+        ai_system_or_capability,
+        human_role_change,
+        system_integrations,
+        deployment_stage,
+        roi_metric,
+        business_outcome,
+        governance_or_risk_notes,
+        implementation_details,
+        source_title,
+        source_url,
+        source_name,
+        publish_date,
+        evidence_summary,
+        confidence_score,
+        created_at,
+        raw_json`;
+
 export const USE_CASE_SQL = {
   UPSERT_USE_CASE: `
       INSERT INTO use_cases (
@@ -70,54 +93,14 @@ export const USE_CASE_SQL = {
     `,
   LIST_RECENT_USE_CASES: `
       SELECT
-        id,
-        run_id,
-        company_name,
-        industry,
-        business_function,
-        ai_system_or_capability,
-        human_role_change,
-        system_integrations,
-        deployment_stage,
-        roi_metric,
-        business_outcome,
-        governance_or_risk_notes,
-        implementation_details,
-        source_title,
-        source_url,
-        source_name,
-        publish_date,
-        evidence_summary,
-        confidence_score,
-        created_at,
-        raw_json
+${USE_CASE_PROJECTION}
       FROM use_cases
       ORDER BY created_at DESC, company_name ASC, ai_system_or_capability ASC
       LIMIT ?
     `,
   LIST_USE_CASES_BY_RUN: `
       SELECT
-        id,
-        run_id,
-        company_name,
-        industry,
-        business_function,
-        ai_system_or_capability,
-        human_role_change,
-        system_integrations,
-        deployment_stage,
-        roi_metric,
-        business_outcome,
-        governance_or_risk_notes,
-        implementation_details,
-        source_title,
-        source_url,
-        source_name,
-        publish_date,
-        evidence_summary,
-        confidence_score,
-        created_at,
-        raw_json
+${USE_CASE_PROJECTION}
       FROM use_cases
       WHERE run_id = ?
       ORDER BY created_at ASC, rowid ASC

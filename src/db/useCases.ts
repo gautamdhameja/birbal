@@ -3,11 +3,11 @@
 
 import { createHash } from "node:crypto";
 
-import { DATABASE } from "../constants/database.js";
 import { EnterpriseUseCaseSchema, type EnterpriseUseCase } from "../pipelines/useCases/schema.js";
 import { normalizeUrl } from "../utils/url.js";
 import { assertValidLimit, getDb } from "./items.js";
 import { decodePersistedJson } from "./json.js";
+import { USE_CASE_SQL } from "./sql/useCases.js";
 
 export type StoredEnterpriseUseCase = EnterpriseUseCase & {
   runId?: string;
@@ -90,7 +90,7 @@ export function upsertUseCase(useCase: EnterpriseUseCaseStorageInput): void {
   };
 
   getDb()
-    .prepare(DATABASE.SQL.UPSERT_USE_CASE)
+    .prepare(USE_CASE_SQL.UPSERT_USE_CASE)
     .run({
       id: persistentUseCaseId(normalizedUseCase),
       runId: runId ?? null,
@@ -118,13 +118,13 @@ export function upsertUseCase(useCase: EnterpriseUseCaseStorageInput): void {
 export function listRecentUseCases(limit: number): StoredEnterpriseUseCase[] {
   assertValidLimit(limit);
 
-  const rows = getDb().prepare(DATABASE.SQL.LIST_RECENT_USE_CASES).all(limit) as UseCaseRow[];
+  const rows = getDb().prepare(USE_CASE_SQL.LIST_RECENT_USE_CASES).all(limit) as UseCaseRow[];
 
   return rows.map(useCaseFromRow);
 }
 
 export function listUseCasesByRun(runId: string): StoredEnterpriseUseCase[] {
-  const rows = getDb().prepare(DATABASE.SQL.LIST_USE_CASES_BY_RUN).all(runId) as UseCaseRow[];
+  const rows = getDb().prepare(USE_CASE_SQL.LIST_USE_CASES_BY_RUN).all(runId) as UseCaseRow[];
 
   return rows.map(useCaseFromRow);
 }

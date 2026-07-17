@@ -1,6 +1,37 @@
 // Purpose: Defines SQLite statements for the items database domain.
 // Scope: Owns daily item and score statements.
 
+const SCORED_ITEM_PROJECTION = `
+        items.id,
+        items.source_id,
+        items.source_name,
+        items.source_type,
+        items.title,
+        items.url,
+        items.summary,
+        items.published_at,
+        items.discovered_at,
+        items.content_text,
+        items.content_fetch_status,
+        items.category,
+        items.raw_json,
+        scores.relevance,
+        scores.technical_depth,
+        scores.novelty,
+        scores.practicality,
+        scores.enterprise_relevance,
+        scores.workflow_redesign_depth,
+        scores.real_use_case_specificity,
+        scores.deployment_fde_relevance,
+        scores.business_outcome_clarity,
+        scores.technical_implementation_usefulness,
+        scores.recency,
+        scores.non_generic_insight,
+        scores.rejected,
+        scores.rejection_reason,
+        scores.reason,
+        scores.final_score`;
+
 export const ITEM_SQL = {
   ITEM_EXISTS_BY_URL: "SELECT 1 FROM items WHERE url = ? LIMIT 1",
   GET_ITEM_BY_URL: `
@@ -167,35 +198,7 @@ export const ITEM_SQL = {
     `,
   LIST_TOP_SCORED_ITEMS: `
       SELECT
-        items.id,
-        items.source_id,
-        items.source_name,
-        items.source_type,
-        items.title,
-        items.url,
-        items.summary,
-        items.published_at,
-        items.discovered_at,
-        items.content_text,
-        items.content_fetch_status,
-        items.category,
-        items.raw_json,
-        scores.relevance,
-        scores.technical_depth,
-        scores.novelty,
-        scores.practicality,
-        scores.enterprise_relevance,
-        scores.workflow_redesign_depth,
-        scores.real_use_case_specificity,
-        scores.deployment_fde_relevance,
-        scores.business_outcome_clarity,
-        scores.technical_implementation_usefulness,
-        scores.recency,
-        scores.non_generic_insight,
-        scores.rejected,
-        scores.rejection_reason,
-        scores.reason,
-        scores.final_score
+${SCORED_ITEM_PROJECTION}
       FROM scores
       INNER JOIN items ON items.id = scores.item_id
       ORDER BY scores.final_score DESC, items.title ASC
@@ -203,35 +206,7 @@ export const ITEM_SQL = {
     `,
   LIST_TOP_SCORED_ITEMS_BY_IDS: `
       SELECT
-        items.id,
-        items.source_id,
-        items.source_name,
-        items.source_type,
-        items.title,
-        items.url,
-        items.summary,
-        items.published_at,
-        items.discovered_at,
-        items.content_text,
-        items.content_fetch_status,
-        items.category,
-        items.raw_json,
-        scores.relevance,
-        scores.technical_depth,
-        scores.novelty,
-        scores.practicality,
-        scores.enterprise_relevance,
-        scores.workflow_redesign_depth,
-        scores.real_use_case_specificity,
-        scores.deployment_fde_relevance,
-        scores.business_outcome_clarity,
-        scores.technical_implementation_usefulness,
-        scores.recency,
-        scores.non_generic_insight,
-        scores.rejected,
-        scores.rejection_reason,
-        scores.reason,
-        scores.final_score
+${SCORED_ITEM_PROJECTION}
       FROM scores
       INNER JOIN items ON items.id = scores.item_id
       WHERE items.id IN

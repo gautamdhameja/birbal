@@ -14,6 +14,7 @@ import type { PipelineMetadata, StoredRun, StoredRunStatus } from "../framework/
 import type { RunSummary, PipelineRunStore } from "../framework/pipeline/runStore.js";
 import { getDb } from "./items.js";
 import { decodePersistedJson } from "./json.js";
+import { RUN_SQL } from "./sql/runs.js";
 
 type RunRow = {
   id: string;
@@ -64,7 +65,7 @@ function runFromRow(row: RunRow): StoredRun {
 export function startRun(pipelineId: string, runType = PIPELINE_RUN_TYPES.MANUAL): string {
   const id = randomUUID();
 
-  getDb().prepare(DATABASE.SQL.START_RUN).run({
+  getDb().prepare(RUN_SQL.START_RUN).run({
     id,
     pipelineId,
     runType,
@@ -77,7 +78,7 @@ export function startRun(pipelineId: string, runType = PIPELINE_RUN_TYPES.MANUAL
 
 export function finishRun(runId: string, result: RunSummary): void {
   getDb()
-    .prepare(DATABASE.SQL.FINISH_RUN)
+    .prepare(RUN_SQL.FINISH_RUN)
     .run({
       id: runId,
       finishedAt: nowIso(),
@@ -97,7 +98,7 @@ export function finishRun(runId: string, result: RunSummary): void {
 }
 
 export function failRun(runId: string, errorSummary: string): void {
-  getDb().prepare(DATABASE.SQL.FAIL_RUN).run({
+  getDb().prepare(RUN_SQL.FAIL_RUN).run({
     id: runId,
     finishedAt: nowIso(),
     status: PIPELINE_RUN_STATUSES.FAILED,
@@ -110,7 +111,7 @@ export function getRecentRuns(pipelineId: string, limit: number): StoredRun[] {
     throw new Error(DATABASE.ERRORS.INVALID_LIMIT);
   }
 
-  const rows = getDb().prepare(DATABASE.SQL.LIST_RECENT_RUNS).all(pipelineId, limit) as RunRow[];
+  const rows = getDb().prepare(RUN_SQL.LIST_RECENT_RUNS).all(pipelineId, limit) as RunRow[];
 
   return rows.map(runFromRow);
 }

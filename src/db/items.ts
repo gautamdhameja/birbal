@@ -20,6 +20,8 @@ import type {
   ScoredCandidateItem,
 } from "../daily/types.js";
 import { decodePersistedJson } from "./json.js";
+import { ITEM_SQL } from "./sql/items.js";
+import { SCHEMA_SQL } from "./sql/schema.js";
 
 let db: DatabaseConnection | null = null;
 let activeDbPath: string | null = null;
@@ -51,7 +53,7 @@ export function initDb(dbPath = getDefaultDbPath()): DatabaseConnection {
     connection.pragma(DATABASE.FOREIGN_KEYS);
     connection.pragma(DATABASE.JOURNAL_MODE);
     connection.transaction(() => {
-      connection.exec(DATABASE.SQL.INIT_SCHEMA);
+      connection.exec(SCHEMA_SQL.INIT_SCHEMA);
       migrateItemsTable(connection);
       migrateScoresTable(connection);
     })();
@@ -285,20 +287,20 @@ function migrateScoresTable(connection: DatabaseConnection): void {
 }
 
 export function itemExistsByUrl(url: string): boolean {
-  const row = getDb().prepare(DATABASE.SQL.ITEM_EXISTS_BY_URL).get(url);
+  const row = getDb().prepare(ITEM_SQL.ITEM_EXISTS_BY_URL).get(url);
 
   return row !== undefined;
 }
 
 export function getItemByUrl(url: string): CandidateItem | null {
-  const row = getDb().prepare(DATABASE.SQL.GET_ITEM_BY_URL).get(url) as ItemRow | undefined;
+  const row = getDb().prepare(ITEM_SQL.GET_ITEM_BY_URL).get(url) as ItemRow | undefined;
 
   return row ? itemFromRow(row) : null;
 }
 
 export function upsertItem(candidate: CandidateItem): void {
   getDb()
-    .prepare(DATABASE.SQL.UPSERT_ITEM)
+    .prepare(ITEM_SQL.UPSERT_ITEM)
     .run({
       id: candidate.id,
       sourceId: candidate.sourceId,
@@ -405,14 +407,14 @@ export function assertValidLimit(limit: number): void {
 export function listRecentItems(limit: number): CandidateItem[] {
   assertValidLimit(limit);
 
-  const rows = getDb().prepare(DATABASE.SQL.LIST_RECENT_ITEMS).all(limit) as ItemRow[];
+  const rows = getDb().prepare(ITEM_SQL.LIST_RECENT_ITEMS).all(limit) as ItemRow[];
 
   return rows.map(itemFromRow);
 }
 
 export function upsertScore(itemId: string, score: ItemScore): void {
   getDb()
-    .prepare(DATABASE.SQL.UPSERT_SCORE)
+    .prepare(ITEM_SQL.UPSERT_SCORE)
     .run({
       itemId,
       relevance: score.enterpriseRelevance,
@@ -435,9 +437,7 @@ export function upsertScore(itemId: string, score: ItemScore): void {
 }
 
 export function getScore(itemId: string): ItemScore | null {
-  const row = getDb().prepare(DATABASE.SQL.GET_SCORE_BY_ITEM_ID).get(itemId) as
-    | ScoreRow
-    | undefined;
+  const row = getDb().prepare(ITEM_SQL.GET_SCORE_BY_ITEM_ID).get(itemId) as ScoreRow | undefined;
 
   return row ? scoreFromRow(row) : null;
 }
@@ -445,7 +445,7 @@ export function getScore(itemId: string): ItemScore | null {
 export function listTopScoredItems(limit: number): ScoredCandidateItem[] {
   assertValidLimit(limit);
 
-  const rows = getDb().prepare(DATABASE.SQL.LIST_TOP_SCORED_ITEMS).all(limit) as ScoredItemRow[];
+  const rows = getDb().prepare(ITEM_SQL.LIST_TOP_SCORED_ITEMS).all(limit) as ScoredItemRow[];
 
   return rows.map((row) => ({
     ...itemFromRow(row),
@@ -465,8 +465,8 @@ export function listTopScoredItemsByIds(
   const placeholders = itemIds.map(() => "?").join(", ");
   const rows = getDb()
     .prepare(
-      `${DATABASE.SQL.LIST_TOP_SCORED_ITEMS_BY_IDS} (${placeholders})
-      ${DATABASE.SQL.LIST_TOP_SCORED_ITEMS_ORDER_LIMIT}`,
+      `${ITEM_SQL.LIST_TOP_SCORED_ITEMS_BY_IDS} (${placeholders})
+      ${ITEM_SQL.LIST_TOP_SCORED_ITEMS_ORDER_LIMIT}`,
     )
     .all(...itemIds, limit) as ScoredItemRow[];
 

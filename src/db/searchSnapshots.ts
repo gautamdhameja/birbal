@@ -3,10 +3,10 @@
 
 import { randomUUID } from "node:crypto";
 
-import { DATABASE } from "../constants/database.js";
 import { normalizeUrl } from "../utils/url.js";
 import { assertValidLimit, getDb } from "./items.js";
 import { decodePersistedJson } from "./json.js";
+import { SEARCH_SNAPSHOT_SQL } from "./sql/searchSnapshots.js";
 
 export type SearchSnapshotInput = {
   pipelineId: string;
@@ -90,7 +90,7 @@ function snapshotItemFromRow(row: SearchSnapshotItemRow): SearchSnapshotItem {
 export function createSearchSnapshot(input: SearchSnapshotInput): SearchSnapshot {
   const id = randomUUID();
   getDb()
-    .prepare(DATABASE.SQL.CREATE_SEARCH_SNAPSHOT)
+    .prepare(SEARCH_SNAPSHOT_SQL.CREATE_SEARCH_SNAPSHOT)
     .run({
       id,
       pipelineId: input.pipelineId,
@@ -109,7 +109,7 @@ export function createSearchSnapshot(input: SearchSnapshotInput): SearchSnapshot
 
 export function upsertSearchSnapshotItem(item: SearchSnapshotItemInput): void {
   getDb()
-    .prepare(DATABASE.SQL.UPSERT_SEARCH_SNAPSHOT_ITEM)
+    .prepare(SEARCH_SNAPSHOT_SQL.UPSERT_SEARCH_SNAPSHOT_ITEM)
     .run({
       snapshotId: item.snapshotId,
       rank: item.rank,
@@ -124,7 +124,7 @@ export function upsertSearchSnapshotItem(item: SearchSnapshotItemInput): void {
 }
 
 export function updateSearchSnapshotResultCount(snapshotId: string, resultCount: number): void {
-  getDb().prepare(DATABASE.SQL.UPDATE_SEARCH_SNAPSHOT_RESULT_COUNT).run({
+  getDb().prepare(SEARCH_SNAPSHOT_SQL.UPDATE_SEARCH_SNAPSHOT_RESULT_COUNT).run({
     id: snapshotId,
     resultCount,
   });
@@ -134,14 +134,14 @@ export function listSearchSnapshots(pipelineId: string, limit: number): SearchSn
   assertValidLimit(limit);
 
   const rows = getDb()
-    .prepare(DATABASE.SQL.LIST_SEARCH_SNAPSHOTS)
+    .prepare(SEARCH_SNAPSHOT_SQL.LIST_SEARCH_SNAPSHOTS)
     .all(pipelineId, limit) as SearchSnapshotRow[];
 
   return rows.map(snapshotFromRow);
 }
 
 export function getSearchSnapshot(snapshotId: string): SearchSnapshot | null {
-  const row = getDb().prepare(DATABASE.SQL.GET_SEARCH_SNAPSHOT).get(snapshotId) as
+  const row = getDb().prepare(SEARCH_SNAPSHOT_SQL.GET_SEARCH_SNAPSHOT).get(snapshotId) as
     | SearchSnapshotRow
     | undefined;
 
@@ -149,7 +149,7 @@ export function getSearchSnapshot(snapshotId: string): SearchSnapshot | null {
 }
 
 export function getLatestSearchSnapshot(pipelineId: string): SearchSnapshot | null {
-  const row = getDb().prepare(DATABASE.SQL.GET_LATEST_SEARCH_SNAPSHOT).get(pipelineId) as
+  const row = getDb().prepare(SEARCH_SNAPSHOT_SQL.GET_LATEST_SEARCH_SNAPSHOT).get(pipelineId) as
     | SearchSnapshotRow
     | undefined;
 
@@ -158,7 +158,7 @@ export function getLatestSearchSnapshot(pipelineId: string): SearchSnapshot | nu
 
 export function listSearchSnapshotItems(snapshotId: string): SearchSnapshotItem[] {
   const rows = getDb()
-    .prepare(DATABASE.SQL.LIST_SEARCH_SNAPSHOT_ITEMS)
+    .prepare(SEARCH_SNAPSHOT_SQL.LIST_SEARCH_SNAPSHOT_ITEMS)
     .all(snapshotId) as SearchSnapshotItemRow[];
 
   return rows.map(snapshotItemFromRow);

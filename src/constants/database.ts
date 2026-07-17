@@ -1,7 +1,5 @@
 // Purpose: Collects shared database configuration constants.
-// Scope: Keeps runtime database settings separate from SQL statements.
-
-import { DATABASE_SQL } from "../db/sql.js";
+// Scope: Keeps runtime database settings separate from domain-owned SQL statements.
 
 export const DATABASE = {
   DIRECTORY: "data",
@@ -41,5 +39,4 @@ export const DATABASE = {
     REJECTED: "rejected",
     REJECTION_REASON: "rejection_reason",
   },
-  SQL: DATABASE_SQL,
 } as const;

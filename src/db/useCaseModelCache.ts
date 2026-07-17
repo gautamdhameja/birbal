@@ -5,7 +5,6 @@ import { createHash } from "node:crypto";
 
 import { z } from "zod";
 
-import { DATABASE } from "../constants/database.js";
 import { EnterpriseUseCaseSchema, type EnterpriseUseCase } from "../pipelines/useCases/schema.js";
 import {
   EnterpriseUseCaseVerificationSchema,
@@ -14,6 +13,7 @@ import {
 import { normalizeUrl } from "../utils/url.js";
 import { getDb } from "./items.js";
 import { decodePersistedJson } from "./json.js";
+import { USE_CASE_MODEL_CACHE_SQL } from "./sql/useCaseModelCache.js";
 
 const EnterpriseUseCaseArraySchema = z.array(EnterpriseUseCaseSchema);
 
@@ -62,7 +62,7 @@ export function getCachedUseCaseExtraction({
   sourceUrl: string;
 }): EnterpriseUseCase[] | null {
   const row = getDb()
-    .prepare(DATABASE.SQL.GET_USE_CASE_EXTRACTION_CACHE)
+    .prepare(USE_CASE_MODEL_CACHE_SQL.GET_USE_CASE_EXTRACTION_CACHE)
     .get(normalizeUrl(sourceUrl), hashedContent, extractorVersion) as
     | ExtractionCacheRow
     | undefined;
@@ -90,7 +90,7 @@ export function upsertUseCaseExtractionCache({
 }): void {
   const normalizedUrl = normalizeUrl(sourceUrl);
   getDb()
-    .prepare(DATABASE.SQL.UPSERT_USE_CASE_EXTRACTION_CACHE)
+    .prepare(USE_CASE_MODEL_CACHE_SQL.UPSERT_USE_CASE_EXTRACTION_CACHE)
     .run({
       cacheKey: cacheKey([normalizedUrl, hashedContent, extractorVersion]),
       sourceUrl: normalizedUrl,
@@ -110,7 +110,7 @@ export function getCachedUseCaseVerification({
   verifierVersion: string;
 }): EnterpriseUseCaseVerification | null {
   const row = getDb()
-    .prepare(DATABASE.SQL.GET_USE_CASE_VERIFICATION_CACHE)
+    .prepare(USE_CASE_MODEL_CACHE_SQL.GET_USE_CASE_VERIFICATION_CACHE)
     .get(hashedUseCase, hashedEvidence, verifierVersion) as VerificationCacheRow | undefined;
 
   if (!row) {
@@ -135,7 +135,7 @@ export function upsertUseCaseVerificationCache({
   verifierVersion: string;
 }): void {
   getDb()
-    .prepare(DATABASE.SQL.UPSERT_USE_CASE_VERIFICATION_CACHE)
+    .prepare(USE_CASE_MODEL_CACHE_SQL.UPSERT_USE_CASE_VERIFICATION_CACHE)
     .run({
       cacheKey: cacheKey([hashedUseCase, hashedEvidence, verifierVersion]),
       useCaseHash: hashedUseCase,
