@@ -45,19 +45,23 @@ export function initDb(dbPath = getDefaultDbPath()): DatabaseConnection {
   closeDb();
   mkdirSync(dirname(dbPath), { recursive: true });
 
-  db = new Database(dbPath);
-  activeDbPath = dbPath;
-  db.pragma(DATABASE.FOREIGN_KEYS);
-  db.pragma(DATABASE.JOURNAL_MODE);
-  const connection = db;
+  const connection = new Database(dbPath);
+  try {
+    connection.pragma(DATABASE.FOREIGN_KEYS);
+    connection.pragma(DATABASE.JOURNAL_MODE);
+    connection.transaction(() => {
+      connection.exec(DATABASE.SQL.INIT_SCHEMA);
+      migrateItemsTable(connection);
+      migrateScoresTable(connection);
+    })();
 
-  connection.transaction(() => {
-    connection.exec(DATABASE.SQL.INIT_SCHEMA);
-    migrateItemsTable(connection);
-    migrateScoresTable(connection);
-  })();
-
-  return connection;
+    db = connection;
+    activeDbPath = dbPath;
+    return connection;
+  } catch (error) {
+    connection.close();
+    throw error;
+  }
 }
 
 type TableInfoRow = {

@@ -2,7 +2,7 @@
 // Scope: Covers regressions through the Node.js test runner.
 
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -158,6 +158,19 @@ describe("SQLite item persistence", () => {
 
     initDb(secondDbPath);
     assert.equal(itemExistsByUrl("https://example.com/first"), false);
+  });
+
+  it("retries initialization after a migration failure", () => {
+    const dbPath = join(mkdtempSync(join(tmpdir(), "birbal-db-")), "agent.db");
+    const incompatibleDb = new Database(dbPath);
+    incompatibleDb.exec("CREATE TABLE items (id TEXT PRIMARY KEY)");
+    incompatibleDb.close();
+
+    assert.throws(() => initDb(dbPath), /published_at/);
+    rmSync(dbPath);
+
+    initDb(dbPath);
+    assert.equal(itemExistsByUrl("https://example.com/recovered"), false);
   });
 
   it("migrates existing items to the enterprise candidate shape", () => {
