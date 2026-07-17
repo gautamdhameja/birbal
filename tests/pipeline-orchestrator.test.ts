@@ -13,6 +13,7 @@ import { ModelParseError } from "../src/framework/llm/repair.js";
 import { registerFrameworkPipelineComponents } from "../src/framework/pipeline/defaultComponents.js";
 import { HttpStatusError } from "../src/framework/network/client.js";
 import type { PipelineRunItem } from "../src/framework/pipeline/orchestrator.js";
+import type { PipelineRunStore } from "../src/framework/pipeline/runStore.js";
 import type {
   PipelineCollectionMethod,
   PipelineConfig,
@@ -100,6 +101,18 @@ function recordingLogger(logs: unknown[]): PipelineLogger {
 function testSourceRegistry(): { sources: Array<{ id: string }> } {
   return {
     sources: [{ id: "source-a" }],
+  };
+}
+
+function testRunStore(
+  runId: string,
+  overrides: Partial<Pick<PipelineRunStore, "finishRun" | "failRun">> = {},
+): Pick<PipelineRunStore, "startRun" | "finishRun" | "failRun"> {
+  return {
+    startRun: () => runId,
+    finishRun: () => undefined,
+    failRun: () => undefined,
+    ...overrides,
   };
 }
 
@@ -194,13 +207,14 @@ describe("pipeline orchestrator", () => {
         }),
       ),
       {
-        startRun: () => "run-1",
-        finishRun: (_runId, summary) => {
-          finishedRuns.push(summary);
-        },
-        failRun: (_runId, errorSummary) => {
-          failedRuns.push(errorSummary);
-        },
+        runStore: testRunStore("run-1", {
+          finishRun: (_runId, summary) => {
+            finishedRuns.push(summary);
+          },
+          failRun: (_runId, errorSummary) => {
+            failedRuns.push(errorSummary);
+          },
+        }),
         loadSourceRegistry: testSourceRegistry,
         logger: recordingLogger(logs),
         now: (() => {
@@ -286,9 +300,7 @@ describe("pipeline orchestrator", () => {
 
   it("returns a failed result when configured components cannot be resolved", async () => {
     const result = await runPipeline(writeConfig(config()), {
-      startRun: () => "run-2",
-      finishRun: () => undefined,
-      failRun: () => undefined,
+      runStore: testRunStore("run-2"),
       loadSourceRegistry: testSourceRegistry,
       logger: silentLogger(),
       now: () => new Date("2026-05-23T08:00:00.000Z"),
@@ -333,9 +345,7 @@ describe("pipeline orchestrator", () => {
         }),
       ),
       {
-        startRun: () => "run-no-score",
-        finishRun: () => undefined,
-        failRun: () => undefined,
+        runStore: testRunStore("run-no-score"),
         loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
@@ -390,11 +400,11 @@ describe("pipeline orchestrator", () => {
         }),
       ),
       {
-        startRun: () => "run-3",
-        finishRun: (_runId, summary) => {
-          finishedRuns.push(summary);
-        },
-        failRun: () => undefined,
+        runStore: testRunStore("run-3", {
+          finishRun: (_runId, summary) => {
+            finishedRuns.push(summary);
+          },
+        }),
         loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
@@ -454,9 +464,7 @@ describe("pipeline orchestrator", () => {
         }),
       ),
       {
-        startRun: () => "run-structured-fetch-failure",
-        finishRun: () => undefined,
-        failRun: () => undefined,
+        runStore: testRunStore("run-structured-fetch-failure"),
         loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
@@ -518,9 +526,7 @@ describe("pipeline orchestrator", () => {
         }),
       ),
       {
-        startRun: () => "run-prefer-fetched",
-        finishRun: () => undefined,
-        failRun: () => undefined,
+        runStore: testRunStore("run-prefer-fetched"),
         loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
@@ -586,9 +592,7 @@ describe("pipeline orchestrator", () => {
         }),
       ),
       {
-        startRun: () => "run-scoring-partial",
-        finishRun: () => undefined,
-        failRun: () => undefined,
+        runStore: testRunStore("run-scoring-partial"),
         loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
@@ -643,9 +647,7 @@ describe("pipeline orchestrator", () => {
         }),
       ),
       {
-        startRun: () => "run-source-failure",
-        finishRun: () => undefined,
-        failRun: () => undefined,
+        runStore: testRunStore("run-source-failure"),
         loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
@@ -713,9 +715,7 @@ describe("pipeline orchestrator", () => {
         }),
       ),
       {
-        startRun: () => "run-source-fail-fast",
-        finishRun: () => undefined,
-        failRun: () => undefined,
+        runStore: testRunStore("run-source-fail-fast"),
         loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
@@ -767,9 +767,7 @@ describe("pipeline orchestrator", () => {
         }),
       ),
       {
-        startRun: () => "run-source-partial",
-        finishRun: () => undefined,
-        failRun: () => undefined,
+        runStore: testRunStore("run-source-partial"),
         loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
@@ -823,9 +821,7 @@ describe("pipeline orchestrator", () => {
         }),
       ),
       {
-        startRun: () => "run-structured-failure-stop",
-        finishRun: () => undefined,
-        failRun: () => undefined,
+        runStore: testRunStore("run-structured-failure-stop"),
         loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
@@ -873,9 +869,7 @@ describe("pipeline orchestrator", () => {
         }),
       ),
       {
-        startRun: () => "run-unknown-source",
-        finishRun: () => undefined,
-        failRun: () => undefined,
+        runStore: testRunStore("run-unknown-source"),
         loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
@@ -926,9 +920,7 @@ describe("pipeline orchestrator", () => {
         }),
       ),
       {
-        startRun: () => "run-minimum-output",
-        finishRun: () => undefined,
-        failRun: () => undefined,
+        runStore: testRunStore("run-minimum-output"),
         loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
@@ -977,9 +969,7 @@ describe("pipeline orchestrator", () => {
         }),
       ),
       {
-        startRun: () => "run-finalizer-order",
-        finishRun: () => undefined,
-        failRun: () => undefined,
+        runStore: testRunStore("run-finalizer-order"),
         loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
@@ -1028,9 +1018,7 @@ describe("pipeline orchestrator", () => {
         }),
       ),
       {
-        startRun: () => "run-4",
-        finishRun: () => undefined,
-        failRun: () => undefined,
+        runStore: testRunStore("run-4"),
         loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
@@ -1049,7 +1037,7 @@ describe("pipeline orchestrator", () => {
     });
   });
 
-  it("preserves structured model parse details in pipeline errors", async () => {
+  it("preserves safe structured model parse details in pipeline errors", async () => {
     const registry = new PipelineComponentRegistry();
 
     registry.registerCollector("collector", {
@@ -1098,9 +1086,7 @@ describe("pipeline orchestrator", () => {
         }),
       ),
       {
-        startRun: () => "run-model-parse-error",
-        finishRun: () => undefined,
-        failRun: () => undefined,
+        runStore: testRunStore("run-model-parse-error"),
         loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
@@ -1117,11 +1103,11 @@ describe("pipeline orchestrator", () => {
       details: {
         type: "model_parse_error",
         message: "Model output failed JSON parsing or schema validation after repair.",
-        invalidOutput: "not json",
-        schemaDescription: '{"type":"object"}',
         validationError: "No JSON object found.",
         repairAttempted: true,
-        repairedOutput: '{"score":99}',
+        invalidOutputChars: 8,
+        schemaDescriptionChars: 17,
+        repairedOutputChars: 12,
         repairValidationError: "score must be <= 5",
       },
     });
@@ -1170,9 +1156,7 @@ describe("pipeline orchestrator", () => {
         }),
       ),
       {
-        startRun: () => "run-5",
-        finishRun: () => undefined,
-        failRun: () => undefined,
+        runStore: testRunStore("run-5"),
         loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
@@ -1229,9 +1213,7 @@ describe("pipeline orchestrator", () => {
         }),
       ),
       {
-        startRun: () => "run-dedupe",
-        finishRun: () => undefined,
-        failRun: () => undefined,
+        runStore: testRunStore("run-dedupe"),
         loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
@@ -1279,9 +1261,7 @@ describe("pipeline orchestrator", () => {
         }),
       ),
       {
-        startRun: () => "run-output-path",
-        finishRun: () => undefined,
-        failRun: () => undefined,
+        runStore: testRunStore("run-output-path"),
         loadSourceRegistry: testSourceRegistry,
         logger: silentLogger(),
         now: () => new Date("2026-05-23T08:00:00.000Z"),
@@ -1330,9 +1310,7 @@ describe("pipeline orchestrator", () => {
           }),
         ),
         {
-          startRun: () => "run-output-timestamp",
-          finishRun: () => undefined,
-          failRun: () => undefined,
+          runStore: testRunStore("run-output-timestamp"),
           loadSourceRegistry: testSourceRegistry,
           logger: silentLogger(),
           now: () => new Date("2026-05-23T08:09:10.000Z"),
@@ -1390,9 +1368,7 @@ describe("pipeline orchestrator", () => {
           }),
         ),
         {
-          startRun: () => "run-output-symlink",
-          finishRun: () => undefined,
-          failRun: () => undefined,
+          runStore: testRunStore("run-output-symlink"),
           loadSourceRegistry: testSourceRegistry,
           logger: silentLogger(),
           now: () => new Date("2026-05-23T08:00:00.000Z"),

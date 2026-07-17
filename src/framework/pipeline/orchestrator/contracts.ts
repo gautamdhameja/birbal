@@ -1,6 +1,6 @@
 import type { ModelClient } from "../../llm/types.js";
 import type { PipelineComponentRegistry } from "../registry.js";
-import type { PipelineRunStore, RunSummary } from "../runStore.js";
+import type { PipelineRunStore } from "../runStore.js";
 import type { PipelineConfig, PipelineLogger, PipelineMetadata } from "../types.js";
 
 export type PipelineRunItem = {
@@ -16,8 +16,6 @@ export type PipelineRunItem = {
 
 export type PipelineOrchestratorDependencies = {
   db: unknown;
-  failRun(runId: string, errorSummary: string): void;
-  finishRun(runId: string, result: RunSummary): void;
   loadConfig(configPathOrId: string): PipelineConfig;
   loadSourceRegistry(): unknown;
   logger: PipelineLogger;
@@ -26,8 +24,7 @@ export type PipelineOrchestratorDependencies = {
   registry: PipelineComponentRegistry;
   researchProfile: unknown;
   runMetadata: PipelineMetadata;
-  runStore: PipelineRunStore;
-  startRun(pipelineId: string): string;
+  runStore: Pick<PipelineRunStore, "startRun" | "finishRun" | "failRun">;
 };
 
 export type PipelineExecutionConcurrencyKey = Exclude<

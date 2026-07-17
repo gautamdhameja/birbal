@@ -152,7 +152,7 @@ function finishSharedRun(
   runId: string,
   result: PipelineResult,
 ): void {
-  dependencies.finishRun(runId, {
+  dependencies.runStore.finishRun(runId, {
     status: result.status,
     sourcesAttempted:
       (result.counts.collectionMethodsRun ?? 0) + (result.counts.collectionErrors ?? 0),
@@ -198,7 +198,7 @@ export function failPipelineRun(
     errors,
     metadata: finishMetadata(metadata, dependencies.now()),
   };
-  dependencies.failRun(runId, errorSummary);
+  dependencies.runStore.failRun(runId, errorSummary);
   logPipelineFinished(dependencies.logger, result, startedAt);
   return result;
 }

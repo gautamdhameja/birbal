@@ -1,4 +1,4 @@
-import { ModelParseError } from "../../llm/repair.js";
+import { ModelParseError, summarizeModelParseError } from "../../llm/repair.js";
 import { preview } from "../../logging/preview.js";
 import { isHttpStatusError, summarizeHttpErrorBody } from "../../network/client.js";
 import type { PipelineError } from "../types.js";
@@ -29,17 +29,7 @@ function serializeErrorCause(error: unknown): unknown {
       name: error.name,
       type: error.type,
       message: preview(error.message),
-      details: {
-        ...error.details,
-        invalidOutput: preview(error.details.invalidOutput),
-        schemaDescription: preview(error.details.schemaDescription),
-        ...(error.details.repairedOutput
-          ? { repairedOutput: preview(error.details.repairedOutput) }
-          : {}),
-        ...(error.details.repairValidationError
-          ? { repairValidationError: preview(error.details.repairValidationError) }
-          : {}),
-      },
+      details: summarizeModelParseError(error.details),
     };
   }
 

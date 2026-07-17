@@ -63,45 +63,29 @@ const missingModelClient: ModelClient = {
   },
 };
 
-const defaultRunStore = createInMemoryPipelineRunStore();
-
-const defaultDependencies: PipelineOrchestratorDependencies = {
-  db: null,
-  failRun: defaultRunStore.failRun,
-  finishRun: defaultRunStore.finishRun,
-  loadConfig: loadPipelineConfig,
-  loadSourceRegistry: missingSourceRegistryLoader,
-  logger: noopLogger,
-  modelClient: missingModelClient,
-  now: () => new Date(),
-  registry: pipelineComponentRegistry,
-  researchProfile: null,
-  runMetadata: {},
-  runStore: defaultRunStore,
-  startRun: defaultRunStore.startRun,
-};
+function createDefaultDependencies(): PipelineOrchestratorDependencies {
+  const runStore = createInMemoryPipelineRunStore();
+  return {
+    db: null,
+    loadConfig: loadPipelineConfig,
+    loadSourceRegistry: missingSourceRegistryLoader,
+    logger: noopLogger,
+    modelClient: missingModelClient,
+    now: () => new Date(),
+    registry: pipelineComponentRegistry,
+    researchProfile: null,
+    runMetadata: {},
+    runStore,
+  };
+}
 
 function resolveDependencies(
   dependencies: Partial<PipelineOrchestratorDependencies>,
 ): PipelineOrchestratorDependencies {
-  const deps = {
-    ...defaultDependencies,
+  return {
+    ...createDefaultDependencies(),
     ...dependencies,
   };
-
-  if (dependencies.runStore && !dependencies.startRun) {
-    deps.startRun = dependencies.runStore.startRun;
-  }
-
-  if (dependencies.runStore && !dependencies.finishRun) {
-    deps.finishRun = dependencies.runStore.finishRun;
-  }
-
-  if (dependencies.runStore && !dependencies.failRun) {
-    deps.failRun = dependencies.runStore.failRun;
-  }
-
-  return deps;
 }
 
 export async function runPipeline(
@@ -111,7 +95,7 @@ export async function runPipeline(
   const deps = resolveDependencies(dependencies);
   const config = deps.loadConfig(configPathOrId);
   const startedAt = deps.now();
-  const runId = deps.startRun(config.pipelineId);
+  const runId = deps.runStore.startRun(config.pipelineId);
   const counts: PipelineCounts = {};
   const errors: PipelineError[] = [];
   const metadata: PipelineMetadata = {
