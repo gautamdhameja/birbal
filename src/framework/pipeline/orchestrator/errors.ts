@@ -1,6 +1,3 @@
-// Purpose: Converts runtime failures into bounded pipeline error records.
-// Scope: Owns policy aborts and safe error serialization.
-
 import { ModelParseError } from "../../llm/repair.js";
 import { preview } from "../../logging/preview.js";
 import { isHttpStatusError, summarizeHttpErrorBody } from "../../network/client.js";

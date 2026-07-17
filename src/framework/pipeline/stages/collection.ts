@@ -1,6 +1,3 @@
-// Purpose: Executes configured source collection methods.
-// Scope: Owns collector concurrency, source errors, and run-item creation.
-
 import { mapLimit } from "../concurrency.js";
 import type { PipelineRunItem } from "../orchestrator/contracts.js";
 import { PipelinePolicyAbortError, toPipelineError } from "../orchestrator/errors.js";

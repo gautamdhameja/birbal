@@ -1,6 +1,3 @@
-// Purpose: Provides generic selection helpers for pipeline components.
-// Scope: Keeps acceptance-gate and backfill patterns reusable across applications.
-
 export type BackfillSelectionResult<TCandidate, TAccepted = TCandidate> = {
   candidatePool: TCandidate[];
   acceptedPool: TAccepted[];

@@ -1,6 +1,3 @@
-// Purpose: Defines generic evaluation contracts for framework and app eval suites.
-// Scope: Keeps eval cases, assertions, traces, and results independent of Birbal-specific code.
-
 export type EvalStatus = "passed" | "failed";
 
 export type EvalAssertionResult = {

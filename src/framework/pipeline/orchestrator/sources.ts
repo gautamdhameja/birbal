@@ -1,6 +1,3 @@
-// Purpose: Normalizes source collector output and validates configured source IDs.
-// Scope: Owns source-registry shape inspection outside the main orchestration flow.
-
 import type { PipelineConfig, PipelineError, SourceCollectionResult } from "../types.js";
 
 function isSourceCollectionResult(value: unknown): value is SourceCollectionResult {

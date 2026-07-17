@@ -1,6 +1,3 @@
-// Purpose: Implements the framework scoring rubric module.
-// Scope: Stays generic so applications can plug in their own components.
-
 import type { z } from "zod";
 
 import {

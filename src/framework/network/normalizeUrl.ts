@@ -1,6 +1,3 @@
-// Purpose: Implements canonical URL normalization for framework components.
-// Scope: Preserves path casing while normalizing safe URL identity details.
-
 import normalizeUrlPackage from "normalize-url";
 
 export function normalizeUrl(url: string): string {

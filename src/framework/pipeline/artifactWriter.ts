@@ -1,6 +1,3 @@
-// Purpose: Implements the framework pipeline artifact Writer module.
-// Scope: Stays generic so applications can plug in their own components.
-
 import {
   closeSync,
   constants as fsConstants,

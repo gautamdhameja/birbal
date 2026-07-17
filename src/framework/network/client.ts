@@ -1,6 +1,3 @@
-// Purpose: Implements framework HTTP response safety utilities.
-// Scope: Centralizes bounded response reads and status errors.
-
 import { HTTP } from "./constants.js";
 
 export class HttpStatusError extends Error {

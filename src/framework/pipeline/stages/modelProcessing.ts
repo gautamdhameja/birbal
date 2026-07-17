@@ -1,6 +1,3 @@
-// Purpose: Executes scoring, classification, and structured extraction stages.
-// Scope: Owns model-stage batching, concurrency, and item-level failure handling.
-
 import { mapBatches, mapLimit } from "../concurrency.js";
 import type { PipelineRunItem } from "../orchestrator/contracts.js";
 import { PipelinePolicyAbortError, toPipelineError } from "../orchestrator/errors.js";

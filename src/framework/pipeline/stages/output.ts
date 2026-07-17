@@ -1,6 +1,3 @@
-// Purpose: Executes selection, rendering, artifact writing, and finalization.
-// Scope: Owns terminal pipeline stages after item processing completes.
-
 import { incrementCount } from "../orchestrator/items.js";
 import type {
   PipelineArtifact,

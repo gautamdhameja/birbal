@@ -1,6 +1,3 @@
-// Purpose: Implements the framework LLM types module.
-// Scope: Stays generic so applications can plug in their own components.
-
 export type ChatRole = "system" | "user" | "assistant";
 
 export type ChatMessage = {

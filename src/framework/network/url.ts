@@ -1,6 +1,3 @@
-// Purpose: Implements framework outbound URL safety utilities.
-// Scope: Centralizes URL validation, DNS resolution, and SSRF protection.
-
 import type { LookupAddress } from "node:dns";
 import { lookup } from "node:dns/promises";
 

@@ -1,6 +1,3 @@
-// Purpose: Implements the framework LLM repair module.
-// Scope: Stays generic so applications can plug in their own components.
-
 import { z } from "zod";
 
 import { parseJson, parseStrictJson } from "./json.js";

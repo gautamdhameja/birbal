@@ -1,6 +1,3 @@
-// Purpose: Implements the framework's structured logging preview helper.
-// Scope: Redacts and truncates values without depending on application logging configuration.
-
 const DEFAULT_PREVIEW_MAX_LENGTH = 500;
 
 const REDACTED_VALUE = "[redacted]";

@@ -1,6 +1,3 @@
-// Purpose: Implements the framework network fetch module.
-// Scope: Stays generic so applications can plug in their own components.
-
 import { request as requestHttp } from "node:http";
 import { request as requestHttps } from "node:https";
 import type { LookupFunction } from "node:net";

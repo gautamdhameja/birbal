@@ -1,6 +1,3 @@
-// Purpose: Collects framework URL text extraction constants.
-// Scope: Defines extraction limits, markup rules, and errors.
-
 export const URL_TEXT = {
   DEFAULT_MAX_CHARS: 12_000,
   MAX_CHARS_LIMIT: 30_000,

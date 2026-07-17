@@ -1,6 +1,3 @@
-// Purpose: Executes content fetching and extraction stages.
-// Scope: Owns fetch limits, content failure handling, and extracted content attachment.
-
 import { mapLimit } from "../concurrency.js";
 import type { PipelineRunItem } from "../orchestrator/contracts.js";
 import { PipelinePolicyAbortError, toPipelineError } from "../orchestrator/errors.js";

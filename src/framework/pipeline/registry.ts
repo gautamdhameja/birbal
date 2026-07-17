@@ -1,6 +1,3 @@
-// Purpose: Implements the framework pipeline registry module.
-// Scope: Stays generic so applications can plug in their own components.
-
 import type {
   ArtifactWriter,
   Classifier,

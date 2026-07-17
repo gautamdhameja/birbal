@@ -1,6 +1,3 @@
-// Purpose: Owns pipeline lifecycle metadata, stage timing, and structured log events.
-// Scope: Keeps telemetry concerns out of stage and orchestration control flow.
-
 import type { PipelineOrchestratorDependencies } from "./contracts.js";
 import { errorMessage } from "./errors.js";
 import type {

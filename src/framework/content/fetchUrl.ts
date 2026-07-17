@@ -1,6 +1,3 @@
-// Purpose: Implements framework URL content fetching and HTML extraction.
-// Scope: Stays generic so applications can plug in their own components.
-
 import { fetchPublicHttpWithRetry } from "../network/fetch.js";
 import type { PublicHttpFetchOptions } from "../network/fetch.js";
 import { buildHttpStatusError, isHttpStatusError, readResponseText } from "../network/client.js";

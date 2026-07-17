@@ -1,6 +1,3 @@
-// Purpose: Renders eval results for CLI output.
-// Scope: Keeps human and JSON reporting separate from eval execution.
-
 import type { EvalRunResult } from "./types.js";
 
 const JSON_INDENT_SPACES = 2;

@@ -1,6 +1,3 @@
-// Purpose: Implements date formatting used by pipeline artifacts.
-// Scope: Keeps deterministic date and timezone handling inside the framework.
-
 const DATE_ONLY_PATTERN = /(\d{4}-\d{2}-\d{2})/;
 const DATE_LENGTH = 10;
 const DATE_PART_TYPES = {

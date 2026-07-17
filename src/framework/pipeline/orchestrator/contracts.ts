@@ -1,6 +1,3 @@
-// Purpose: Defines the runtime contracts shared by pipeline orchestration modules.
-// Scope: Keeps execution state and injected dependencies independent from stage implementations.
-
 import type { ModelClient } from "../../llm/types.js";
 import type { PipelineComponentRegistry } from "../registry.js";
 import type { PipelineRunStore, RunSummary } from "../runStore.js";

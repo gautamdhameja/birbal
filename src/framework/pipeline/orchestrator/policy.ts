@@ -1,6 +1,3 @@
-// Purpose: Resolves pipeline execution and failure-policy decisions.
-// Scope: Keeps configuration-derived limits and continuation rules in one place.
-
 import type { PipelineExecutionConcurrencyKey } from "./contracts.js";
 import { PipelinePolicyAbortError } from "./errors.js";
 import type {

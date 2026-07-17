@@ -1,6 +1,3 @@
-// Purpose: Exposes the public agent framework API.
-// Scope: Keeps imports stable while implementation modules stay focused.
-
 export {
   FrameworkAgentClarifyResponseSchema,
   FrameworkAgentFinalResponseSchema,

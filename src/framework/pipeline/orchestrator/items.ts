@@ -1,6 +1,3 @@
-// Purpose: Owns pipeline run-item creation, identity, ordering, and deduplication.
-// Scope: Keeps item bookkeeping separate from stage execution.
-
 import { normalizeUrl } from "../../network/normalizeUrl.js";
 import type { PipelineConfig, PipelineCounts, PipelineMetadata } from "../types.js";
 import type { PipelineRunItem } from "./contracts.js";

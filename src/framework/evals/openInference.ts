@@ -1,6 +1,3 @@
-// Purpose: Provides lightweight OpenInference-style trace helpers for eval runs.
-// Scope: Records JSON-serializable spans without requiring an observability backend.
-
 import { randomUUID } from "node:crypto";
 
 import type { AgentLifecycleHooks } from "../agent/types.js";

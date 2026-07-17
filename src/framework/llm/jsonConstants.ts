@@ -1,6 +1,3 @@
-// Purpose: Collects framework JSON parsing constants.
-// Scope: Supports resilient model response parsing without application dependencies.
-
 export const JSON_PARSING = {
   CHARS: {
     BACKSLASH: "\\",

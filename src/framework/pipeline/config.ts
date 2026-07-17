@@ -1,6 +1,3 @@
-// Purpose: Implements the framework pipeline config module.
-// Scope: Stays generic so applications can plug in their own components.
-
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 

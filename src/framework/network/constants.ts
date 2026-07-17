@@ -1,6 +1,3 @@
-// Purpose: Collects HTTP defaults and safety limits owned by the framework.
-// Scope: Provides transport configuration without importing application runtime constants.
-
 export const HTTP = {
   DEFAULT_TIMEOUT_MS: 30_000,
   DEFAULT_RETRIES: 2,

@@ -1,6 +1,3 @@
-// Purpose: Implements the framework pipeline orchestrator module.
-// Scope: Stays generic so applications can plug in their own components.
-
 import type { ModelClient } from "../llm/types.js";
 import { loadPipelineConfig } from "./config.js";
 import type { PipelineComponentRegistry } from "./registry.js";

@@ -1,6 +1,3 @@
-// Purpose: Implements resilient JSON parsing for model responses.
-// Scope: Handles strict JSON and extraction from surrounding model text.
-
 import { JSON_PARSING } from "./jsonConstants.js";
 
 function extractBalancedJsonObject(raw: string, start: number): string | null {

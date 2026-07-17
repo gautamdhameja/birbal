@@ -1,6 +1,3 @@
-// Purpose: Exposes the public LLM framework API.
-// Scope: Keeps imports stable while implementation modules stay focused.
-
 export type {
   ChatMessage,
   ChatRole,

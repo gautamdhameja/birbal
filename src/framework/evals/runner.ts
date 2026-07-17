@@ -1,6 +1,3 @@
-// Purpose: Runs eval suites and aggregates pass/fail results.
-// Scope: Provides deterministic evaluation orchestration without app-specific logic.
-
 import type {
   EvalCase,
   EvalCaseContext,

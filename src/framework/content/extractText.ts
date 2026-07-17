@@ -1,6 +1,3 @@
-// Purpose: Implements framework HTML-to-text extraction.
-// Scope: Produces bounded readable text and content metadata.
-
 import { load } from "cheerio";
 
 import { URL_TEXT } from "./constants.js";
