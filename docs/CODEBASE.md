@@ -41,7 +41,7 @@ The default task is `Say hello through the final response protocol.`
 
 ### Pipeline CLI
 
-`src/app/runPipeline.ts` contains reusable pipeline CLI execution helpers used by:
+`src/app/runPipeline.ts` contains the pipeline execution helpers used by the unified CLI:
 
 - `birbal pipeline <pipelineId>`
 - `birbal daily`
@@ -604,14 +604,14 @@ Outbound network helpers are deliberately defensive.
 - structured timeout, abort, and retryable-status errors
 - retry handling through `p-retry`
 
-`src/app/http/client.ts` provides:
+`src/framework/network/client.ts` provides:
 
 - bounded response body reading
 - JSON parsing from responses
 - HTTP status error construction
 - bot-protection/body summarization for logs and pipeline errors
 
-`src/app/http/url.ts` provides URL validation and SSRF-style protections:
+`src/framework/network/url.ts` provides URL validation and SSRF-style protections:
 
 - Only HTTP(S) URLs without credentials are allowed.
 - Localhost, `.localhost`, `.local`, metadata hostnames, and non-public IPs are rejected.
@@ -697,15 +697,15 @@ The agent, tools, LLM client, structured repair flow, pipeline orchestrator, sel
 - `pipeline.stage.failed`
 - `pipeline.daily.selection`
 
-`src/app/logging/preview.ts` truncates logged payload previews to avoid dumping large prompts, model outputs, or content bodies.
+`src/framework/logging/preview.ts` truncates logged payload previews to avoid dumping large prompts, model outputs, or content bodies.
 
 ## JSON Utilities
 
-`src/app/utils/json.ts` preserves the application compatibility import for the framework JSON helpers. The implementation lives in `src/framework/llm/json.ts`, with parsing constants grouped in `src/framework/llm/jsonConstants.ts`.
+`src/framework/llm/json.ts` provides strict and permissive JSON parsing, with parsing constants grouped in `src/framework/llm/jsonConstants.ts`.
 
-`src/app/utils/url.ts` normalizes URLs consistently for deduplication. Candidate collection, source-domain search, pipeline item dedupe, and use-case ranking all rely on normalized URLs to avoid duplicate work.
+`src/framework/network/normalizeUrl.ts` normalizes URLs consistently for deduplication. Candidate collection, source-domain search, pipeline item dedupe, and use-case ranking all rely on normalized URLs to avoid duplicate work.
 
-`src/app/utils/date.ts` provides date formatting helpers used by digest and report renderers.
+`src/framework/pipeline/date.ts` provides date formatting helpers used by digest and report renderers.
 
 ## Testing Coverage
 
