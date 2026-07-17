@@ -40,17 +40,25 @@ describe("pipeline concurrency helpers", () => {
 
   it("stops scheduling items after the first error when requested", async () => {
     const started: number[] = [];
+    let active = 0;
+    let maxActive = 0;
 
     await assert.rejects(
       () =>
         mapLimit(
-          [1, 2, 3],
+          [1, 2, 3, 4],
           2,
           async (value) => {
             started.push(value);
+            active += 1;
+            maxActive = Math.max(maxActive, active);
             if (value === 1) {
+              await Promise.resolve();
+              active -= 1;
               throw new Error("stop");
             }
+            await new Promise((resolve) => setTimeout(resolve, 5));
+            active -= 1;
             return value;
           },
           { stopOnError: true },
@@ -58,6 +66,7 @@ describe("pipeline concurrency helpers", () => {
       /stop/,
     );
 
-    assert.deepEqual(started, [1]);
+    assert.deepEqual(started, [1, 2]);
+    assert.equal(maxActive, 2);
   });
 });

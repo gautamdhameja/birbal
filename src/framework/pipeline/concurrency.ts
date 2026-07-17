@@ -42,10 +42,36 @@ export async function mapLimit<TItem, TResult>(
   }
 
   if (options.stopOnError) {
-    const results: TResult[] = [];
-    for (const [index, item] of items.entries()) {
-      results.push(await mapper(item, index));
+    const results = new Array<TResult>(items.length);
+    let nextIndex = 0;
+    let stopped = false;
+    let firstError: unknown;
+
+    const worker = async (): Promise<void> => {
+      while (!stopped) {
+        const index = nextIndex;
+        if (index >= items.length) {
+          return;
+        }
+        nextIndex += 1;
+
+        try {
+          results[index] = await mapper(items[index] as TItem, index);
+        } catch (error) {
+          if (!stopped) {
+            stopped = true;
+            firstError = error;
+          }
+          return;
+        }
+      }
+    };
+
+    await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+    if (stopped) {
+      throw firstError;
     }
+
     return results;
   }
 
