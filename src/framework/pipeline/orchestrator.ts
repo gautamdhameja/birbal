@@ -702,6 +702,7 @@ async function collectItems(
         };
       }
     },
+    { stopOnError: !shouldContinueAfterSourceFailure(context.config) },
   );
 
   const items: PipelineRunItem[] = [];
@@ -887,6 +888,7 @@ async function fetchAndExtractContent(
         },
       };
     },
+    { stopOnError: !shouldContinueAfterContentFetchFailure(config) },
   );
 
   return preferFetchedContentOrder(fetchedItems, config);
@@ -940,6 +942,7 @@ async function scoreItems(
       items,
       executionLimit(context.config, "scoringConcurrency"),
       scoreOne,
+      { stopOnError: !shouldContinueAfterScoringFailure(context.config) },
     );
 
     return scoredItems.filter((item): item is PipelineRunItem => item !== undefined);
@@ -976,6 +979,7 @@ async function scoreItems(
         return batch.map(() => undefined);
       }
     },
+    { stopOnError: !shouldContinueAfterScoringFailure(context.config) },
   );
 
   return scoredItems.filter((item): item is PipelineRunItem => item !== undefined);
@@ -1027,6 +1031,7 @@ async function classifyAndExtractStructured(
             output,
             executionLimit(context.config, "classificationConcurrency"),
             classifyOne,
+            { stopOnError: !shouldContinueAfterNonPolicyFailure(context.config) },
           ),
         {
           concurrency: executionLimit(context.config, "classificationConcurrency"),
@@ -1071,6 +1076,7 @@ async function classifyAndExtractStructured(
                 return batch;
               }
             },
+            { stopOnError: !shouldContinueAfterNonPolicyFailure(context.config) },
           ),
         {
           concurrency: executionLimit(context.config, "classificationConcurrency"),

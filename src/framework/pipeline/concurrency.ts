@@ -8,6 +8,10 @@ export type IndexedResult<TValue> = {
   value: TValue;
 };
 
+export type MapLimitOptions = {
+  stopOnError?: boolean;
+};
+
 function assertPositiveInteger(value: number, label: string): void {
   if (!Number.isInteger(value) || value < 1) {
     throw new Error(`${label} must be a positive integer.`);
@@ -29,11 +33,20 @@ export async function mapLimit<TItem, TResult>(
   items: readonly TItem[],
   concurrency: number,
   mapper: (item: TItem, index: number) => Promise<TResult>,
+  options: MapLimitOptions = {},
 ): Promise<TResult[]> {
   assertPositiveInteger(concurrency, "concurrency");
 
   if (items.length === 0) {
     return [];
+  }
+
+  if (options.stopOnError) {
+    const results: TResult[] = [];
+    for (const [index, item] of items.entries()) {
+      results.push(await mapper(item, index));
+    }
+    return results;
   }
 
   const limit = pLimit(concurrency);
@@ -45,9 +58,10 @@ export async function mapBatches<TItem, TResult>(
   batchSize: number,
   concurrency: number,
   mapper: (batch: TItem[], batchIndex: number) => Promise<TResult[]>,
+  options: MapLimitOptions = {},
 ): Promise<TResult[]> {
   const batches = chunkItems(items, batchSize);
-  const batchResults = await mapLimit(batches, concurrency, mapper);
+  const batchResults = await mapLimit(batches, concurrency, mapper, options);
 
   return batchResults.flat();
 }

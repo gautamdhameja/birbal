@@ -37,4 +37,27 @@ describe("pipeline concurrency helpers", () => {
     await assert.rejects(() => mapLimit([1], 0, async (value) => value), /positive integer/);
     assert.throws(() => chunkItems([1], 0), /positive integer/);
   });
+
+  it("stops scheduling items after the first error when requested", async () => {
+    const started: number[] = [];
+
+    await assert.rejects(
+      () =>
+        mapLimit(
+          [1, 2, 3],
+          2,
+          async (value) => {
+            started.push(value);
+            if (value === 1) {
+              throw new Error("stop");
+            }
+            return value;
+          },
+          { stopOnError: true },
+        ),
+      /stop/,
+    );
+
+    assert.deepEqual(started, [1]);
+  });
 });
