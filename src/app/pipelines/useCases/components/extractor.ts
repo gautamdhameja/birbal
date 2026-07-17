@@ -1,6 +1,3 @@
-// Purpose: Implements structured enterprise use-case extraction.
-// Scope: Owns source-evidence preparation and extraction caching.
-
 import {
   contentHash,
   getCachedUseCaseExtraction,

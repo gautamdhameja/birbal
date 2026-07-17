@@ -17,7 +17,6 @@ import {
   getItemByUrl,
   getScore,
   initDb,
-  itemExistsByUrl,
   listRecentItems,
   listTopScoredItems,
   listTopScoredItemsByIds,
@@ -75,10 +74,10 @@ describe("SQLite item persistence", () => {
     const dbPath = join(mkdtempSync(join(tmpdir(), "birbal-db-")), "agent.db");
     initDb(dbPath);
 
-    assert.equal(itemExistsByUrl("https://example.com/item"), false);
+    assert.equal(getItemByUrl("https://example.com/item"), null);
 
     upsertItem(item({ title: "Original" }));
-    assert.equal(itemExistsByUrl("https://example.com/item"), true);
+    assert.ok(getItemByUrl("https://example.com/item"));
 
     upsertItem(item({ title: "Updated", summary: "updated summary" }));
 
@@ -154,10 +153,10 @@ describe("SQLite item persistence", () => {
 
     initDb(firstDbPath);
     upsertItem(item({ url: "https://example.com/first" }));
-    assert.equal(itemExistsByUrl("https://example.com/first"), true);
+    assert.ok(getItemByUrl("https://example.com/first"));
 
     initDb(secondDbPath);
-    assert.equal(itemExistsByUrl("https://example.com/first"), false);
+    assert.equal(getItemByUrl("https://example.com/first"), null);
   });
 
   it("retries initialization after a migration failure", () => {
@@ -170,7 +169,7 @@ describe("SQLite item persistence", () => {
     rmSync(dbPath);
 
     initDb(dbPath);
-    assert.equal(itemExistsByUrl("https://example.com/recovered"), false);
+    assert.equal(getItemByUrl("https://example.com/recovered"), null);
   });
 
   it("migrates existing items to the enterprise candidate shape", () => {
@@ -329,7 +328,7 @@ describe("SQLite item persistence", () => {
     closeDb();
 
     initDb(dbPath);
-    assert.equal(itemExistsByUrl("https://example.com/reopen"), true);
+    assert.ok(getItemByUrl("https://example.com/reopen"));
   });
 
   it("stores shared pipeline run metadata", () => {

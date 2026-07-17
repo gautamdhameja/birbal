@@ -1,31 +1,14 @@
-// Purpose: Implements the source-domain search helper: domain.
-// Scope: Combines source registry data with web search results.
-
 import type { SourceRegistryItem } from "../config/sourceRegistry.js";
 import { loadSourceRegistry } from "../config/sourceRegistry.js";
 import { searchWeb } from "../brave-search/client.js";
 import type { SearchWebResult } from "../brave-search/client.js";
-import { CONTENT_FETCH_STATUSES } from "../daily/types.js";
-import type { CandidateSourceType, ContentFetchStatus } from "../daily/types.js";
+import { CONTENT_FETCH_STATUSES } from "../constants/candidates.js";
+import type { CandidateItem } from "../daily/types.js";
 import { mapLimit } from "../../framework/pipeline/concurrency.js";
-import { normalizeUrl } from "../utils/url.js";
+import { normalizeUrl } from "../../framework/network/normalizeUrl.js";
 
 const SITE_QUERY_PREFIX = "site:";
 const DOMAIN_SEARCH_CONCURRENCY = 3;
-
-export type SourceDomainCandidate = {
-  id: string;
-  sourceId: string;
-  sourceName: string;
-  sourceType: CandidateSourceType;
-  title: string;
-  url: string;
-  summary: string;
-  publishedAt: string;
-  discoveredAt: string;
-  contentFetchStatus: ContentFetchStatus;
-  raw: unknown;
-};
 
 export type SearchSourceDomainOptions = {
   sourceId: string;
@@ -71,7 +54,7 @@ function isSourceDomainUrl(url: string, domains: readonly string[]): boolean {
 function toSourceDomainCandidate(
   source: SourceRegistryItem,
   result: SearchWebResult,
-): SourceDomainCandidate | undefined {
+): CandidateItem | undefined {
   const url = normalizeUrl(result.url);
   if (!url || !isSourceDomainUrl(url, source.domains)) {
     return undefined;
@@ -92,19 +75,16 @@ function toSourceDomainCandidate(
   };
 }
 
-function dedupeSourceDomainCandidates(
-  candidates: SourceDomainCandidate[],
-): SourceDomainCandidate[] {
+function dedupeSourceDomainCandidates(candidates: CandidateItem[]): CandidateItem[] {
   const seen = new Set<string>();
-  const deduped: SourceDomainCandidate[] = [];
+  const deduped: CandidateItem[] = [];
 
   for (const candidate of candidates) {
-    const canonicalUrl = normalizeUrl(candidate.url);
-    if (seen.has(canonicalUrl)) {
+    if (seen.has(candidate.url)) {
       continue;
     }
 
-    seen.add(canonicalUrl);
+    seen.add(candidate.url);
     deduped.push(candidate);
   }
 
@@ -114,7 +94,7 @@ function dedupeSourceDomainCandidates(
 export async function searchSourceDomain(
   { sourceId, query, maxResults = 10, signal }: SearchSourceDomainOptions,
   dependencies: SearchSourceDomainDependencies = {},
-): Promise<SourceDomainCandidate[]> {
+): Promise<CandidateItem[]> {
   const sourceRegistry = dependencies.sourceRegistry ?? loadSourceRegistry();
   const source = findSource(sourceId, sourceRegistry.sources);
   const candidateGroups = await mapLimit(
@@ -127,7 +107,7 @@ export async function searchSourceDomain(
         signal,
       });
 
-      const candidates: SourceDomainCandidate[] = [];
+      const candidates: CandidateItem[] = [];
       for (const result of results) {
         const candidate = toSourceDomainCandidate(source, result);
         if (candidate) {

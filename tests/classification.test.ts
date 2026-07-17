@@ -10,7 +10,6 @@ import { SOURCES } from "../src/app/constants/sources.js";
 import {
   classifyCandidateCategory,
   fallbackCategoryFromScore,
-  parseCategoryClassification,
 } from "../src/app/daily/classification.js";
 import type { CandidateItem, ItemScore } from "../src/app/daily/types.js";
 
@@ -106,31 +105,48 @@ describe("digest category classification", () => {
     );
   });
 
-  it("parses LLM category classifications", () => {
+  it("parses LLM category classifications", async () => {
     assert.equal(
-      parseCategoryClassification('{"category":"agentic_implementation"}'),
+      await classifyCandidateCategory(
+        candidate({
+          sourceName: "Journal",
+          title: "Technical report",
+          summary: "Detailed analysis",
+        }),
+        score(),
+        { completeFn: async () => '{"category":"agentic_implementation"}' },
+      ),
       CANDIDATE_CATEGORIES.AGENTIC_IMPLEMENTATION,
     );
   });
 
-  it("rejects invalid model category classifications", () => {
-    assert.throws(
-      () => parseCategoryClassification('{"category":"news"}'),
-      /invalid category classification/i,
+  it("falls back after invalid model category classifications", async () => {
+    assert.equal(
+      await classifyCandidateCategory(
+        candidate({
+          sourceName: "Journal",
+          title: "Technical report",
+          summary: "Detailed analysis",
+        }),
+        score(),
+        { completeFn: async () => '{"category":"news"}' },
+      ),
+      CANDIDATE_CATEGORIES.ENTERPRISE_USE_CASE,
     );
   });
 
-  it("rejects rejected classifications when the score is not rejected", () => {
-    assert.throws(
-      () =>
-        parseCategoryClassification('{"category":"rejected"}', [
-          CANDIDATE_CATEGORIES.ENTERPRISE_USE_CASE,
-          CANDIDATE_CATEGORIES.WORKFLOW_REDESIGN,
-          CANDIDATE_CATEGORIES.AGENTIC_IMPLEMENTATION,
-          CANDIDATE_CATEGORIES.FDE_CUSTOMER_DEPLOYMENT,
-          CANDIDATE_CATEGORIES.GOVERNANCE_ROI,
-        ]),
-      /invalid category classification/i,
+  it("does not accept rejected model classifications for accepted scores", async () => {
+    assert.equal(
+      await classifyCandidateCategory(
+        candidate({
+          sourceName: "Journal",
+          title: "Technical report",
+          summary: "Detailed analysis",
+        }),
+        score(),
+        { completeFn: async () => '{"category":"rejected"}' },
+      ),
+      CANDIDATE_CATEGORIES.ENTERPRISE_USE_CASE,
     );
   });
 });

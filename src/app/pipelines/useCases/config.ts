@@ -1,6 +1,3 @@
-// Purpose: Defines and validates the enterprise use-case pipeline's configuration contract.
-// Scope: Keeps app-specific limits and settings out of the generic pipeline framework.
-
 import { z } from "zod";
 
 import { loadPipelineConfig } from "../../../framework/pipeline/config.js";

@@ -1,6 +1,3 @@
-// Purpose: Provides small assertion helpers for Birbal eval suites.
-// Scope: Keeps eval cases readable without coupling to the test runner.
-
 import type { EvalAssertionResult } from "../../framework/evals/types.js";
 
 export function expectEqual<TValue>(

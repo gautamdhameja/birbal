@@ -1,6 +1,3 @@
-// Purpose: Collects shared model provider constants.
-// Scope: Keeps provider IDs, defaults, and error messages in one integration-focused module.
-
 export const MODEL_PROVIDERS = {
   DEFAULT_PROVIDER: "llama_cpp",
   PROVIDERS: {

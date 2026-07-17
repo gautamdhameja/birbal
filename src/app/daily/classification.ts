@@ -1,9 +1,6 @@
-// Purpose: Implements the daily reading pipeline support: classification.
-// Scope: Contains Birbal-specific digest scoring, classification, and rendering helpers.
-
 import { z } from "zod";
 
-import { AGENT } from "../constants/agent.js";
+import { FRAMEWORK_AGENT as AGENT } from "../../framework/agent/constants.js";
 import { CANDIDATE_CATEGORIES } from "../constants/candidates.js";
 import { CLASSIFICATION } from "../constants/classification.js";
 import { MODEL_PROVIDERS } from "../constants/model-providers.js";
@@ -14,7 +11,6 @@ import {
 import type { ChatMessage, ModelClient, ModelCompleteOptions } from "../../framework/llm/types.js";
 import { logger } from "../logging/logger.js";
 import { getDefaultModelClient } from "../model-providers/default.js";
-import { parseJson } from "../utils/json.js";
 import type { CandidateCategory, CandidateItem, ItemScore } from "./types.js";
 
 const CATEGORY_VALUES = Object.values(CANDIDATE_CATEGORIES) as [
@@ -149,18 +145,6 @@ function buildClassificationPrompt(candidate: CandidateItem, score: ItemScore): 
       [CLASSIFICATION.RESPONSE_FIELDS.CATEGORY]: CANDIDATE_CATEGORIES.ENTERPRISE_USE_CASE,
     }),
   ].join("\n");
-}
-
-export function parseCategoryClassification(
-  raw: string,
-  categories: [CandidateCategory, ...CandidateCategory[]] = CATEGORY_VALUES,
-): CandidateCategory {
-  const parsed = categoryClassificationSchema(categories).safeParse(parseJson(raw));
-  if (!parsed.success) {
-    throw new Error(`${CLASSIFICATION.ERRORS.INVALID_CLASSIFICATION} ${parsed.error.message}`);
-  }
-
-  return parsed.data.category;
 }
 
 function categoryClassificationSchema(categories: [CandidateCategory, ...CandidateCategory[]]) {

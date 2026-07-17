@@ -1,75 +1,13 @@
-// Purpose: Runs configured pipelines from the command line.
-// Scope: Parses CLI flags and delegates execution to the generic orchestrator.
-
-import { pathToFileURL } from "node:url";
-
-import { Command, InvalidArgumentError } from "commander";
-import dotenv from "dotenv";
-
-import { ENV_FILE_PATHS, LOGGING, OUTPUT } from "./constants/runtime.js";
+import { LOGGING, OUTPUT } from "./constants/runtime.js";
 import type { PipelineConfig } from "../framework/pipeline/types.js";
 
-type CliOptions = {
+export type PipelineCliOptions = {
   configPath?: string;
   dryRun: boolean;
   limit?: number;
   pipelineId?: string;
   trace: boolean;
 };
-
-dotenv.config({ path: ENV_FILE_PATHS, quiet: true });
-
-function isMainModule(): boolean {
-  const entryPoint = process.argv[1];
-  return entryPoint ? import.meta.url === pathToFileURL(entryPoint).href : false;
-}
-
-function parsePositiveInteger(value: string): number {
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 1) {
-    throw new InvalidArgumentError("must be a positive integer.");
-  }
-
-  return parsed;
-}
-
-export type PipelineCliOptions = CliOptions;
-
-export function parsePipelineCliArgs(
-  args: readonly string[],
-  commandName = "run-pipeline",
-): PipelineCliOptions {
-  const program = new Command()
-    .name(commandName)
-    .argument("[pipelineId]", "pipeline ID to run")
-    .option("--trace", "enable debug tracing")
-    .option("--dry-run", "print resolved config without running")
-    .option("--limit <number>", "limit final output count", parsePositiveInteger)
-    .option("--config <path>", "load pipeline config from a file path")
-    .showHelpAfterError();
-
-  program.parse(args, { from: "user" });
-  const parsedOptions = program.opts<{
-    config?: string;
-    dryRun?: boolean;
-    limit?: number;
-    trace?: boolean;
-  }>();
-  const pipelineId = program.args[0];
-  const options: CliOptions = {
-    configPath: parsedOptions.config,
-    dryRun: Boolean(parsedOptions.dryRun),
-    limit: parsedOptions.limit,
-    pipelineId,
-    trace: Boolean(parsedOptions.trace),
-  };
-
-  if (!options.pipelineId && !options.configPath) {
-    throw new Error("Usage: pnpm run-pipeline <pipelineId> [--config path] [--limit n]");
-  }
-
-  return options;
-}
 
 export function applyPipelineCliLimit(
   config: PipelineConfig,
@@ -158,15 +96,4 @@ export async function runPipelineFromCliOptions(options: PipelineCliOptions): Pr
   }
 
   console.log(JSON.stringify(result, null, OUTPUT.JSON_INDENT_SPACES));
-}
-
-export async function runPipelineCli(
-  args: readonly string[] = process.argv.slice(2),
-  commandName = "run-pipeline",
-): Promise<void> {
-  await runPipelineFromCliOptions(parsePipelineCliArgs(args, commandName));
-}
-
-if (isMainModule()) {
-  await runPipelineCli();
 }

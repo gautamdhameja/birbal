@@ -1,6 +1,3 @@
-// Purpose: Implements daily enterprise deployment scoring.
-// Scope: Owns item persistence, model scoring, and score persistence.
-
 import { getItemByUrl, upsertItem, upsertScore } from "../../../db/items.js";
 import {
   scoreItem as scoreDailyItem,

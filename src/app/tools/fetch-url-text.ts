@@ -1,12 +1,9 @@
-// Purpose: Implements the Birbal tool module: fetch url text.
-// Scope: Defines concrete tools and wires them into the generic tool framework.
-
 import { z } from "zod";
 
 import { TOOLS } from "../constants/tools.js";
-import { URL_TEXT } from "../constants/url-text.js";
+import { URL_TEXT } from "../../framework/content/constants.js";
 import { fetchUrlText } from "../url-text/client.js";
-import type { ToolDefinition } from "./types.js";
+import type { ToolDefinition } from "../../framework/tools/types.js";
 
 const FetchUrlTextArgsSchema = z.strictObject({
   url: z.url(),

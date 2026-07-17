@@ -1,6 +1,3 @@
-// Purpose: Defines deterministic evals for enterprise use-case extraction behavior.
-// Scope: Checks extraction schema, filtering, and source-grounding with mocked model output.
-
 import { SOURCE_REGISTRY } from "../../constants/source-registry.js";
 import { CONTENT_FETCH_STATUSES } from "../../constants/candidates.js";
 import type { CandidateItem } from "../../daily/types.js";

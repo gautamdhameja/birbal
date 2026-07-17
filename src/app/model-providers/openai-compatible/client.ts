@@ -1,13 +1,14 @@
-// Purpose: Implements a raw HTTP OpenAI-compatible chat completion client.
-// Scope: Handles provider-neutral request building, auth headers, response validation, and tracing.
-
 import { randomUUID } from "node:crypto";
 
 import { MODEL_PROVIDERS } from "../../constants/model-providers.js";
-import { HTTP } from "../../constants/runtime.js";
+import { HTTP } from "../../../framework/network/constants.js";
 import { fetchWithTimeout } from "../../../framework/network/fetch.js";
-import type { ModelClient } from "../../../framework/llm/types.js";
-import { buildHttpStatusError, readResponseJson } from "../../http/client.js";
+import type {
+  ChatMessage,
+  ModelClient,
+  ModelCompleteOptions as CompleteOptions,
+} from "../../../framework/llm/types.js";
+import { buildHttpStatusError, readResponseJson } from "../../../framework/network/client.js";
 import { logger } from "../../logging/logger.js";
 import {
   CompleteOptionsSchema,
@@ -15,7 +16,7 @@ import {
   OpenAICompatibleChatCompletionResponseSchema,
   OpenAICompatibleConfigSchema,
 } from "./schema.js";
-import type { ChatMessage, CompleteOptions, OpenAICompatibleConfig } from "./schema.js";
+import type { OpenAICompatibleConfig } from "./schema.js";
 
 type TokenUsage = {
   prompt_tokens?: number;

@@ -1,11 +1,11 @@
-// Purpose: Defines schemas for OpenAI-compatible chat completion providers.
-// Scope: Validates the shared request, response, options, and provider config contract.
-
 import { z } from "zod";
 
-import { AGENT } from "../../constants/agent.js";
+import { FRAMEWORK_AGENT as AGENT } from "../../../framework/agent/constants.js";
 import { MODEL_PROVIDERS } from "../../constants/model-providers.js";
-import { httpUrlErrorMessage, isHttpUrlWithoutCredentials } from "../../http/url.js";
+import {
+  httpUrlErrorMessage,
+  isHttpUrlWithoutCredentials,
+} from "../../../framework/network/url.js";
 
 export const ChatMessageSchema = z.strictObject({
   role: z.enum([AGENT.ROLES.SYSTEM, AGENT.ROLES.USER, AGENT.ROLES.ASSISTANT]),
@@ -74,12 +74,4 @@ export const OpenAICompatibleConfigSchema = z.strictObject({
   apiKey: z.string().min(1).optional(),
 });
 
-export type ChatMessage = z.infer<typeof ChatMessageSchema>;
-export type CompleteOptions = z.infer<typeof CompleteOptionsSchema>;
-export type OpenAICompatibleChatCompletionRequest = z.infer<
-  typeof OpenAICompatibleChatCompletionRequestSchema
->;
-export type OpenAICompatibleChatCompletionResponse = z.infer<
-  typeof OpenAICompatibleChatCompletionResponseSchema
->;
 export type OpenAICompatibleConfig = z.infer<typeof OpenAICompatibleConfigSchema>;

@@ -1,6 +1,3 @@
-// Purpose: Collects shared arxiv constants.
-// Scope: Avoids scattering repeated literals across runtime modules.
-
 export const ARXIV = {
   ALLOWED_HOSTS: ["export.arxiv.org"],
   RETRYABLE_STATUSES: [429, 503],
@@ -30,7 +27,6 @@ export const ARXIV = {
   },
   ERRORS: {
     HTTP_FAILED_PREFIX: "arXiv request failed with HTTP",
-    EXHAUSTED_RETRIES: "arXiv request failed after exhausting retry attempts.",
   },
 } as const;
 

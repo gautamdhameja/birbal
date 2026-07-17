@@ -1,6 +1,3 @@
-// Purpose: Applies freshness rules for enterprise use-case newsletter candidates.
-// Scope: Keeps date-window checks shared across search results and extracted use cases.
-
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function startOfUtcDay(date: Date): number {

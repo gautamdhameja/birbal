@@ -1,16 +1,12 @@
-// Purpose: Renders daily reading items into Markdown.
-// Scope: Keeps daily-specific digest presentation helpers out of the generic framework.
-
 import { CANDIDATE_CATEGORIES } from "../constants/candidates.js";
 import { DIGEST } from "../constants/digest.js";
-import { TIME } from "../constants/time.js";
-import { formatDateOnly } from "../utils/date.js";
+import { formatDateOnly } from "../../framework/pipeline/date.js";
 import type { ScoredCandidateItem } from "./types.js";
 
 type DigestDate = Date | string;
 
 function pad(value: number): string {
-  return String(value).padStart(TIME.DEFAULT_PAD_LENGTH, "0");
+  return String(value).padStart(2, "0");
 }
 
 export function formatDigestDate(date: DigestDate): string {

@@ -1,9 +1,6 @@
-// Purpose: Verifies extracted enterprise use cases against source-grounded evidence.
-// Scope: Uses the original source URL and linked source-page evidence without web search.
-
 import { z } from "zod";
 
-import { AGENT } from "../../constants/agent.js";
+import { FRAMEWORK_AGENT as AGENT } from "../../../framework/agent/constants.js";
 import { MODEL_PROVIDERS } from "../../constants/model-providers.js";
 import { completeStructuredWithRepair } from "../../../framework/llm/repair.js";
 import type {
@@ -13,13 +10,11 @@ import type {
 } from "../../../framework/llm/types.js";
 import { logger } from "../../logging/logger.js";
 import { getDefaultModelClient } from "../../model-providers/default.js";
-import { normalizeUrl } from "../../utils/url.js";
+import { normalizeUrl } from "../../../framework/network/normalizeUrl.js";
 import type { EnterpriseUseCase } from "./schema.js";
 import {
-  extractSourceEvidenceLinks,
   fetchSourceEvidence,
   type SourceEvidence,
-  type SourceEvidenceDocument,
   type SourceEvidenceFetchPolicy,
 } from "./sourceEvidence.js";
 
@@ -39,10 +34,6 @@ export type EnterpriseUseCaseVerification = z.infer<typeof EnterpriseUseCaseVeri
 export type VerifiedEnterpriseUseCase = EnterpriseUseCase & {
   verification: EnterpriseUseCaseVerification;
 };
-
-export type VerificationEvidenceDocument = SourceEvidenceDocument;
-
-export type VerificationEvidence = SourceEvidence;
 
 export type FetchVerificationEvidenceOptions = {
   maxLinks?: number;
@@ -65,20 +56,19 @@ export type VerifySelectedEnterpriseUseCasesOptions = VerifyEnterpriseUseCaseOpt
     fetchEvidence?(
       useCase: EnterpriseUseCase,
       options: FetchVerificationEvidenceOptions,
-    ): Promise<VerificationEvidence>;
+    ): Promise<SourceEvidence>;
     getCachedVerification?(
       useCase: EnterpriseUseCase,
-      evidence: VerificationEvidence,
+      evidence: SourceEvidence,
     ): EnterpriseUseCaseVerification | null;
     minVerificationConfidenceScore?: number;
     upsertVerificationCache?(
       useCase: EnterpriseUseCase,
-      evidence: VerificationEvidence,
+      evidence: SourceEvidence,
       verification: EnterpriseUseCaseVerification,
     ): void;
   };
 
-const DEFAULT_MAX_LINKS = 2;
 const DEFAULT_PROMPT_SOURCE_MAX_CHARS = 5_000;
 const DEFAULT_PROMPT_LINKED_MAX_CHARS = 1_500;
 const MODEL_TEMPERATURE = 0;
@@ -97,18 +87,10 @@ function sourceTextForUrl(
   return sourceTextByUrl?.get(normalizeUrl(url));
 }
 
-export function extractVerificationLinks(
-  html: string,
-  baseUrl: string,
-  maxLinks = DEFAULT_MAX_LINKS,
-): string[] {
-  return extractSourceEvidenceLinks(html, baseUrl, maxLinks);
-}
-
 export async function fetchEnterpriseUseCaseEvidence(
   useCase: EnterpriseUseCase,
   options: FetchVerificationEvidenceOptions = {},
-): Promise<VerificationEvidence> {
+): Promise<SourceEvidence> {
   const fallbackSourceText = sourceTextForUrl(useCase.sourceUrl, options.sourceTextByUrl);
   return fetchSourceEvidence(useCase.sourceUrl, {
     ...options,
@@ -135,7 +117,7 @@ function renderUseCaseForVerification(useCase: EnterpriseUseCase): string {
 }
 
 function renderEvidence(
-  evidence: VerificationEvidence,
+  evidence: SourceEvidence,
   promptSourceMaxChars = DEFAULT_PROMPT_SOURCE_MAX_CHARS,
   promptLinkedMaxChars = DEFAULT_PROMPT_LINKED_MAX_CHARS,
 ): string {
@@ -158,7 +140,7 @@ function renderEvidence(
 
 function buildVerificationMessages(
   useCase: EnterpriseUseCase,
-  evidence: VerificationEvidence,
+  evidence: SourceEvidence,
   options: Pick<FetchVerificationEvidenceOptions, "promptLinkedMaxChars" | "promptSourceMaxChars">,
 ): ChatMessage[] {
   return [
@@ -212,7 +194,7 @@ function buildVerificationRepairInstructions(): string {
 
 export async function verifyEnterpriseUseCase(
   useCase: EnterpriseUseCase,
-  evidence: VerificationEvidence,
+  evidence: SourceEvidence,
   options: VerifyEnterpriseUseCaseOptions &
     Pick<FetchVerificationEvidenceOptions, "promptLinkedMaxChars" | "promptSourceMaxChars"> = {},
 ): Promise<EnterpriseUseCaseVerification> {

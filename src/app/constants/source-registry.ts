@@ -1,6 +1,3 @@
-// Purpose: Collects shared source registry constants.
-// Scope: Avoids scattering repeated literals across runtime modules.
-
 export const SOURCE_REGISTRY = {
   DIRECTORY: "config",
   FILE_NAME: "source-registry.json",

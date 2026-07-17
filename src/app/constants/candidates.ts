@@ -1,6 +1,3 @@
-// Purpose: Collects shared candidate constants.
-// Scope: Re-exports framework fetch statuses and defines Birbal digest categories.
-
 export { CONTENT_FETCH_STATUSES } from "../../framework/content/status.js";
 
 export const CANDIDATE_CATEGORIES = {

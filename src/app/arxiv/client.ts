@@ -1,13 +1,10 @@
-// Purpose: Implements the arXiv search integration: client.
-// Scope: Wraps API configuration and parsing for the arXiv tool.
-
 import { XMLParser } from "fast-xml-parser";
 
 import { ARXIV } from "../constants/arxiv.js";
 import type { ArxivSearchMode } from "../constants/arxiv.js";
-import { HTTP } from "../constants/runtime.js";
+import { HTTP } from "../../framework/network/constants.js";
 import { fetchWithRetry } from "../../framework/network/fetch.js";
-import { buildHttpStatusError, readResponseText } from "../http/client.js";
+import { buildHttpStatusError, readResponseText } from "../../framework/network/client.js";
 import { getArxivConfig } from "./config.js";
 
 type ArxivSearchOptions = {

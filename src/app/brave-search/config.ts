@@ -1,10 +1,7 @@
-// Purpose: Implements the Brave Search integration: config.
-// Scope: Contains quota-aware raw HTTP search client behavior.
-
 import { z } from "zod";
 
 import { BRAVE_SEARCH } from "../constants/brave-search.js";
-import { allowedHostErrorMessage, isAllowedHttpUrl } from "../http/url.js";
+import { allowedHostErrorMessage, isAllowedHttpUrl } from "../../framework/network/url.js";
 
 const BraveSearchConfigSchema = z.strictObject({
   BRAVE_SEARCH_API_KEY: z.string().min(1, BRAVE_SEARCH.ERRORS.MISSING_API_KEY),

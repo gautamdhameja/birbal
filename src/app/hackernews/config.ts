@@ -1,10 +1,7 @@
-// Purpose: Implements the Hacker News search integration: config.
-// Scope: Normalizes Algolia API responses for tools and collectors.
-
 import { z } from "zod";
 
 import { HACKER_NEWS } from "../constants/hacker-news.js";
-import { allowedHostErrorMessage, isAllowedHttpUrl } from "../http/url.js";
+import { allowedHostErrorMessage, isAllowedHttpUrl } from "../../framework/network/url.js";
 
 const HackerNewsEnvSchema = z.strictObject({
   HACKERNEWS_SEARCH_URL: z

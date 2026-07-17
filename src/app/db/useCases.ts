@@ -1,10 +1,7 @@
-// Purpose: Implements the SQLite persistence module: use Cases.
-// Scope: Owns storage access for one persisted data shape.
-
 import { createHash } from "node:crypto";
 
 import { EnterpriseUseCaseSchema, type EnterpriseUseCase } from "../pipelines/useCases/schema.js";
-import { normalizeUrl } from "../utils/url.js";
+import { normalizeUrl } from "../../framework/network/normalizeUrl.js";
 import { assertValidLimit, getDb } from "./items.js";
 import { decodePersistedJson } from "./json.js";
 import { USE_CASE_SQL } from "./sql/useCases.js";

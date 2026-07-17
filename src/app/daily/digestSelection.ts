@@ -1,6 +1,3 @@
-// Purpose: Implements the daily reading pipeline support: digest Selection.
-// Scope: Contains Birbal-specific digest scoring, classification, and rendering helpers.
-
 import { CANDIDATE_CATEGORIES, CONTENT_FETCH_STATUSES } from "../constants/candidates.js";
 import { DAILY_READING } from "../constants/daily.js";
 import type { UserPreferences } from "../memory/types.js";
@@ -261,17 +258,16 @@ function selectedCategoryCounts(
 
 function skippedConstraintReason(
   item: ScoredCandidateItem,
-  selectedItems: readonly ScoredCandidateItem[],
   sourceCounts: SourceCounts,
   preferences: UserPreferences,
+  targetCounts: ReadonlyMap<CandidateCategory, number>,
+  selectedCounts: ReadonlyMap<string, number>,
 ): string | null {
   if ((sourceCounts.get(item.sourceId) ?? 0) >= preferences.maxItemsPerSource) {
     return `source limit reached for ${item.sourceName}`;
   }
 
   const category = item.category ?? CANDIDATE_CATEGORIES.REJECTED;
-  const targetCounts = targetCategoryCounts();
-  const selectedCounts = selectedCategoryCounts(selectedItems);
   const targetCount = targetCounts.get(category);
 
   if (targetCount !== undefined && (selectedCounts.get(category) ?? 0) >= targetCount) {
@@ -296,12 +292,20 @@ function buildSkippedDueConstraints(
   preferences: UserPreferences,
 ): DigestSelectionTrace["skippedDueConstraints"] {
   const selectedIds = new Set(selectedItems.map((item) => item.id));
+  const targetCounts = targetCategoryCounts();
+  const selectedCounts = selectedCategoryCounts(selectedItems);
 
   return eligibleItems
     .filter((item) => !selectedIds.has(item.id))
     .sort((left, right) => right.score.finalScore - left.score.finalScore)
     .flatMap((item) => {
-      const reason = skippedConstraintReason(item, selectedItems, sourceCounts, preferences);
+      const reason = skippedConstraintReason(
+        item,
+        sourceCounts,
+        preferences,
+        targetCounts,
+        selectedCounts,
+      );
       if (!reason) {
         return [];
       }
@@ -361,11 +365,4 @@ export function selectDigestItemsWithTrace(
       ),
     },
   };
-}
-
-export function selectDigestItems(
-  items: ScoredCandidateItem[],
-  preferences: UserPreferences,
-): ScoredCandidateItem[] {
-  return selectDigestItemsWithTrace(items, preferences).selectedItems;
 }

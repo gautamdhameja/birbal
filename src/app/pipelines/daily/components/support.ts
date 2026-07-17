@@ -1,6 +1,3 @@
-// Purpose: Converts framework run items into daily pipeline domain values.
-// Scope: Shares rubric and item transformations across daily components.
-
 import type { CandidateItem, ItemScore, ScoredCandidateItem } from "../../../daily/types.js";
 import type { PipelineRunItem } from "../../../../framework/pipeline/orchestrator.js";
 import type { PipelineContext } from "../../../../framework/pipeline/types.js";

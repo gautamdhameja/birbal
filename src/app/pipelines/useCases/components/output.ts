@@ -1,6 +1,3 @@
-// Purpose: Implements use-case persistence finalization and Markdown rendering.
-// Scope: Owns successful-run persistence and output formatting.
-
 import { upsertUseCase } from "../../../db/useCases.js";
 import type { PipelineFinalizer, Renderer } from "../../../../framework/pipeline/types.js";
 import { runDateString } from "../../componentHelpers.js";

@@ -1,6 +1,3 @@
-// Purpose: Registers Birbal pipeline components with the framework registry.
-// Scope: Composes framework defaults, shared fetchers, and app-specific component bundles.
-
 import { registerFrameworkPipelineComponents } from "../../framework/pipeline/defaultComponents.js";
 import type { PipelineComponentRegistry } from "../../framework/pipeline/registry.js";
 import { pipelineComponentRegistry } from "../../framework/pipeline/registry.js";

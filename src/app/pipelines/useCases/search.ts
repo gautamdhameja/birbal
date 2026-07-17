@@ -1,9 +1,6 @@
-// Purpose: Implements the Birbal pipeline component: search.
-// Scope: Keeps app-specific pipeline behavior outside the generic framework.
-
 import type { SearchWebResult } from "../../brave-search/client.js";
 import { mapLimit } from "../../../framework/pipeline/concurrency.js";
-import { normalizeUrl } from "../../utils/url.js";
+import { normalizeUrl } from "../../../framework/network/normalizeUrl.js";
 import { isWithinAgeWindow } from "./freshness.js";
 
 export type UseCaseSearchConfig = {

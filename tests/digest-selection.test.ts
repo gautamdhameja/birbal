@@ -6,7 +6,7 @@ import { describe, it } from "node:test";
 
 import { CANDIDATE_CATEGORIES, CONTENT_FETCH_STATUSES } from "../src/app/constants/candidates.js";
 import { SOURCE_REGISTRY } from "../src/app/constants/source-registry.js";
-import { selectDigestItems, selectDigestItemsWithTrace } from "../src/app/daily/digestSelection.js";
+import { selectDigestItemsWithTrace } from "../src/app/daily/digestSelection.js";
 import type { CandidateCategory, ItemScore, ScoredCandidateItem } from "../src/app/daily/types.js";
 import type { UserPreferences } from "../src/app/memory/types.js";
 
@@ -63,6 +63,13 @@ function item(
     score: score(),
     ...overrides,
   };
+}
+
+function selectDigestItems(
+  items: ScoredCandidateItem[],
+  userPreferences: UserPreferences,
+): ScoredCandidateItem[] {
+  return selectDigestItemsWithTrace(items, userPreferences).selectedItems;
 }
 
 describe("enterprise digest item selection", () => {

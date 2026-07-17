@@ -1,6 +1,3 @@
-// Purpose: Resolves use-case component configuration and shared transformations.
-// Scope: Supports focused collector, extractor, selector, and finalizer modules.
-
 import { CONTENT_FETCH_STATUSES } from "../../../constants/candidates.js";
 import type { CandidateItem } from "../../../daily/types.js";
 import {
@@ -15,7 +12,7 @@ import type {
   PipelineCollectionMethod,
   PipelineContext,
 } from "../../../../framework/pipeline/types.js";
-import { normalizeUrl } from "../../../utils/url.js";
+import { normalizeUrl } from "../../../../framework/network/normalizeUrl.js";
 import {
   asRunItem,
   collectionSourceIds,
@@ -32,7 +29,6 @@ import { selectEnterpriseUseCases } from "../selector.js";
 import {
   ENTERPRISE_USE_CASE_VERIFIER_VERSION,
   type EnterpriseUseCaseVerification,
-  type VerificationEvidence,
 } from "../verification.js";
 import type { SourceEvidence } from "../sourceEvidence.js";
 
@@ -238,7 +234,7 @@ export function sourceTextByUrlFromItems(items: readonly PipelineRunItem[]): Map
   return sourceTextByUrl;
 }
 
-export function cachedVerification(useCase: EnterpriseUseCase, evidence: VerificationEvidence) {
+export function cachedVerification(useCase: EnterpriseUseCase, evidence: SourceEvidence) {
   return getCachedUseCaseVerification({
     evidenceHash: evidenceHash(evidence),
     useCaseHash: useCaseHash(useCase),
@@ -248,7 +244,7 @@ export function cachedVerification(useCase: EnterpriseUseCase, evidence: Verific
 
 export function cacheVerification(
   useCase: EnterpriseUseCase,
-  evidence: VerificationEvidence,
+  evidence: SourceEvidence,
   verification: EnterpriseUseCaseVerification,
 ): void {
   upsertUseCaseVerificationCache({

@@ -1,6 +1,3 @@
-// Purpose: Implements verified enterprise use-case selection.
-// Scope: Owns incremental verification and final selection policy.
-
 import type { PipelineRunItem } from "../../../../framework/pipeline/orchestrator.js";
 import { selectWithIncrementalAcceptance } from "../../../../framework/pipeline/selection.js";
 import type { Selector } from "../../../../framework/pipeline/types.js";
@@ -29,7 +26,9 @@ export const enterpriseUseCaseSelector: Selector = {
     );
     const selectorConfig = useCaseSelectorConfigFromContext(context, config);
     const targetCount = selectorConfig.maxUseCasesPerRun ?? 10;
-    const verified = verificationEnabled(config)
+    const shouldVerify = verificationEnabled(config);
+    const sourceTextByUrl = shouldVerify ? sourceTextByUrlFromItems(runItems) : undefined;
+    const verified = shouldVerify
       ? await selectWithIncrementalAcceptance({
           candidates: extractedUseCases,
           batchSize: verificationBatchSize(config, targetCount),
@@ -43,7 +42,7 @@ export const enterpriseUseCaseSelector: Selector = {
           acceptCandidates: (candidates) =>
             verifySelectedEnterpriseUseCases(candidates, {
               ...verificationConfig(config),
-              sourceTextByUrl: sourceTextByUrlFromItems(runItems),
+              sourceTextByUrl,
               traceId: context.runId,
               traceLabel: "pipeline.use_cases.enterprise_use_case_verifier",
               completeFn: context.modelClient.complete,

@@ -1,6 +1,3 @@
-// Purpose: Collects shared classification constants.
-// Scope: Avoids scattering repeated literals across runtime modules.
-
 export const CLASSIFICATION = {
   MODEL_TEMPERATURE: 0,
   MAX_TOKENS: 200,
@@ -67,9 +64,6 @@ export const CLASSIFICATION = {
   },
   REPAIR_PROMPT:
     "Your previous response was not valid JSON. Return only one valid JSON object with a valid category.",
-  ERRORS: {
-    INVALID_CLASSIFICATION: "Model returned an invalid category classification.",
-  },
   LOG_EVENTS: {
     FALLBACK_CATEGORY: "classification_fallback_category",
   },

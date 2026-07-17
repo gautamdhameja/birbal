@@ -1,6 +1,3 @@
-// Purpose: Defines SQLite statements for the searchSnapshots database domain.
-// Scope: Owns reusable search snapshot statements.
-
 export const SEARCH_SNAPSHOT_SQL = {
   CREATE_SEARCH_SNAPSHOT: `
       INSERT INTO search_snapshots (

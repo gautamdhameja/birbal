@@ -1,6 +1,3 @@
-// Purpose: Builds source-independent dedupe keys for enterprise use-case selection.
-// Scope: Keeps newsletter repetition rules separate from persistence IDs and URLs.
-
 import { createHash } from "node:crypto";
 
 import { hasNamedEnterpriseCompany, type EnterpriseUseCase } from "./schema.js";

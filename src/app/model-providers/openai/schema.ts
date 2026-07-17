@@ -1,6 +1,3 @@
-// Purpose: Defines hosted OpenAI provider schemas.
-// Scope: Validates OpenAI env/config while reusing the OpenAI-compatible transport contract.
-
 import { z } from "zod";
 
 import { MODEL_PROVIDERS } from "../../constants/model-providers.js";

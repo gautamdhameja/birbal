@@ -1,9 +1,6 @@
-// Purpose: Persists reusable search result snapshots for model-only pipeline runs.
-// Scope: Stores source acquisition outputs separately from extraction and digest runs.
-
 import { randomUUID } from "node:crypto";
 
-import { normalizeUrl } from "../utils/url.js";
+import { normalizeUrl } from "../../framework/network/normalizeUrl.js";
 import { assertValidLimit, getDb } from "./items.js";
 import { decodePersistedJson } from "./json.js";
 import { SEARCH_SNAPSHOT_SQL } from "./sql/searchSnapshots.js";

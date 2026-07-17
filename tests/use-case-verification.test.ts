@@ -5,13 +5,15 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
-  extractVerificationLinks,
   fetchEnterpriseUseCaseEvidence,
   isAcceptedEnterpriseUseCaseVerification,
   verifyEnterpriseUseCase,
   verifySelectedEnterpriseUseCases,
-  type VerificationEvidence,
 } from "../src/app/pipelines/useCases/verification.js";
+import {
+  extractSourceEvidenceLinks,
+  type SourceEvidence,
+} from "../src/app/pipelines/useCases/sourceEvidence.js";
 import type { EnterpriseUseCase } from "../src/app/pipelines/useCases/schema.js";
 
 function useCase(overrides: Partial<EnterpriseUseCase> = {}): EnterpriseUseCase {
@@ -38,7 +40,7 @@ function useCase(overrides: Partial<EnterpriseUseCase> = {}): EnterpriseUseCase 
   };
 }
 
-function evidence(): VerificationEvidence {
+function evidence(): SourceEvidence {
   return {
     source: {
       url: "https://example.com/acme-support",
@@ -58,7 +60,7 @@ function evidence(): VerificationEvidence {
 
 describe("enterprise use case verification", () => {
   it("extracts relevant bounded verification links from the source page", () => {
-    const links = extractVerificationLinks(
+    const links = extractSourceEvidenceLinks(
       `
         <footer><a href="/privacy">Privacy</a></footer>
         <main>

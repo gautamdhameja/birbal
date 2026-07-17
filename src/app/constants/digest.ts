@@ -1,10 +1,4 @@
-// Purpose: Collects shared digest constants.
-// Scope: Avoids scattering repeated literals across runtime modules.
-
 export const DIGEST = {
-  DIRECTORY: "digests",
-  FILE_EXTENSION: ".md",
-  TOP_ITEMS: 5,
   TITLE: "Daily Reading Digest",
   SCORE_DECIMAL_PLACES: 2,
   SUMMARY_MAX_LENGTH: 400,

@@ -1,6 +1,3 @@
-// Purpose: Loads hosted OpenAI model provider configuration.
-// Scope: Supplies OpenAI defaults to the shared OpenAI-compatible provider config.
-
 import { MODEL_PROVIDERS } from "../../constants/model-providers.js";
 import { getOpenAICompatibleProviderConfig } from "../config.js";
 import { OpenAIConfigSchema } from "./schema.js";

@@ -1,6 +1,3 @@
-// Purpose: Shares Birbal pipeline component adapter helpers.
-// Scope: Keeps app-specific framework glue out of individual component modules.
-
 import { loadSourceRegistry } from "../config/sourceRegistry.js";
 import type { SourceRegistry } from "../config/sourceRegistry.js";
 import { CONTENT_FETCH_STATUSES } from "../constants/candidates.js";

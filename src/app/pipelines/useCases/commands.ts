@@ -1,6 +1,3 @@
-// Purpose: Provides use-case-specific CLI workflows for search snapshots and model processing.
-// Scope: Keeps app-specific acquisition/process commands out of the generic pipeline runner.
-
 import { searchWeb, type SearchWebResult } from "../../brave-search/client.js";
 import { loadSourceRegistry } from "../../config/sourceRegistry.js";
 import { OUTPUT } from "../../constants/runtime.js";
@@ -36,7 +33,6 @@ export type UseCaseSearchCommandOptions = {
 export type UseCaseProcessCommandOptions = UseCaseSearchCommandOptions & {
   dryRun?: boolean;
   snapshotId?: string;
-  trace?: boolean;
 };
 
 type UseCaseSearchRetryConfig = {

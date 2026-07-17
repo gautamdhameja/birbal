@@ -1,9 +1,6 @@
-// Purpose: Implements the Birbal pipeline component: extractor.
-// Scope: Keeps app-specific pipeline behavior outside the generic framework.
-
 import { z } from "zod";
 
-import { AGENT } from "../../constants/agent.js";
+import { FRAMEWORK_AGENT as AGENT } from "../../../framework/agent/constants.js";
 import { MODEL_PROVIDERS } from "../../constants/model-providers.js";
 import type { CandidateItem } from "../../daily/types.js";
 import { completeStructuredWithRepair, ModelParseError } from "../../../framework/llm/repair.js";
@@ -14,7 +11,7 @@ import type {
 } from "../../../framework/llm/types.js";
 import { logger } from "../../logging/logger.js";
 import { getDefaultModelClient } from "../../model-providers/default.js";
-import { normalizeUrl } from "../../utils/url.js";
+import { normalizeUrl } from "../../../framework/network/normalizeUrl.js";
 import {
   EnterpriseUseCaseSchema,
   isEligibleEnterpriseUseCase,

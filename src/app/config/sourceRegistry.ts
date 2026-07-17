@@ -1,6 +1,3 @@
-// Purpose: Implements the runtime configuration loader: source Registry.
-// Scope: Validates external config before pipeline use.
-
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 

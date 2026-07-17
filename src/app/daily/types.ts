@@ -1,9 +1,5 @@
-// Purpose: Implements the daily reading pipeline support: types.
-// Scope: Contains Birbal-specific digest scoring, classification, and rendering helpers.
-
-import { CANDIDATE_CATEGORIES, CONTENT_FETCH_STATUSES } from "../constants/candidates.js";
+import type { CANDIDATE_CATEGORIES, CONTENT_FETCH_STATUSES } from "../constants/candidates.js";
 import type { SOURCE_REGISTRY } from "../constants/source-registry.js";
-export { CANDIDATE_CATEGORIES, CONTENT_FETCH_STATUSES };
 
 export type ContentFetchStatus =
   (typeof CONTENT_FETCH_STATUSES)[keyof typeof CONTENT_FETCH_STATUSES];

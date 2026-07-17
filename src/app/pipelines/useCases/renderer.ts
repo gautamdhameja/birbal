@@ -1,8 +1,5 @@
-// Purpose: Renders selected enterprise use cases into newsletter Markdown.
-// Scope: Keeps use-case-specific presentation logic out of the generic pipeline framework.
-
 import { DIGEST } from "../../constants/digest.js";
-import { formatDateOnly } from "../../utils/date.js";
+import { formatDateOnly } from "../../../framework/pipeline/date.js";
 import {
   hasNamedEnterpriseCompany,
   isMissingEnterpriseUseCaseText,

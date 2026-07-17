@@ -1,6 +1,3 @@
-// Purpose: Implements daily digest mix selection.
-// Scope: Owns selection persistence, trace logging, and output limits.
-
 import { upsertItem } from "../../../db/items.js";
 import { selectDigestItemsWithTrace } from "../../../daily/digestSelection.js";
 import type { Selector } from "../../../../framework/pipeline/types.js";

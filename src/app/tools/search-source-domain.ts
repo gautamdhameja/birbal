@@ -1,12 +1,9 @@
-// Purpose: Implements the Birbal tool module: search source domain.
-// Scope: Defines concrete tools and wires them into the generic tool framework.
-
 import { z } from "zod";
 
 import { BRAVE_SEARCH } from "../constants/brave-search.js";
 import { TOOLS } from "../constants/tools.js";
 import { searchSourceDomain } from "../source-search/domain.js";
-import type { ToolDefinition } from "./types.js";
+import type { ToolDefinition } from "../../framework/tools/types.js";
 
 const SearchSourceDomainArgsSchema = z.strictObject({
   sourceId: z.string().min(1),

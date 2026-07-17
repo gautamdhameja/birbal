@@ -1,6 +1,3 @@
-// Purpose: Defines SQLite statements for the runs database domain.
-// Scope: Owns pipeline run lifecycle statements.
-
 export const RUN_SQL = {
   START_RUN: `
       INSERT INTO runs (

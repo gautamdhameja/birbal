@@ -1,20 +1,17 @@
-// Purpose: Fetches source-page and same-site linked evidence for enterprise use-case extraction.
-// Scope: Uses structural page links only; model judgment decides whether the evidence is useful.
-
 import { load } from "cheerio";
 
-import { HTTP } from "../../constants/runtime.js";
-import { URL_TEXT } from "../../constants/url-text.js";
+import { URL_TEXT } from "../../../framework/content/constants.js";
+import { extractUrlText } from "../../../framework/content/extractText.js";
+import { buildHttpStatusError, readResponseText } from "../../../framework/network/client.js";
+import { HTTP } from "../../../framework/network/constants.js";
 import { fetchPublicHttpWithRetry } from "../../../framework/network/fetch.js";
 import type { PublicHttpFetchOptions } from "../../../framework/network/fetch.js";
-import { buildHttpStatusError, readResponseText } from "../../http/client.js";
 import {
   assertSafePublicHttpUrl,
   type HostResolver,
   unsafeHttpUrlErrorMessage,
-} from "../../http/url.js";
-import { extractUrlText } from "../../url-text/extract.js";
-import { normalizeUrl } from "../../utils/url.js";
+} from "../../../framework/network/url.js";
+import { normalizeUrl } from "../../../framework/network/normalizeUrl.js";
 
 export type SourceEvidenceDocument = {
   url: string;
@@ -89,6 +86,7 @@ export function extractSourceEvidenceLinks(
 
   const { $, anchors } = contentAnchors(html);
   const sourceHost = new URL(baseUrl).hostname;
+  const normalizedBaseUrl = normalizeUrl(baseUrl);
   const seen = new Set<string>();
   const links: string[] = [];
 
@@ -126,7 +124,7 @@ export function extractSourceEvidenceLinks(
 
     parsed.hash = "";
     const normalized = normalizeUrl(parsed.toString());
-    if (normalized === normalizeUrl(baseUrl) || seen.has(normalized)) {
+    if (normalized === normalizedBaseUrl || seen.has(normalized)) {
       return;
     }
 

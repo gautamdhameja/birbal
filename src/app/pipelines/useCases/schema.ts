@@ -1,6 +1,3 @@
-// Purpose: Implements the Birbal pipeline component: schema.
-// Scope: Keeps app-specific pipeline behavior outside the generic framework.
-
 import { z } from "zod";
 
 const EXACT_GENERIC_COMPANY_NAMES = new Set([

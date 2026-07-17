@@ -1,12 +1,9 @@
-// Purpose: Implements the Hacker News search integration: client.
-// Scope: Normalizes Algolia API responses for tools and collectors.
-
 import { z } from "zod";
 
 import { HACKER_NEWS } from "../constants/hacker-news.js";
-import { HTTP } from "../constants/runtime.js";
+import { HTTP } from "../../framework/network/constants.js";
 import { fetchWithRetry } from "../../framework/network/fetch.js";
-import { buildHttpStatusError, readResponseJson } from "../http/client.js";
+import { buildHttpStatusError, readResponseJson } from "../../framework/network/client.js";
 import { getHackerNewsConfig } from "./config.js";
 
 type HackerNewsSearchOptions = {

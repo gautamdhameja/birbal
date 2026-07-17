@@ -1,6 +1,3 @@
-// Purpose: Persists versioned enterprise use-case model outputs.
-// Scope: Caches extraction and verification results so snapshot reprocessing avoids repeat LLM calls.
-
 import { createHash } from "node:crypto";
 
 import { z } from "zod";
@@ -10,7 +7,7 @@ import {
   EnterpriseUseCaseVerificationSchema,
   type EnterpriseUseCaseVerification,
 } from "../pipelines/useCases/verification.js";
-import { normalizeUrl } from "../utils/url.js";
+import { normalizeUrl } from "../../framework/network/normalizeUrl.js";
 import { getDb } from "./items.js";
 import { decodePersistedJson } from "./json.js";
 import { USE_CASE_MODEL_CACHE_SQL } from "./sql/useCaseModelCache.js";

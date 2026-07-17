@@ -1,6 +1,3 @@
-// Purpose: Defines SQLite statements for the schema database domain.
-// Scope: Owns database schema creation.
-
 export const SCHEMA_SQL = {
   INIT_SCHEMA: `
       CREATE TABLE IF NOT EXISTS items (

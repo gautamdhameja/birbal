@@ -1,20 +1,9 @@
-// Purpose: Registers Birbal daily reading pipeline components.
-// Scope: Provides a declarative component map while implementations remain focused.
-
 import { enterpriseDigestClassifier } from "./components/classifier.js";
 import { sourceDomainCollector } from "./components/collector.js";
 import { dailyMarkdownRenderer } from "./components/renderer.js";
 import { enterpriseDeploymentScorer } from "./components/scorer.js";
 import { dailyEnterpriseMixSelector } from "./components/selector.js";
 import { enterpriseDailyReadingRubric } from "./rubric.js";
-
-export {
-  dailyEnterpriseMixSelector,
-  dailyMarkdownRenderer,
-  enterpriseDeploymentScorer,
-  enterpriseDigestClassifier,
-  sourceDomainCollector,
-};
 
 export const dailyPipelineComponents = {
   collectors: {

@@ -1,6 +1,3 @@
-// Purpose: Collects shared brave search constants.
-// Scope: Avoids scattering repeated literals across runtime modules.
-
 export const BRAVE_SEARCH = {
   WEB_SEARCH_URL: "https://api.search.brave.com/res/v1/web/search",
   ALLOWED_HOSTS: ["api.search.brave.com"],

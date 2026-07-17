@@ -7,12 +7,11 @@ import { describe, it } from "node:test";
 import {
   collectDailyCandidateResult,
   listEnabledDailySourceConfigs,
-  listDailySources,
-  normalizeUrl,
   rankDailyCandidates,
   toArxivCandidate,
   toHackerNewsCandidate,
 } from "../src/app/daily/pipeline.js";
+import { normalizeUrl } from "../src/framework/network/normalizeUrl.js";
 import { CONTENT_FETCH_STATUSES } from "../src/app/constants/candidates.js";
 import { SOURCE_REGISTRY } from "../src/app/constants/source-registry.js";
 import { SOURCES } from "../src/app/constants/sources.js";
@@ -61,13 +60,14 @@ function sourceRegistry(): SourceRegistry {
   };
 }
 
+function dailySourceIds(registry: SourceRegistry, enableAcademicFallback = false): string[] {
+  return listEnabledDailySourceConfigs(registry, enableAcademicFallback).map((source) => source.id);
+}
+
 describe("daily reading pipeline", () => {
   it("uses Hacker News only by default and marks arXiv as academic fallback", () => {
-    assert.deepEqual(listDailySources(sourceRegistry()), [SOURCES.HACKER_NEWS]);
-    assert.deepEqual(listDailySources(sourceRegistry(), true), [
-      SOURCES.HACKER_NEWS,
-      SOURCES.ARXIV,
-    ]);
+    assert.deepEqual(dailySourceIds(sourceRegistry()), [SOURCES.HACKER_NEWS]);
+    assert.deepEqual(dailySourceIds(sourceRegistry(), true), [SOURCES.HACKER_NEWS, SOURCES.ARXIV]);
   });
 
   it("does not collect sources with a zero daily mix weight", () => {
@@ -151,13 +151,21 @@ describe("daily reading pipeline", () => {
   });
 
   it("normalizes arXiv and Hacker News results into candidates", () => {
-    const arxivCandidate = toArxivCandidate({
-      title: "Agent Evaluation",
-      url: "https://arxiv.org/abs/2605.12345v1",
-      summary: "Evaluation summary",
-      authors: ["Ada Lovelace"],
-      published: "2026-05-16T10:00:00Z",
-    });
+    const registry = sourceRegistry();
+    const arxivSource = registry.sources.find((source) => source.id === SOURCES.ARXIV);
+    const hackerNewsSource = registry.sources.find((source) => source.id === SOURCES.HACKER_NEWS);
+    assert.ok(arxivSource);
+    assert.ok(hackerNewsSource);
+    const arxivCandidate = toArxivCandidate(
+      {
+        title: "Agent Evaluation",
+        url: "https://arxiv.org/abs/2605.12345v1",
+        summary: "Evaluation summary",
+        authors: ["Ada Lovelace"],
+        published: "2026-05-16T10:00:00Z",
+      },
+      arxivSource,
+    );
 
     assert.match(arxivCandidate.discoveredAt, /^\d{4}-\d{2}-\d{2}T/);
     assert.deepEqual(
@@ -183,14 +191,17 @@ describe("daily reading pipeline", () => {
       },
     );
 
-    const hackerNewsCandidate = toHackerNewsCandidate({
-      title: "Local LLM Inference",
-      url: "https://example.com/local-llm",
-      hn_url: "https://news.ycombinator.com/item?id=123",
-      points: 7,
-      author: "pg",
-      created_at: "2026-05-16T11:00:00Z",
-    });
+    const hackerNewsCandidate = toHackerNewsCandidate(
+      {
+        title: "Local LLM Inference",
+        url: "https://example.com/local-llm",
+        hn_url: "https://news.ycombinator.com/item?id=123",
+        points: 7,
+        author: "pg",
+        created_at: "2026-05-16T11:00:00Z",
+      },
+      hackerNewsSource,
+    );
 
     assert.match(hackerNewsCandidate.discoveredAt, /^\d{4}-\d{2}-\d{2}T/);
     assert.deepEqual(

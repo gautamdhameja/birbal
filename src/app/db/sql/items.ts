@@ -1,6 +1,3 @@
-// Purpose: Defines SQLite statements for the items database domain.
-// Scope: Owns daily item and score statements.
-
 const SCORED_ITEM_PROJECTION = `
         items.id,
         items.source_id,
@@ -33,7 +30,6 @@ const SCORED_ITEM_PROJECTION = `
         scores.final_score`;
 
 export const ITEM_SQL = {
-  ITEM_EXISTS_BY_URL: "SELECT 1 FROM items WHERE url = ? LIMIT 1",
   GET_ITEM_BY_URL: `
       SELECT
         id,

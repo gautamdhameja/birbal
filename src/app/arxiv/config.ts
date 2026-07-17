@@ -1,10 +1,7 @@
-// Purpose: Implements the arXiv search integration: config.
-// Scope: Wraps API configuration and parsing for the arXiv tool.
-
 import { z } from "zod";
 
 import { ARXIV } from "../constants/arxiv.js";
-import { allowedHostErrorMessage, isAllowedHttpUrl } from "../http/url.js";
+import { allowedHostErrorMessage, isAllowedHttpUrl } from "../../framework/network/url.js";
 
 const ArxivEnvSchema = z.strictObject({
   ARXIV_QUERY_URL: z

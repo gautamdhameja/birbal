@@ -4,14 +4,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { AGENT } from "../src/app/constants/agent.js";
+import { FRAMEWORK_AGENT as AGENT } from "../src/framework/agent/constants.js";
 import { MODEL_PROVIDERS } from "../src/app/constants/model-providers.js";
-import { LlamaChatCompletionRequestSchema, LlamaConfigSchema } from "../src/app/llama/schema.js";
+import { LlamaConfigSchema } from "../src/app/llama/schema.js";
+import { OpenAICompatibleChatCompletionRequestSchema } from "../src/app/model-providers/openai-compatible/schema.js";
 
 describe("llama chat request schema", () => {
   it("allows JSON object response format requests", () => {
     assert.deepEqual(
-      LlamaChatCompletionRequestSchema.parse({
+      OpenAICompatibleChatCompletionRequestSchema.parse({
         model: "local",
         messages: [
           {

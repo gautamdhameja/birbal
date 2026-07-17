@@ -4,45 +4,51 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import {
-  calculateFinalScore,
-  parseItemScore,
-  parseItemScores,
-  rankScoredCandidates,
-} from "../src/app/daily/scoring.js";
-import type { ScoredCandidateItem } from "../src/app/daily/types.js";
+import { calculateFinalScore, scoreItem, scoreItems } from "../src/app/daily/scoring.js";
+import type { CandidateItem } from "../src/app/daily/types.js";
+import type { UserPreferences } from "../src/app/memory/types.js";
 import { CONTENT_FETCH_STATUSES } from "../src/app/constants/candidates.js";
 import { SOURCE_REGISTRY } from "../src/app/constants/source-registry.js";
 import { SOURCES } from "../src/app/constants/sources.js";
 
-function scoredItem(title: string, finalScore: number): ScoredCandidateItem {
+function candidate(id = "candidate"): CandidateItem {
   return {
-    id: `test:${title}`,
+    id,
     sourceId: SOURCES.ARXIV,
     sourceName: "arXiv",
     sourceType: SOURCE_REGISTRY.SOURCE_TYPES.ACADEMIC_FALLBACK,
-    title,
-    url: `https://example.com/${title}`,
+    title: "Enterprise deployment",
+    url: `https://example.com/${id}`,
     summary: "",
     publishedAt: "2026-05-16T10:00:00Z",
     discoveredAt: "2026-05-16T11:00:00Z",
     contentFetchStatus: CONTENT_FETCH_STATUSES.NOT_FETCHED,
     raw: {},
-    score: {
-      enterpriseRelevance: finalScore,
-      workflowRedesignDepth: finalScore,
-      realUseCaseSpecificity: finalScore,
-      deploymentFdeRelevance: finalScore,
-      businessOutcomeClarity: finalScore,
-      technicalImplementationUsefulness: finalScore,
-      recency: finalScore,
-      nonGenericInsight: finalScore,
-      rejected: false,
-      reason: "reason",
-      finalScore,
-    },
   };
 }
+
+const preferences: UserPreferences = {
+  interests: ["enterprise AI"],
+  avoid: [],
+  preferredDifficulty: "advanced",
+  enableAcademicFallback: true,
+  minFinalScoreForDigest: 3,
+  maxItemsPerSource: 2,
+  dailyMix: { arxiv: 1 },
+};
+
+const validScore = {
+  enterpriseRelevance: 5,
+  workflowRedesignDepth: 4,
+  realUseCaseSpecificity: 4,
+  deploymentFdeRelevance: 3,
+  businessOutcomeClarity: 4,
+  technicalImplementationUsefulness: 5,
+  recency: 3,
+  nonGenericInsight: 4,
+  rejected: false,
+  reason: "Useful deployment signal.",
+};
 
 describe("daily item scoring", () => {
   it("calculates the weighted final score", () => {
@@ -63,22 +69,11 @@ describe("daily item scoring", () => {
     );
   });
 
-  it("parses and validates model JSON scores", () => {
+  it("parses and validates model JSON scores", async () => {
     assert.deepEqual(
-      parseItemScore(`
-        {
-          "enterpriseRelevance": 5,
-          "workflowRedesignDepth": 4,
-          "realUseCaseSpecificity": 4,
-          "deploymentFdeRelevance": 3,
-          "businessOutcomeClarity": 4,
-          "technicalImplementationUsefulness": 5,
-          "recency": 3,
-          "nonGenericInsight": 4,
-          "rejected": false,
-          "reason": "Useful deployment signal."
-        }
-      `),
+      await scoreItem(candidate(), preferences, {
+        completeFn: async () => JSON.stringify(validScore),
+      }),
       {
         enterpriseRelevance: 5,
         workflowRedesignDepth: 4,
@@ -95,100 +90,59 @@ describe("daily item scoring", () => {
     );
   });
 
-  it("parses rejected model scores", () => {
-    assert.deepEqual(
-      parseItemScore(`
-        {
-          "enterpriseRelevance": 1,
-          "workflowRedesignDepth": 1,
-          "realUseCaseSpecificity": 1,
-          "deploymentFdeRelevance": 1,
-          "businessOutcomeClarity": 1,
-          "technicalImplementationUsefulness": 1,
-          "recency": 1,
-          "nonGenericInsight": 1,
-          "rejected": true,
-          "rejectionReason": "Generic AI news with no enterprise deployment angle.",
-          "reason": "Rejected as generic AI news."
-        }
-      `),
-      {
-        enterpriseRelevance: 1,
-        workflowRedesignDepth: 1,
-        realUseCaseSpecificity: 1,
-        deploymentFdeRelevance: 1,
-        businessOutcomeClarity: 1,
-        technicalImplementationUsefulness: 1,
-        recency: 1,
-        nonGenericInsight: 1,
-        rejected: true,
-        rejectionReason: "Generic AI news with no enterprise deployment angle.",
-        reason: "Rejected as generic AI news.",
-        finalScore: 0,
-      },
-    );
-  });
-
-  it("rejects out-of-range model scores", () => {
-    assert.throws(
-      () =>
-        parseItemScore(
-          '{"enterpriseRelevance":6,"workflowRedesignDepth":4,"realUseCaseSpecificity":4,"deploymentFdeRelevance":3,"businessOutcomeClarity":4,"technicalImplementationUsefulness":5,"recency":3,"nonGenericInsight":4,"rejected":false,"reason":"bad"}',
-        ),
-      /invalid item score/i,
-    );
-  });
-
-  it("rejects malformed batch scores with extra or duplicate ids", () => {
-    const validScore = {
-      enterpriseRelevance: 5,
-      workflowRedesignDepth: 4,
-      realUseCaseSpecificity: 4,
-      deploymentFdeRelevance: 3,
-      businessOutcomeClarity: 4,
-      technicalImplementationUsefulness: 5,
-      recency: 3,
-      nonGenericInsight: 4,
-      rejected: false,
-      reason: "Useful deployment signal.",
+  it("parses rejected model scores", async () => {
+    const rejectedScore = {
+      enterpriseRelevance: 1,
+      workflowRedesignDepth: 1,
+      realUseCaseSpecificity: 1,
+      deploymentFdeRelevance: 1,
+      businessOutcomeClarity: 1,
+      technicalImplementationUsefulness: 1,
+      recency: 1,
+      nonGenericInsight: 1,
+      rejected: true,
+      rejectionReason: "Generic AI news with no enterprise deployment angle.",
+      reason: "Rejected as generic AI news.",
     };
+    assert.deepEqual(
+      await scoreItem(candidate(), preferences, {
+        completeFn: async () => JSON.stringify(rejectedScore),
+      }),
+      { ...rejectedScore, finalScore: 0 },
+    );
+  });
 
-    assert.throws(
-      () =>
-        parseItemScores(
+  it("rejects out-of-range model scores", async () => {
+    await assert.rejects(
+      scoreItem(candidate(), preferences, {
+        completeFn: async () => JSON.stringify({ ...validScore, enterpriseRelevance: 6 }),
+      }),
+    );
+  });
+
+  it("rejects malformed batch scores with extra or duplicate ids", async () => {
+    await assert.rejects(
+      scoreItems([candidate("first")], preferences, {
+        completeFn: async () =>
           JSON.stringify({
             scores: [
               { id: "first", ...validScore },
               { id: "extra", ...validScore },
             ],
           }),
-          ["first"],
-        ),
-      /unexpected score for candidate extra/i,
+      }),
     );
 
-    assert.throws(
-      () =>
-        parseItemScores(
+    await assert.rejects(
+      scoreItems([candidate("first"), candidate("second")], preferences, {
+        completeFn: async () =>
           JSON.stringify({
             scores: [
               { id: "first", ...validScore },
               { id: "first", ...validScore },
             ],
           }),
-          ["first", "second"],
-        ),
-      /duplicate score for candidate first/i,
-    );
-  });
-
-  it("ranks scored candidates by final score", () => {
-    assert.deepEqual(
-      rankScoredCandidates(
-        [scoredItem("middle", 6), scoredItem("high", 9), scoredItem("low", 2)],
-        2,
-      ).map((item) => item.title),
-      ["high", "middle"],
+      }),
     );
   });
 });

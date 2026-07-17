@@ -1,6 +1,3 @@
-// Purpose: Selects the configured default model provider.
-// Scope: Keeps application code independent of concrete model provider imports.
-
 import { z } from "zod";
 
 import { MODEL_PROVIDERS } from "../constants/model-providers.js";

@@ -1,6 +1,3 @@
-// Purpose: Implements use-case web-search and snapshot collectors.
-// Scope: Owns candidate acquisition for the use-case pipeline.
-
 import { searchWeb } from "../../../brave-search/client.js";
 import {
   getLatestSearchSnapshot,

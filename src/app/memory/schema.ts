@@ -1,6 +1,3 @@
-// Purpose: Implements the research preference memory: schema.
-// Scope: Loads and validates local preference configuration.
-
 import { z } from "zod";
 
 import { PREFERENCES } from "../constants/preferences.js";

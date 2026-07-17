@@ -1,6 +1,3 @@
-// Purpose: Implements the Birbal pipeline component: selector.
-// Scope: Keeps app-specific pipeline behavior outside the generic framework.
-
 import {
   EnterpriseUseCaseSchema,
   hasNamedEnterpriseCompany,

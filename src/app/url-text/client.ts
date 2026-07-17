@@ -1,12 +1,9 @@
-// Purpose: Implements the URL text extraction helper: client.
-// Scope: Fetches and extracts readable text for tool and pipeline use.
-
-import { CONTENT_FETCH_STATUSES } from "../constants/candidates.js";
-import { URL_TEXT } from "../constants/url-text.js";
+import { URL_TEXT } from "../../framework/content/constants.js";
+import { CONTENT_FETCH_STATUSES } from "../../framework/content/status.js";
 import { fetchUrlContent } from "../../framework/content/fetchUrl.js";
 import type { UrlContentFetchPolicy } from "../../framework/content/fetchUrl.js";
-import type { HostResolver } from "../http/url.js";
-import type { ExtractedUrlText } from "./extract.js";
+import type { HostResolver } from "../../framework/network/url.js";
+import type { ExtractedUrlText } from "../../framework/content/extractText.js";
 
 export type FetchUrlTextOptions = {
   url: string;

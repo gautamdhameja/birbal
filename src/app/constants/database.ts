@@ -1,6 +1,3 @@
-// Purpose: Collects shared database configuration constants.
-// Scope: Keeps runtime database settings separate from domain-owned SQL statements.
-
 export const DATABASE = {
   DIRECTORY: "data",
   FILE_NAME: "agent.db",
@@ -8,14 +5,6 @@ export const DATABASE = {
   JOURNAL_MODE: "journal_mode = WAL",
   ERRORS: {
     INVALID_LIMIT: "limit must be a positive integer.",
-  },
-  RUN_STATUSES: {
-    SUCCESS: "success",
-    PARTIAL_SUCCESS: "partial_success",
-    FAILED: "failed",
-  },
-  RUN_TYPES: {
-    MANUAL: "manual",
   },
   ITEM_COLUMNS: {
     SOURCE: "source",

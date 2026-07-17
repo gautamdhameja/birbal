@@ -1,6 +1,3 @@
-// Purpose: Implements the SQLite persistence module: items.
-// Scope: Owns storage access for one persisted data shape.
-
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 
@@ -284,12 +281,6 @@ function migrateScoresTable(connection: DatabaseConnection): void {
       `,
     )
     .run();
-}
-
-export function itemExistsByUrl(url: string): boolean {
-  const row = getDb().prepare(ITEM_SQL.ITEM_EXISTS_BY_URL).get(url);
-
-  return row !== undefined;
 }
 
 export function getItemByUrl(url: string): CandidateItem | null {

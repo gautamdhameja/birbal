@@ -1,6 +1,3 @@
-// Purpose: Defines SQLite statements for the useCases database domain.
-// Scope: Owns persisted enterprise use-case statements.
-
 const USE_CASE_PROJECTION = `
         id,
         run_id,

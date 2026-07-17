@@ -1,6 +1,3 @@
-// Purpose: Collects shared tools constants.
-// Scope: Avoids scattering repeated literals across runtime modules.
-
 export const TOOLS = {
   GET_TIME: {
     NAME: "get_time",

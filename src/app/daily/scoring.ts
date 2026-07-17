@@ -1,9 +1,6 @@
-// Purpose: Implements the daily reading pipeline support: scoring.
-// Scope: Contains Birbal-specific digest scoring, classification, and rendering helpers.
-
 import { z } from "zod";
 
-import { AGENT } from "../constants/agent.js";
+import { FRAMEWORK_AGENT as AGENT } from "../../framework/agent/constants.js";
 import { MODEL_PROVIDERS } from "../constants/model-providers.js";
 import { SCORING } from "../constants/scoring.js";
 import { completeStructuredWithRepair, ModelParseError } from "../../framework/llm/repair.js";
@@ -17,11 +14,9 @@ import {
   enterpriseDailyReadingRubric,
   type EnterpriseDailyScore,
 } from "../pipelines/daily/rubric.js";
-import { parseJson } from "../utils/json.js";
-import type { CandidateItem, ItemScore, ScoredCandidateItem } from "./types.js";
+import type { CandidateItem, ItemScore } from "./types.js";
 
 const ScoreResponseSchema = EnterpriseDailyScoreSchema;
-type ScoreResponse = EnterpriseDailyScore;
 type ModelTraceOptions = Pick<ModelCompleteOptions, "traceId" | "traceLabel"> & {
   completeFn?: ModelClient["complete"];
   rubric?: Rubric<EnterpriseDailyScore>;
@@ -215,41 +210,20 @@ function buildBatchScorePrompt(
 }
 
 export function calculateFinalScore(
-  score: ScoreResponse,
+  score: EnterpriseDailyScore,
   rubric: Rubric<EnterpriseDailyScore> = enterpriseDailyReadingRubric,
 ): number {
   return calculateWeightedFinalScore(score, rubric.weights);
 }
 
-export function parseItemScore(raw: string): ItemScore {
-  const parsed = ScoreResponseSchema.safeParse(parseJson(raw));
-  if (!parsed.success) {
-    throw new Error(`${SCORING.ERRORS.INVALID_SCORE} ${parsed.error.message}`);
-  }
-
-  return {
-    ...parsed.data,
-    finalScore: calculateFinalScore(parsed.data),
-  };
-}
-
 function toItemScore(
-  score: ScoreResponse,
+  score: EnterpriseDailyScore,
   rubric: Rubric<EnterpriseDailyScore> = enterpriseDailyReadingRubric,
 ): ItemScore {
   return {
     ...score,
     finalScore: calculateFinalScore(score, rubric),
   };
-}
-
-export function parseItemScores(raw: string, expectedIds: readonly string[]): ItemScore[] {
-  const parsed = scoreBatchResponseSchema(expectedIds).safeParse(parseJson(raw));
-  if (!parsed.success) {
-    throw new Error(`${SCORING.ERRORS.INVALID_SCORE} ${parsed.error.message}`);
-  }
-
-  return toItemScores(parsed.data, expectedIds);
 }
 
 function toItemScores(
@@ -358,20 +332,4 @@ export async function scoreItems(
   }
 
   return toItemScores(result.value, expectedIds, rubric);
-}
-
-function compareScoredCandidates(left: ScoredCandidateItem, right: ScoredCandidateItem): number {
-  const scoreOrder = right.score.finalScore - left.score.finalScore;
-  if (scoreOrder !== 0) {
-    return scoreOrder;
-  }
-
-  return left.title.localeCompare(right.title);
-}
-
-export function rankScoredCandidates(
-  candidates: ScoredCandidateItem[],
-  limit: number = SCORING.TOP_RESULTS,
-): ScoredCandidateItem[] {
-  return [...candidates].sort(compareScoredCandidates).slice(0, limit);
 }

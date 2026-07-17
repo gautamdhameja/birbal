@@ -1,6 +1,3 @@
-// Purpose: Runs Birbal eval suites from CLI or tests.
-// Scope: Keeps application eval orchestration separate from the generic eval runner.
-
 import { renderEvalRunJson, renderEvalRunSummary } from "../../framework/evals/report.js";
 import { runEvalSuites } from "../../framework/evals/runner.js";
 import type { EvalRunResult } from "../../framework/evals/types.js";

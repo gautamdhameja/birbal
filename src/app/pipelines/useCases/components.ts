@@ -1,6 +1,3 @@
-// Purpose: Registers Birbal enterprise use-case pipeline components.
-// Scope: Provides a declarative component map while implementations remain focused.
-
 import { braveWebSearchCollector, searchSnapshotCollector } from "./components/collectors.js";
 import { enterpriseUseCaseExtractor } from "./components/extractor.js";
 import {
@@ -8,15 +5,6 @@ import {
   enterpriseUseCaseMarkdownRenderer,
 } from "./components/output.js";
 import { enterpriseUseCaseSelector } from "./components/selector.js";
-
-export {
-  braveWebSearchCollector,
-  enterpriseUseCaseExtractor,
-  enterpriseUseCaseFinalizer,
-  enterpriseUseCaseMarkdownRenderer,
-  enterpriseUseCaseSelector,
-  searchSnapshotCollector,
-};
 
 export const useCasePipelineComponents = {
   collectors: {

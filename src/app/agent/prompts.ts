@@ -1,15 +1,12 @@
-// Purpose: Implements the Birbal agent loop: prompts.
-// Scope: Bridges the application CLI to the generic harness pieces.
-
 import { readFileSync } from "node:fs";
 
-import { PROMPTS } from "../constants/prompts.js";
-
-const SYSTEM_AGENT_PROMPT_URL = new URL(PROMPTS.SYSTEM_AGENT_PATH, import.meta.url);
+const SYSTEM_AGENT_PROMPT_URL = new URL("../../../prompts/system-agent.txt", import.meta.url);
+const NO_TOOLS_AVAILABLE = "No tools are currently available.";
+const AVAILABLE_TOOLS_HEADING = "Available tools:";
 
 export function buildSystemPrompt(toolsText = ""): string {
   const basePrompt = readFileSync(SYSTEM_AGENT_PROMPT_URL, "utf8").trim();
-  const toolsSection = toolsText.trim() || PROMPTS.NO_TOOLS_AVAILABLE;
+  const toolsSection = toolsText.trim() || NO_TOOLS_AVAILABLE;
 
-  return `${basePrompt}\n\n${PROMPTS.AVAILABLE_TOOLS_HEADING}\n${toolsSection}`;
+  return `${basePrompt}\n\n${AVAILABLE_TOOLS_HEADING}\n${toolsSection}`;
 }

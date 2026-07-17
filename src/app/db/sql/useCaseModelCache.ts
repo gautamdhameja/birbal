@@ -1,6 +1,3 @@
-// Purpose: Defines SQLite statements for the useCaseModelCache database domain.
-// Scope: Owns use-case extraction and verification cache statements.
-
 export const USE_CASE_MODEL_CACHE_SQL = {
   GET_USE_CASE_EXTRACTION_CACHE: `
       SELECT use_cases_json

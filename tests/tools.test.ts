@@ -11,15 +11,15 @@ import {
   searchWeb,
 } from "../src/app/brave-search/client.js";
 import { CONTENT_FETCH_STATUSES } from "../src/app/constants/candidates.js";
-import { HTTP } from "../src/app/constants/runtime.js";
+import { HTTP } from "../src/framework/network/constants.js";
 import { SOURCE_REGISTRY } from "../src/app/constants/source-registry.js";
 import { normalizeHackerNewsHit } from "../src/app/hackernews/client.js";
 import { searchSourceDomain } from "../src/app/source-search/domain.js";
 import { formatLocalIsoString } from "../src/app/tools/get-time.js";
-import { listTools, renderToolsForPrompt } from "../src/app/tools/registry.js";
+import { toolRegistry } from "../src/app/tools/registry.js";
 import { runTool } from "../src/app/tools/executor.js";
 import { fetchUrlText } from "../src/app/url-text/client.js";
-import { extractUrlText } from "../src/app/url-text/extract.js";
+import { extractUrlText } from "../src/framework/content/extractText.js";
 
 function assertRecord(value: unknown): asserts value is Record<string, unknown> {
   assert.equal(typeof value, "object");
@@ -46,7 +46,7 @@ describe("tool registry", () => {
 
   it("lists the get_time tool", () => {
     assert.deepEqual(
-      listTools().map((tool) => tool.name),
+      toolRegistry.list().map((tool) => tool.name),
       [
         "get_time",
         "search_arxiv",
@@ -59,7 +59,7 @@ describe("tool registry", () => {
   });
 
   it("renders tool metadata for the system prompt", () => {
-    const renderedTools = renderToolsForPrompt();
+    const renderedTools = toolRegistry.renderForPrompt();
 
     assert.match(renderedTools, /name: get_time/);
     assert.match(renderedTools, /description: Get the current local time as an ISO string\./);

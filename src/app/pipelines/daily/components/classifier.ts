@@ -1,6 +1,3 @@
-// Purpose: Implements daily digest classification.
-// Scope: Owns model classification and deterministic fallback behavior.
-
 import {
   classifyCandidateCategory,
   fallbackCategoryFromScore,

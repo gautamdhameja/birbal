@@ -1,6 +1,3 @@
-// Purpose: Builds OpenAI-compatible model provider configs from common environment variables.
-// Scope: Centralizes base URL, path, model name, timeout, and API key handling for providers.
-
 import { MODEL_PROVIDERS } from "../constants/model-providers.js";
 import { OpenAICompatibleConfigSchema } from "./openai-compatible/schema.js";
 import type { OpenAICompatibleConfig } from "./openai-compatible/schema.js";

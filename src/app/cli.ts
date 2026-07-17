@@ -1,6 +1,3 @@
-// Purpose: Provides the top-level Birbal command-line interface.
-// Scope: Routes agent and pipeline commands while reusing the existing runtime entry points.
-
 import { pathToFileURL } from "node:url";
 
 import { Command, InvalidArgumentError, type OptionValues } from "commander";
@@ -114,8 +111,8 @@ async function runAgentCommand(
 
   const { runAgent } = await import("./agent/run.js");
   if (trace) {
-    const { renderToolsForPrompt } = await import("./tools/registry.js");
-    console.error(renderToolsForPrompt());
+    const { toolRegistry } = await import("./tools/registry.js");
+    console.error(toolRegistry.renderForPrompt());
   }
 
   const task = taskParts.join(" ").trim() || CLI.DEFAULT_TASK;
@@ -150,7 +147,6 @@ async function runUseCasesCommand(
     configPath: options.config,
     dryRun: dryRunEnabled(options),
     limit: options.limit,
-    trace,
   });
 }
 
@@ -174,7 +170,6 @@ async function runUseCaseProcessCommand(
     dryRun: dryRunEnabled(options),
     limit: options.limit,
     snapshotId: options.snapshot,
-    trace,
   });
 }
 

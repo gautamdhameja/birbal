@@ -1,6 +1,3 @@
-// Purpose: Collects shared hacker news constants.
-// Scope: Avoids scattering repeated literals across runtime modules.
-
 export const HACKER_NEWS = {
   ALLOWED_HOSTS: ["hn.algolia.com"],
   STORY_TAG: "story",

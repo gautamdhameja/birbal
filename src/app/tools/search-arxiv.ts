@@ -1,11 +1,8 @@
-// Purpose: Implements the Birbal tool module: search arxiv.
-// Scope: Defines concrete tools and wires them into the generic tool framework.
-
 import { z } from "zod";
 
 import { searchArxiv } from "../arxiv/client.js";
 import { TOOLS } from "../constants/tools.js";
-import type { ToolDefinition } from "./types.js";
+import type { ToolDefinition } from "../../framework/tools/types.js";
 
 const SearchArxivArgsSchema = z.strictObject({
   query: z.string().min(1),

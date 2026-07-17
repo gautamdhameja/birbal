@@ -1,6 +1,3 @@
-// Purpose: Implements the daily source-domain collector.
-// Scope: Owns source selection and candidate collection.
-
 import { collectDailyCandidateResult } from "../../../daily/pipeline.js";
 import type {
   PipelineCollectionMethod,

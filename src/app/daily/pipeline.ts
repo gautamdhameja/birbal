@@ -1,6 +1,3 @@
-// Purpose: Implements the daily reading pipeline support: pipeline.
-// Scope: Contains Birbal-specific digest scoring, classification, and rendering helpers.
-
 import { searchArxiv } from "../arxiv/client.js";
 import type { ArxivPaper } from "../arxiv/client.js";
 import type { SourceRegistry, SourceRegistryItem } from "../config/sourceRegistry.js";
@@ -10,11 +7,11 @@ import { SOURCE_REGISTRY } from "../constants/source-registry.js";
 import { searchHackerNews } from "../hackernews/client.js";
 import type { HackerNewsStory } from "../hackernews/client.js";
 import { mapLimit } from "../../framework/pipeline/concurrency.js";
-import { isHttpStatusError } from "../http/client.js";
+import { isHttpStatusError } from "../../framework/network/client.js";
 import type { UserPreferences } from "../memory/types.js";
 import { searchSourceDomain } from "../source-search/domain.js";
-import { normalizeUrl } from "../utils/url.js";
-import { CONTENT_FETCH_STATUSES } from "./types.js";
+import { normalizeUrl } from "../../framework/network/normalizeUrl.js";
+import { CONTENT_FETCH_STATUSES } from "../constants/candidates.js";
 import type { CandidateItem } from "./types.js";
 
 export type DailyCollectionError = {
@@ -47,7 +44,6 @@ type DailyCollectionOptions = {
   enableAcademicFallback?: boolean;
 };
 
-export { normalizeUrl };
 const SOURCE_COLLECTION_CONCURRENCY = 3;
 
 function defaultDiscoveredAt(): string {
@@ -73,15 +69,7 @@ function createBaseCandidate(
 
 export function toArxivCandidate(
   paper: ArxivPaper,
-  sourceConfig: SourceRegistryItem = {
-    id: SOURCES.ARXIV,
-    name: "arXiv",
-    domains: ["arxiv.org"],
-    priority: 1,
-    sourceType: SOURCE_REGISTRY.SOURCE_TYPES.ACADEMIC_FALLBACK,
-    searchQueries: ["LLM agents"],
-    enabled: true,
-  },
+  sourceConfig: SourceRegistryItem,
 ): CandidateItem {
   const url = normalizeUrl(paper.url);
 
@@ -97,15 +85,7 @@ export function toArxivCandidate(
 
 export function toHackerNewsCandidate(
   story: HackerNewsStory,
-  sourceConfig: SourceRegistryItem = {
-    id: SOURCES.HACKER_NEWS,
-    name: "Hacker News",
-    domains: ["news.ycombinator.com"],
-    priority: 1,
-    sourceType: SOURCE_REGISTRY.SOURCE_TYPES.COMMUNITY,
-    searchQueries: ["LLM agents"],
-    enabled: true,
-  },
+  sourceConfig: SourceRegistryItem,
 ): CandidateItem {
   const url = normalizeUrl(story.url);
 
@@ -318,18 +298,16 @@ function isCollectableDailySource(source: SourceRegistryItem): boolean {
   return isSupportedDailySource(source.id) || source.domains.length > 0;
 }
 
-type DailySourceRegistryItem = SourceRegistryItem;
-
 export function listEnabledDailySourceConfigs(
   sourceRegistry: SourceRegistry,
   enableAcademicFallback = false,
   dailyMix?: DailyMix,
-): DailySourceRegistryItem[] {
+): SourceRegistryItem[] {
   return sourceRegistry.sources
     .filter((source) => source.enabled)
     .filter((source) => enableAcademicFallback || !isAcademicFallbackSource(source))
     .filter((source) => !dailyMix || dailyMixWeight(dailyMix, source.id) > 0)
-    .filter((source): source is DailySourceRegistryItem => isCollectableDailySource(source))
+    .filter(isCollectableDailySource)
     .sort(compareRegistrySources);
 }
 
@@ -356,15 +334,6 @@ function getDailySourceCollector(sourceConfig: SourceRegistryItem): SourceCollec
       );
     },
   };
-}
-
-export function listDailySources(
-  sourceRegistry: SourceRegistry,
-  enableAcademicFallback = false,
-): string[] {
-  return listEnabledDailySourceConfigs(sourceRegistry, enableAcademicFallback).map(
-    (sourceConfig) => sourceConfig.id,
-  );
 }
 
 export async function collectDailyCandidateResult(
@@ -407,11 +376,4 @@ export async function collectDailyCandidateResult(
     errors,
     sourcesUsed,
   };
-}
-
-export async function collectDailyCandidates(
-  sourceRegistry: SourceRegistry,
-  options: DailyCollectionOptions = {},
-): Promise<CandidateItem[]> {
-  return (await collectDailyCandidateResult(sourceRegistry, options)).candidates;
 }

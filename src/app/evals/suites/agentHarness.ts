@@ -1,6 +1,3 @@
-// Purpose: Defines deterministic evals for the generic JSON agent harness behavior.
-// Scope: Evaluates protocol, tool handoff, repair, and trace shape without real model calls.
-
 import { createAgentHarness, parseJsonAgentResponse } from "../../../framework/agent/index.js";
 import {
   OPENINFERENCE,
