@@ -12,7 +12,7 @@ import {
 } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
-import { formatDateOnlyInTimeZone, formatTimeOnlyInTimeZone } from "../../utils/date.js";
+import { formatDateOnlyInTimeZone, formatTimeOnlyInTimeZone } from "./date.js";
 import type { ArtifactWriter, PipelineContext, PipelineMetadata } from "./types.js";
 
 export function formatPipelineRunDate(context: PipelineContext): string {

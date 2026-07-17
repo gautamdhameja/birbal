@@ -1,19 +1,19 @@
 // Purpose: Implements framework URL content fetching and HTML extraction.
 // Scope: Stays generic so applications can plug in their own components.
 
-import { HTTP } from "../../constants/runtime.js";
-import { URL_TEXT } from "../../constants/url-text.js";
 import { fetchPublicHttpWithRetry } from "../network/fetch.js";
 import type { PublicHttpFetchOptions } from "../network/fetch.js";
-import { buildHttpStatusError, isHttpStatusError, readResponseText } from "../../http/client.js";
+import { buildHttpStatusError, isHttpStatusError, readResponseText } from "../network/client.js";
+import { HTTP } from "../network/constants.js";
 import {
   assertSafePublicHttpUrl,
   type HostResolver,
   httpUrlErrorMessage,
   unsafeHttpUrlErrorMessage,
-} from "../../http/url.js";
-import { extractUrlText } from "../../url-text/extract.js";
-import { normalizeUrl } from "../../utils/url.js";
+} from "../network/url.js";
+import { normalizeUrl } from "../network/normalizeUrl.js";
+import { URL_TEXT } from "./constants.js";
+import { extractUrlText } from "./extractText.js";
 import { CONTENT_FETCH_STATUSES } from "./status.js";
 import type { ContentFetchStatus } from "./status.js";
 

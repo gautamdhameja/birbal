@@ -3,7 +3,7 @@
 
 import { z } from "zod";
 
-import { parseJson, parseStrictJson } from "../../utils/json.js";
+import { parseJson, parseStrictJson } from "./json.js";
 import type { ChatMessage, ModelClient, ModelCompleteOptions } from "./types.js";
 
 type CompleteFn = ModelClient["complete"];

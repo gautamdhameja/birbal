@@ -8,8 +8,8 @@ import { Readable } from "node:stream";
 
 import pRetry from "p-retry";
 
-import { HTTP } from "../../constants/runtime.js";
-import { resolvePublicHostAddresses, type HostResolver } from "../../http/url.js";
+import { HTTP } from "./constants.js";
+import { resolvePublicHostAddresses, type HostResolver } from "./url.js";
 
 export type FetchTimeoutOptions = {
   timeoutMs?: number;

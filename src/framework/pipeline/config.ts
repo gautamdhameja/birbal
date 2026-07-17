@@ -6,7 +6,7 @@ import { join } from "node:path";
 
 import { z } from "zod";
 
-import { URL_TEXT } from "../../constants/url-text.js";
+import { URL_TEXT } from "../content/constants.js";
 import type { PipelineConfig } from "./types.js";
 
 const PIPELINE_CONFIG_DIRECTORY = "config/pipelines";

@@ -3,7 +3,7 @@
 
 import { z } from "zod";
 
-import { preview } from "../../logging/preview.js";
+import { preview } from "../logging/preview.js";
 import type { PipelineLogger } from "../pipeline/types.js";
 import { FRAMEWORK_TOOLS } from "./constants.js";
 import type { ToolRegistry } from "./registry.js";

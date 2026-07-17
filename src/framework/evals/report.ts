@@ -1,11 +1,12 @@
 // Purpose: Renders eval results for CLI output.
 // Scope: Keeps human and JSON reporting separate from eval execution.
 
-import { OUTPUT } from "../../constants/runtime.js";
 import type { EvalRunResult } from "./types.js";
 
+const JSON_INDENT_SPACES = 2;
+
 export function renderEvalRunJson(result: EvalRunResult): string {
-  return JSON.stringify(result, null, OUTPUT.JSON_INDENT_SPACES);
+  return JSON.stringify(result, null, JSON_INDENT_SPACES);
 }
 
 export function renderEvalRunSummary(result: EvalRunResult): string {

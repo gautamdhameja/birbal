@@ -3,16 +3,15 @@
 
 import { ModelParseError } from "../llm/repair.js";
 import type { ModelClient } from "../llm/types.js";
-import { isHttpStatusError, summarizeHttpErrorBody } from "../../http/client.js";
-import { preview } from "../../logging/preview.js";
-import { normalizeUrl } from "../../utils/url.js";
+import { preview } from "../logging/preview.js";
+import { isHttpStatusError, summarizeHttpErrorBody } from "../network/client.js";
+import { normalizeUrl } from "../network/normalizeUrl.js";
 import { chunkItems as chunkPipelineItems, mapBatches, mapLimit } from "./concurrency.js";
 import { loadPipelineConfig } from "./config.js";
 import type { PipelineComponentRegistry } from "./registry.js";
 import { pipelineComponentRegistry } from "./registry.js";
 import { createInMemoryPipelineRunStore } from "./runStore.js";
 import type { PipelineRunStore, RunSummary } from "./runStore.js";
-import { getDefaultModelClient } from "../../model-providers/default.js";
 import type {
   ArtifactWriter,
   Classifier,
@@ -105,6 +104,14 @@ function missingSourceRegistryLoader(): never {
   );
 }
 
+const missingModelClient: ModelClient = {
+  complete: async () => {
+    throw new Error(
+      "Pipeline model client was not provided. Pass modelClient in runPipeline dependencies.",
+    );
+  },
+};
+
 const defaultRunStore = createInMemoryPipelineRunStore();
 
 const defaultDependencies: PipelineOrchestratorDependencies = {
@@ -114,7 +121,7 @@ const defaultDependencies: PipelineOrchestratorDependencies = {
   loadConfig: loadPipelineConfig,
   loadSourceRegistry: missingSourceRegistryLoader,
   logger: noopLogger,
-  modelClient: getDefaultModelClient(),
+  modelClient: missingModelClient,
   now: () => new Date(),
   registry: pipelineComponentRegistry,
   researchProfile: null,

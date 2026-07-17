@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 
 import type { AgentLifecycleHooks } from "../agent/types.js";
 import type { ChatMessage } from "../llm/types.js";
-import { preview } from "../../logging/preview.js";
+import { preview } from "../logging/preview.js";
 import type { EvalTrace, EvalTraceSpan, EvalTraceStatus } from "./types.js";
 
 export const OPENINFERENCE = {

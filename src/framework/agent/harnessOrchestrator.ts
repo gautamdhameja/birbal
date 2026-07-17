@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 
 import { z } from "zod";
 
-import { preview } from "../../logging/preview.js";
+import { preview } from "../logging/preview.js";
 import type { ChatMessage } from "../llm/types.js";
 import { FRAMEWORK_AGENT } from "./constants.js";
 import type { AgentHarnessConfig, AgentRunOptions, AgentResponse } from "./types.js";
