@@ -86,6 +86,33 @@ describe("enterprise use case storage", () => {
     assert.equal(recentUseCases[0]?.businessOutcome, "Updated outcome.");
   });
 
+  it("preserves case-sensitive URL paths in persistent IDs", () => {
+    initDb(dbPath());
+
+    upsertUseCase(useCase({ sourceUrl: "https://example.com/Case" }));
+    upsertUseCase(useCase({ sourceUrl: "https://example.com/case" }));
+
+    const recentUseCases = listRecentUseCases(10);
+    assert.equal(recentUseCases.length, 2);
+    assert.equal(new Set(recentUseCases.map((storedUseCase) => storedUseCase.id)).size, 2);
+  });
+
+  it("deduplicates URLs that differ only by hostname casing", () => {
+    initDb(dbPath());
+
+    upsertUseCase(useCase({ sourceUrl: "https://EXAMPLE.com/acme-support" }));
+    upsertUseCase(
+      useCase({
+        sourceUrl: "https://example.com/acme-support",
+        businessOutcome: "Updated outcome.",
+      }),
+    );
+
+    const recentUseCases = listRecentUseCases(10);
+    assert.equal(recentUseCases.length, 1);
+    assert.equal(recentUseCases[0]?.businessOutcome, "Updated outcome.");
+  });
+
   it("lists use cases by run ID", () => {
     initDb(dbPath());
 

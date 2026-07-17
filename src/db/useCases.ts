@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 
 import { DATABASE } from "../constants/database.js";
 import { EnterpriseUseCaseSchema, type EnterpriseUseCase } from "../pipelines/useCases/schema.js";
+import { normalizeUrl } from "../utils/url.js";
 import { assertValidLimit, getDb } from "./items.js";
 
 export type StoredEnterpriseUseCase = EnterpriseUseCase & {
@@ -78,9 +79,9 @@ function useCaseFromRow(row: UseCaseRow): StoredEnterpriseUseCase {
 
 function persistentUseCaseId(useCase: EnterpriseUseCase): string {
   const dedupeKey = [
-    useCase.sourceUrl.trim().toLowerCase(),
-    useCase.companyName.trim().toLowerCase(),
-    useCase.aiSystemOrCapability.trim().toLowerCase(),
+    normalizeUrl(useCase.sourceUrl),
+    useCase.companyName.trim(),
+    useCase.aiSystemOrCapability.trim(),
   ].join("|");
   const hash = createHash("sha256").update(dedupeKey).digest("hex").slice(0, 16);
 
@@ -90,30 +91,34 @@ function persistentUseCaseId(useCase: EnterpriseUseCase): string {
 export function upsertUseCase(useCase: EnterpriseUseCaseStorageInput): void {
   const { rawJson, runId, ...enterpriseUseCase } = useCase;
   const parsedUseCase = EnterpriseUseCaseSchema.parse(enterpriseUseCase);
+  const normalizedUseCase = {
+    ...parsedUseCase,
+    sourceUrl: normalizeUrl(parsedUseCase.sourceUrl),
+  };
 
   getDb()
     .prepare(DATABASE.SQL.UPSERT_USE_CASE)
     .run({
-      id: persistentUseCaseId(parsedUseCase),
+      id: persistentUseCaseId(normalizedUseCase),
       runId: runId ?? null,
-      companyName: parsedUseCase.companyName,
-      industry: parsedUseCase.industry,
-      businessFunction: parsedUseCase.businessFunction,
-      aiSystemOrCapability: parsedUseCase.aiSystemOrCapability,
-      humanRoleChange: parsedUseCase.humanRoleChange,
-      systemIntegrations: parsedUseCase.systemIntegrations,
-      deploymentStage: parsedUseCase.deploymentStage,
-      roiMetric: parsedUseCase.roiMetric,
-      businessOutcome: parsedUseCase.businessOutcome,
-      governanceOrRiskNotes: parsedUseCase.governanceOrRiskNotes,
-      implementationDetails: parsedUseCase.implementationDetails,
-      sourceTitle: parsedUseCase.sourceTitle,
-      sourceUrl: parsedUseCase.sourceUrl,
-      sourceName: parsedUseCase.sourceName,
-      publishDate: parsedUseCase.publishDate,
-      evidenceSummary: parsedUseCase.evidenceSummary,
-      confidenceScore: parsedUseCase.confidenceScore,
-      rawJson: JSON.stringify(rawJson ?? parsedUseCase),
+      companyName: normalizedUseCase.companyName,
+      industry: normalizedUseCase.industry,
+      businessFunction: normalizedUseCase.businessFunction,
+      aiSystemOrCapability: normalizedUseCase.aiSystemOrCapability,
+      humanRoleChange: normalizedUseCase.humanRoleChange,
+      systemIntegrations: normalizedUseCase.systemIntegrations,
+      deploymentStage: normalizedUseCase.deploymentStage,
+      roiMetric: normalizedUseCase.roiMetric,
+      businessOutcome: normalizedUseCase.businessOutcome,
+      governanceOrRiskNotes: normalizedUseCase.governanceOrRiskNotes,
+      implementationDetails: normalizedUseCase.implementationDetails,
+      sourceTitle: normalizedUseCase.sourceTitle,
+      sourceUrl: normalizedUseCase.sourceUrl,
+      sourceName: normalizedUseCase.sourceName,
+      publishDate: normalizedUseCase.publishDate,
+      evidenceSummary: normalizedUseCase.evidenceSummary,
+      confidenceScore: normalizedUseCase.confidenceScore,
+      rawJson: JSON.stringify(rawJson ?? normalizedUseCase),
     });
 }
 
