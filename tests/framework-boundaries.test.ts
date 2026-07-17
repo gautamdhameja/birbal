@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { describe, it } from "node:test";
+import ts from "typescript";
 
 const SOURCE_ROOT = resolve("src");
 const APP_ROOT = resolve(SOURCE_ROOT, "app");
 const FRAMEWORK_ROOT = resolve(SOURCE_ROOT, "framework");
-const RELATIVE_IMPORT_PATTERN = /\b(?:from\s+|import\s*)["'](\.[^"']+)["']/g;
 
 function typescriptFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -19,21 +19,51 @@ function typescriptFiles(directory: string): string[] {
   });
 }
 
-function isWithin(directory: string, path: string): boolean {
-  return path === directory || path.startsWith(`${directory}/`);
+function isWithin(directory: string, candidate: string): boolean {
+  const candidatePath = relative(directory, candidate);
+  return (
+    candidatePath === "" ||
+    (!isAbsolute(candidatePath) && candidatePath !== ".." && !candidatePath.startsWith(`..${sep}`))
+  );
+}
+
+function relativeModuleSpecifiers(file: string): string[] {
+  const sourceFile = ts.createSourceFile(
+    file,
+    readFileSync(file, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const specifiers: string[] = [];
+
+  function addSpecifier(node: ts.Node | undefined): void {
+    if (node && ts.isStringLiteralLike(node) && node.text.startsWith(".")) {
+      specifiers.push(node.text);
+    }
+  }
+
+  function visit(node: ts.Node): void {
+    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+      addSpecifier(node.moduleSpecifier);
+    } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+      addSpecifier(node.arguments[0]);
+    } else if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) {
+      addSpecifier(node.argument.literal);
+    }
+
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return specifiers;
 }
 
 function relativeImportViolations(root: string, allowedRoots: readonly string[]): string[] {
   const violations: string[] = [];
 
   for (const file of typescriptFiles(root)) {
-    const source = readFileSync(file, "utf8");
-    for (const match of source.matchAll(RELATIVE_IMPORT_PATTERN)) {
-      const importPath = match[1];
-      if (!importPath) {
-        continue;
-      }
-
+    for (const importPath of relativeModuleSpecifiers(file)) {
       const resolvedImport = resolve(dirname(file), importPath);
       if (!allowedRoots.some((allowedRoot) => isWithin(allowedRoot, resolvedImport))) {
         violations.push(`${relative(SOURCE_ROOT, file)} -> ${importPath}`);
@@ -47,6 +77,7 @@ function relativeImportViolations(root: string, allowedRoots: readonly string[])
 describe("framework dependency boundaries", () => {
   it("keeps application and framework code in explicit source roots", () => {
     const sourceEntries = readdirSync(SOURCE_ROOT, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() || (entry.isFile() && entry.name.endsWith(".ts")))
       .map((entry) => ({
         name: entry.name,
         type: entry.isDirectory() ? "directory" : "file",
