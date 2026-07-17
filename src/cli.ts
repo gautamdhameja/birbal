@@ -50,6 +50,17 @@ function traceEnabled(options: TraceOptions, program: Command): boolean {
   return Boolean(options.trace ?? globalOptions.trace);
 }
 
+function configureTraceLogging(trace: boolean, forceDebugLevel = false): void {
+  if (!trace) {
+    return;
+  }
+
+  process.env.LOG_LEVEL = forceDebugLevel
+    ? LOGGING.DEBUG_LEVEL
+    : process.env.LOG_LEVEL?.trim() || LOGGING.DEBUG_LEVEL;
+  process.env.LOG_PRETTY = process.env.LOG_PRETTY?.trim() || LOGGING.PRETTY_ENABLED_VALUE;
+}
+
 function pipelineOptions(
   options: PipelineCommandOptions,
   pipelineId: string | undefined,
@@ -99,10 +110,7 @@ async function runAgentCommand(
   program: Command,
 ): Promise<void> {
   const trace = traceEnabled(options, program);
-  if (trace) {
-    process.env.LOG_LEVEL = process.env.LOG_LEVEL?.trim() || LOGGING.DEBUG_LEVEL;
-    process.env.LOG_PRETTY = process.env.LOG_PRETTY?.trim() || LOGGING.PRETTY_ENABLED_VALUE;
-  }
+  configureTraceLogging(trace);
 
   const { runAgent } = await import("./agent/run.js");
   if (trace) {
@@ -135,17 +143,62 @@ async function runUseCasesCommand(
   options: PipelineCommandOptions,
   program: Command,
 ): Promise<void> {
-  if (traceEnabled(options, program)) {
-    process.env.LOG_LEVEL = LOGGING.DEBUG_LEVEL;
-    process.env.LOG_PRETTY = process.env.LOG_PRETTY?.trim() || LOGGING.PRETTY_ENABLED_VALUE;
-  }
+  const trace = traceEnabled(options, program);
+  configureTraceLogging(trace, true);
   const { runUseCaseAdaptivePipelineCommand } = await import("./pipelines/useCases/commands.js");
   await runUseCaseAdaptivePipelineCommand({
     configPath: options.config,
     dryRun: dryRunEnabled(options),
     limit: options.limit,
-    trace: traceEnabled(options, program),
+    trace,
   });
+}
+
+async function runUseCaseSearchCommand(options: PipelineCommandOptions): Promise<void> {
+  const { runUseCaseSearchSnapshotCommand } = await import("./pipelines/useCases/commands.js");
+  await runUseCaseSearchSnapshotCommand({
+    configPath: options.config,
+    limit: options.limit,
+  });
+}
+
+async function runUseCaseProcessCommand(
+  options: UseCaseProcessCommandOptions,
+  program: Command,
+): Promise<void> {
+  const trace = traceEnabled(options, program);
+  configureTraceLogging(trace, true);
+  const { runUseCaseProcessSnapshotCommand } = await import("./pipelines/useCases/commands.js");
+  await runUseCaseProcessSnapshotCommand({
+    configPath: options.config,
+    dryRun: dryRunEnabled(options),
+    limit: options.limit,
+    snapshotId: options.snapshot,
+    trace,
+  });
+}
+
+function registerUseCaseSearchAction(command: Command): Command {
+  return command.action(
+    async (optionsOrCommand: PipelineCommandOptions | Command, actionCommand?: Command) => {
+      await runUseCaseSearchCommand(
+        commandOptions<PipelineCommandOptions>(optionsOrCommand, actionCommand),
+      );
+    },
+  );
+}
+
+function registerUseCaseProcessCommand(command: Command, program: Command): Command {
+  return addPipelineOptions(command)
+    .option("--snapshot <id>", "search snapshot id, or latest", "latest")
+    .action(
+      async (optionsOrCommand: UseCaseProcessCommandOptions | Command, actionCommand?: Command) => {
+        await runUseCaseProcessCommand(
+          commandOptions<UseCaseProcessCommandOptions>(optionsOrCommand, actionCommand),
+          program,
+        );
+      },
+    );
 }
 
 async function runEvalsCommand(options: EvalCommandOptions): Promise<void> {
@@ -208,76 +261,35 @@ export async function runBirbalCli(args: readonly string[] = process.argv.slice(
     await runUseCasesCommand(options, program);
   });
 
-  useCasesCommand
-    .command("search")
-    .description("run only use-case web search and store a reusable snapshot")
-    .option("--limit <number>", "limit search snapshot candidate count", parsePositiveInteger)
-    .option("--config <path>", "load pipeline config from a file path")
-    .action(async (optionsOrCommand: PipelineCommandOptions | Command, command?: Command) => {
-      const options = commandOptions<PipelineCommandOptions>(optionsOrCommand, command);
-      const { runUseCaseSearchSnapshotCommand } = await import("./pipelines/useCases/commands.js");
-      await runUseCaseSearchSnapshotCommand({
-        configPath: options.config,
-        limit: options.limit,
-      });
-    });
+  registerUseCaseSearchAction(
+    useCasesCommand
+      .command("search")
+      .description("run only use-case web search and store a reusable snapshot")
+      .option("--limit <number>", "limit search snapshot candidate count", parsePositiveInteger)
+      .option("--config <path>", "load pipeline config from a file path"),
+  );
 
-  addPipelineOptions(
+  registerUseCaseProcessCommand(
     useCasesCommand
       .command("process")
       .description("run model processing from a stored use-case search snapshot"),
-  )
-    .option("--snapshot <id>", "search snapshot id, or latest", "latest")
-    .action(async (optionsOrCommand: UseCaseProcessCommandOptions | Command, command?: Command) => {
-      const options = commandOptions<UseCaseProcessCommandOptions>(optionsOrCommand, command);
-      if (traceEnabled(options, program)) {
-        process.env.LOG_LEVEL = LOGGING.DEBUG_LEVEL;
-        process.env.LOG_PRETTY = process.env.LOG_PRETTY?.trim() || LOGGING.PRETTY_ENABLED_VALUE;
-      }
-      const { runUseCaseProcessSnapshotCommand } = await import("./pipelines/useCases/commands.js");
-      await runUseCaseProcessSnapshotCommand({
-        configPath: options.config,
-        dryRun: dryRunEnabled(options),
-        limit: options.limit,
-        snapshotId: options.snapshot,
-        trace: traceEnabled(options, program),
-      });
-    });
+    program,
+  );
 
-  addPipelineOptions(
+  registerUseCaseProcessCommand(
     program
       .command("use-cases-process")
       .description("run use-case model processing from a stored search snapshot"),
-  )
-    .option("--snapshot <id>", "search snapshot id, or latest", "latest")
-    .action(async (optionsOrCommand: UseCaseProcessCommandOptions | Command, command?: Command) => {
-      const options = commandOptions<UseCaseProcessCommandOptions>(optionsOrCommand, command);
-      if (traceEnabled(options, program)) {
-        process.env.LOG_LEVEL = LOGGING.DEBUG_LEVEL;
-        process.env.LOG_PRETTY = process.env.LOG_PRETTY?.trim() || LOGGING.PRETTY_ENABLED_VALUE;
-      }
-      const { runUseCaseProcessSnapshotCommand } = await import("./pipelines/useCases/commands.js");
-      await runUseCaseProcessSnapshotCommand({
-        configPath: options.config,
-        dryRun: dryRunEnabled(options),
-        limit: options.limit,
-        snapshotId: options.snapshot,
-        trace: traceEnabled(options, program),
-      });
-    });
+    program,
+  );
 
-  addPipelineOptions(
-    program
-      .command("use-cases-search")
-      .description("shortcut for use-cases search snapshot creation"),
-  ).action(async (optionsOrCommand: PipelineCommandOptions | Command) => {
-    const options = commandOptions<PipelineCommandOptions>(optionsOrCommand);
-    const { runUseCaseSearchSnapshotCommand } = await import("./pipelines/useCases/commands.js");
-    await runUseCaseSearchSnapshotCommand({
-      configPath: options.config,
-      limit: options.limit,
-    });
-  });
+  registerUseCaseSearchAction(
+    addPipelineOptions(
+      program
+        .command("use-cases-search")
+        .description("shortcut for use-cases search snapshot creation"),
+    ),
+  );
 
   addPipelineOptions(
     program

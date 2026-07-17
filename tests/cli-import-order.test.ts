@@ -2,6 +2,13 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { describe, it } from "node:test";
 
+function runCli(args: readonly string[]) {
+  return spawnSync(process.execPath, ["--import", "tsx", "src/cli.ts", ...args], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+  });
+}
+
 describe("CLI module loading", () => {
   it("does not initialize logging before trace options can be applied", () => {
     const script = [
@@ -24,5 +31,18 @@ describe("CLI module loading", () => {
 
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout, "debug");
+  });
+
+  it("keeps full, search, and process shortcut commands registered", () => {
+    const topLevelHelp = runCli(["--help"]);
+    const useCaseHelp = runCli(["use-cases", "--help"]);
+
+    assert.equal(topLevelHelp.status, 0, topLevelHelp.stderr);
+    assert.match(topLevelHelp.stdout, /use-cases-process/);
+    assert.match(topLevelHelp.stdout, /use-cases-search/);
+    assert.match(topLevelHelp.stdout, /use-cases-full/);
+    assert.equal(useCaseHelp.status, 0, useCaseHelp.stderr);
+    assert.match(useCaseHelp.stdout, /search/);
+    assert.match(useCaseHelp.stdout, /process/);
   });
 });
