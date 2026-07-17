@@ -7,8 +7,6 @@ import { Command, InvalidArgumentError, type OptionValues } from "commander";
 import dotenv from "dotenv";
 
 import { CLI, ENV_FILE_PATHS, LOGGING } from "./constants/runtime.js";
-import { runAgent } from "./agent/run.js";
-import { renderToolsForPrompt } from "./tools/registry.js";
 import { runPipelineFromCliOptions } from "./runPipeline.js";
 import type { PipelineCliOptions } from "./runPipeline.js";
 
@@ -104,6 +102,11 @@ async function runAgentCommand(
   if (trace) {
     process.env.LOG_LEVEL = process.env.LOG_LEVEL?.trim() || LOGGING.DEBUG_LEVEL;
     process.env.LOG_PRETTY = process.env.LOG_PRETTY?.trim() || LOGGING.PRETTY_ENABLED_VALUE;
+  }
+
+  const { runAgent } = await import("./agent/run.js");
+  if (trace) {
+    const { renderToolsForPrompt } = await import("./tools/registry.js");
     console.error(renderToolsForPrompt());
   }
 
