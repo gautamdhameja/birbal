@@ -8,11 +8,12 @@ import {
 } from "../../../db/useCaseModelCache.js";
 import type { StructuredExtractor } from "../../../framework/pipeline/types.js";
 import { ENTERPRISE_USE_CASE_EXTRACTOR_VERSION, extractEnterpriseUseCases } from "../extractor.js";
+import { useCasePipelineConfigFromContext } from "../config.js";
 import { fetchSourceEvidence } from "../sourceEvidence.js";
 import {
   asUseCaseCandidate,
   extractionMaxContentChars,
-  extractionSourceEvidenceConfigFromContext,
+  extractionSourceEvidenceConfig,
   sourceEvidenceCacheText,
   useCaseCandidateToCandidateItem,
 } from "./support.js";
@@ -20,6 +21,7 @@ import { asRunItem, fetchedPlainText } from "../../componentHelpers.js";
 
 export const enterpriseUseCaseExtractor: StructuredExtractor = {
   async extractStructured(item, context) {
+    const config = useCasePipelineConfigFromContext(context);
     const runItem = asRunItem(item);
     const contentText = fetchedPlainText(runItem);
     if (!contentText.trim()) {
@@ -29,7 +31,7 @@ export const enterpriseUseCaseExtractor: StructuredExtractor = {
     const candidate = useCaseCandidateToCandidateItem(asUseCaseCandidate(item), context);
     const sourceEvidence = await fetchSourceEvidence(
       candidate.url,
-      extractionSourceEvidenceConfigFromContext(context, candidate, contentText),
+      extractionSourceEvidenceConfig(config, candidate, contentText),
     );
     context.logger.debug(
       {
@@ -63,7 +65,7 @@ export const enterpriseUseCaseExtractor: StructuredExtractor = {
       traceId: context.runId,
       traceLabel: "pipeline.use_cases.enterprise_use_case_extractor",
       completeFn: context.modelClient.complete,
-      maxContentChars: extractionMaxContentChars(context),
+      maxContentChars: extractionMaxContentChars(config),
       sourceEvidence,
     });
 

@@ -25,7 +25,7 @@ import {
   sourceRegistryFromContext,
 } from "../../componentHelpers.js";
 import { enterpriseUseCaseFingerprint } from "../dedupe.js";
-import { useCasePipelineConfigFromContext } from "../config.js";
+import { type UseCasePipelineConfig, USE_CASES_PIPELINE_ID } from "../config.js";
 import type { EnterpriseUseCase } from "../schema.js";
 import type { UseCaseSearchCandidate } from "../search.js";
 import { selectEnterpriseUseCases } from "../selector.js";
@@ -46,7 +46,7 @@ export function useCaseCandidateToCandidateItem(
 ): CandidateItem {
   return {
     id: candidate.id,
-    sourceId: "use_cases",
+    sourceId: USE_CASES_PIPELINE_ID,
     sourceName: candidate.sourceName ?? "unknown",
     sourceType: "community",
     title: candidate.title,
@@ -75,8 +75,8 @@ export function snapshotIdFromMethod(method: PipelineCollectionMethod): string {
 export function useCaseScoutConfigFromContext(
   context: PipelineContext,
   method: PipelineCollectionMethod,
+  config: UseCasePipelineConfig,
 ) {
-  const config = useCasePipelineConfigFromContext(context);
   const sourceRegistry = scopedSourceRegistry(
     sourceRegistryFromContext(context),
     collectionSourceIds(method, context),
@@ -92,10 +92,12 @@ export function useCaseScoutConfigFromContext(
   };
 }
 
-export function useCaseSelectorConfigFromContext(context: PipelineContext) {
-  const config = useCasePipelineConfigFromContext(context);
+export function useCaseSelectorConfigFromContext(
+  context: PipelineContext,
+  config: UseCasePipelineConfig,
+) {
   const maxUseCasesPerRun = outputLimit(context) ?? config.limits.maxUseCasesPerRun;
-  const dedupe = useCaseDedupeConfigFromContext(context);
+  const dedupe = useCaseDedupeConfig(config);
 
   return {
     allowPreviouslyPublished: dedupe.allowPreviouslyPublished,
@@ -120,11 +122,11 @@ export function useCaseSelectorConfigFromContext(context: PipelineContext) {
   };
 }
 
-export function useCaseDedupeConfigFromContext(context: PipelineContext): {
+export function useCaseDedupeConfig(config: UseCasePipelineConfig): {
   allowPreviouslyPublished: boolean;
   previouslyPublishedFingerprints: ReadonlySet<string>;
 } {
-  const dedupeSettings = useCasePipelineConfigFromContext(context).settings?.dedupe ?? {};
+  const dedupeSettings = config.settings?.dedupe ?? {};
   const allowPreviouslyPublished = dedupeSettings.allowPreviouslyPublished === true;
   if (allowPreviouslyPublished) {
     return {
@@ -146,10 +148,10 @@ export function useCaseDedupeConfigFromContext(context: PipelineContext): {
 }
 
 export function verificationCandidatePoolSize(
-  context: PipelineContext,
+  config: UseCasePipelineConfig,
   targetCount: number,
 ): number {
-  const limits = useCasePipelineConfigFromContext(context).limits;
+  const limits = config.limits;
   const configuredLimit = limits.verificationCandidatePoolSize;
   if (configuredLimit !== undefined) {
     return configuredLimit;
@@ -160,8 +162,8 @@ export function verificationCandidatePoolSize(
   return Math.max(targetCount, Math.ceil(targetCount * multiplier));
 }
 
-export function verificationBatchSize(context: PipelineContext, targetCount: number): number {
-  const configuredLimit = useCasePipelineConfigFromContext(context).limits.verificationBatchSize;
+export function verificationBatchSize(config: UseCasePipelineConfig, targetCount: number): number {
+  const configuredLimit = config.limits.verificationBatchSize;
   if (configuredLimit !== undefined) {
     return Math.max(1, configuredLimit);
   }
@@ -169,12 +171,12 @@ export function verificationBatchSize(context: PipelineContext, targetCount: num
   return Math.max(1, Math.ceil(targetCount / 2));
 }
 
-export function verificationEnabled(context: PipelineContext): boolean {
-  return useCasePipelineConfigFromContext(context).settings?.verification?.enabled !== false;
+export function verificationEnabled(config: UseCasePipelineConfig): boolean {
+  return config.settings?.verification?.enabled !== false;
 }
 
-export function verificationConfigFromContext(context: PipelineContext) {
-  const limits = useCasePipelineConfigFromContext(context).limits;
+export function verificationConfig(config: UseCasePipelineConfig) {
+  const limits = config.limits;
   return {
     maxLinks: limits.maxVerificationLinks ?? 2,
     maxChars: limits.verificationMaxChars ?? 12_000,
@@ -188,16 +190,15 @@ export function shouldPersistSelectedUseCases(context: PipelineContext): boolean
   return context.config.metadata?.suppressUseCasePersistence !== true;
 }
 
-export function extractionMaxContentChars(context: PipelineContext): number | undefined {
-  return useCasePipelineConfigFromContext(context).limits.extractionMaxContentChars;
+export function extractionMaxContentChars(config: UseCasePipelineConfig): number | undefined {
+  return config.limits.extractionMaxContentChars;
 }
 
-export function extractionSourceEvidenceConfigFromContext(
-  context: PipelineContext,
+export function extractionSourceEvidenceConfig(
+  config: UseCasePipelineConfig,
   candidate: CandidateItem,
   contentText: string,
 ) {
-  const config = useCasePipelineConfigFromContext(context);
   return {
     maxLinks: config.limits.extractionMaxSupportingLinks ?? 2,
     maxChars: config.contentFetchPolicy.maxChars,

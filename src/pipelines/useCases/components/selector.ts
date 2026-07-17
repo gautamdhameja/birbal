@@ -5,6 +5,7 @@ import type { PipelineRunItem } from "../../../framework/pipeline/orchestrator.j
 import { selectWithIncrementalAcceptance } from "../../../framework/pipeline/selection.js";
 import type { Selector } from "../../../framework/pipeline/types.js";
 import type { EnterpriseUseCase } from "../schema.js";
+import { useCasePipelineConfigFromContext } from "../config.js";
 import { selectEnterpriseUseCaseItems, selectEnterpriseUseCases } from "../selector.js";
 import { verifySelectedEnterpriseUseCases } from "../verification.js";
 import {
@@ -15,23 +16,24 @@ import {
   useCaseSelectorConfigFromContext,
   verificationBatchSize,
   verificationCandidatePoolSize,
-  verificationConfigFromContext,
+  verificationConfig,
   verificationEnabled,
 } from "./support.js";
 
 export const enterpriseUseCaseSelector: Selector = {
   async select(items, context) {
+    const config = useCasePipelineConfigFromContext(context);
     const runItems = items as PipelineRunItem[];
     const extractedUseCases = runItems.flatMap((item) =>
       Array.isArray(item.structuredData) ? (item.structuredData as EnterpriseUseCase[]) : [],
     );
-    const selectorConfig = useCaseSelectorConfigFromContext(context);
+    const selectorConfig = useCaseSelectorConfigFromContext(context, config);
     const targetCount = selectorConfig.maxUseCasesPerRun ?? 10;
-    const verified = verificationEnabled(context)
+    const verified = verificationEnabled(config)
       ? await selectWithIncrementalAcceptance({
           candidates: extractedUseCases,
-          batchSize: verificationBatchSize(context, targetCount),
-          candidatePoolSize: verificationCandidatePoolSize(context, targetCount),
+          batchSize: verificationBatchSize(config, targetCount),
+          candidatePoolSize: verificationCandidatePoolSize(config, targetCount),
           targetCount,
           selectCandidates: (candidates, limit) =>
             selectEnterpriseUseCases(candidates, {
@@ -40,7 +42,7 @@ export const enterpriseUseCaseSelector: Selector = {
             }),
           acceptCandidates: (candidates) =>
             verifySelectedEnterpriseUseCases(candidates, {
-              ...verificationConfigFromContext(context),
+              ...verificationConfig(config),
               sourceTextByUrl: sourceTextByUrlFromItems(runItems),
               traceId: context.runId,
               traceLabel: "pipeline.use_cases.enterprise_use_case_verifier",

@@ -22,7 +22,8 @@ import { snapshotIdFromMethod, useCaseQueries, useCaseScoutConfigFromContext } f
 export const braveWebSearchCollector: SourceCollector = {
   async collect(method, context) {
     const collectionMethod = method as PipelineCollectionMethod;
-    const config = useCaseScoutConfigFromContext(context, collectionMethod);
+    const pipelineConfig = useCasePipelineConfigFromContext(context);
+    const config = useCaseScoutConfigFromContext(context, collectionMethod, pipelineConfig);
     const queries = useCaseQueries(collectionMethod);
     const result = await collectUseCaseSearchCandidates(
       config,
