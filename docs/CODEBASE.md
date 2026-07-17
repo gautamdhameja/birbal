@@ -6,7 +6,7 @@ The main production-like workflows are:
 
 - A daily enterprise AI reading digest pipeline (`daily`) that collects candidates from configured sources, fetches source text, scores and classifies items with the configured model provider, selects a balanced digest mix, persists results, and writes Markdown under `digests/`.
 - An enterprise AI use-case scout pipeline (`use_cases`) that searches web sources, fetches article text, extracts structured enterprise use cases with the configured model provider, selects a diverse set, stores them in SQLite, and writes Markdown under `digests/use-cases/`.
-- A lightweight agent CLI (`src/cli.ts` and `src/main.ts`) that runs a JSON-protocol chat agent with handwritten tools.
+- A lightweight agent CLI (`src/cli.ts`) that runs a JSON-protocol chat agent with handwritten tools.
 
 The project is intentionally modular. Runtime configuration is loaded from environment variables and JSON config files. Shared shapes are validated with Zod. LLM calls, tool registration, pipeline orchestration, source clients, storage, prompts, constants, and renderers live in separate modules.
 
@@ -27,7 +27,7 @@ The package binary is `bin/birbal.js`, which launches the TypeScript CLI through
 
 ### Agent CLI
 
-`src/main.ts` remains the agent-only entry point for compatibility, while `pnpm dev` now routes through `src/cli.ts agent`.
+Agent and pipeline commands share `src/cli.ts`; `pnpm dev` routes through its `agent` command.
 
 It:
 
