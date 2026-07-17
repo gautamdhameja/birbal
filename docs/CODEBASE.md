@@ -701,7 +701,7 @@ The agent, tools, LLM client, structured repair flow, pipeline orchestrator, sel
 
 ## JSON Utilities
 
-`src/app/utils/json.ts` is used by strict structured-output callers. It is designed to parse model outputs that may contain JSON-like text and produce useful parse errors. Constants for JSON parsing behavior are grouped in `src/app/constants/json.ts`.
+`src/app/utils/json.ts` preserves the application compatibility import for the framework JSON helpers. The implementation lives in `src/framework/llm/json.ts`, with parsing constants grouped in `src/framework/llm/jsonConstants.ts`.
 
 `src/app/utils/url.ts` normalizes URLs consistently for deduplication. Candidate collection, source-domain search, pipeline item dedupe, and use-case ranking all rely on normalized URLs to avoid duplicate work.
 
