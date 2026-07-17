@@ -25,6 +25,7 @@ import {
   sourceRegistryFromContext,
 } from "../../componentHelpers.js";
 import { enterpriseUseCaseFingerprint } from "../dedupe.js";
+import { useCasePipelineConfigFromContext } from "../config.js";
 import type { EnterpriseUseCase } from "../schema.js";
 import type { UseCaseSearchCandidate } from "../search.js";
 import { selectEnterpriseUseCases } from "../selector.js";
@@ -75,6 +76,7 @@ export function useCaseScoutConfigFromContext(
   context: PipelineContext,
   method: PipelineCollectionMethod,
 ) {
+  const config = useCasePipelineConfigFromContext(context);
   const sourceRegistry = scopedSourceRegistry(
     sourceRegistryFromContext(context),
     collectionSourceIds(method, context),
@@ -82,35 +84,36 @@ export function useCaseScoutConfigFromContext(
 
   return {
     prioritizedDomains: sourceRegistry.sources.flatMap((source) => source.domains),
-    maxSearchQueries: context.config.limits.maxSearchQueries ?? 1,
-    maxSearchResultsPerQuery: context.config.limits.maxSearchResultsPerQuery ?? 10,
-    maxCandidatesForExtraction: context.config.limits.maxCandidatesForExtraction ?? 30,
-    maxCandidateAgeDays: context.config.limits.maxItemAgeDays,
+    maxSearchQueries: config.limits.maxSearchQueries ?? 1,
+    maxSearchResultsPerQuery: config.limits.maxSearchResultsPerQuery ?? 10,
+    maxCandidatesForExtraction: config.limits.maxCandidatesForExtraction ?? 30,
+    maxCandidateAgeDays: config.limits.maxItemAgeDays,
     referenceDate: context.startedAt,
   };
 }
 
 export function useCaseSelectorConfigFromContext(context: PipelineContext) {
-  const maxUseCasesPerRun = outputLimit(context) ?? context.config.limits.maxUseCasesPerRun;
+  const config = useCasePipelineConfigFromContext(context);
+  const maxUseCasesPerRun = outputLimit(context) ?? config.limits.maxUseCasesPerRun;
   const dedupe = useCaseDedupeConfigFromContext(context);
 
   return {
     allowPreviouslyPublished: dedupe.allowPreviouslyPublished,
     ...(typeof maxUseCasesPerRun === "number" ? { maxUseCasesPerRun } : {}),
-    ...(typeof context.config.limits.minConfidenceScore === "number"
-      ? { minConfidenceScore: context.config.limits.minConfidenceScore }
+    ...(config.limits.minConfidenceScore !== undefined
+      ? { minConfidenceScore: config.limits.minConfidenceScore }
       : {}),
-    ...(typeof context.config.limits.maxPerCompany === "number"
-      ? { maxPerCompany: context.config.limits.maxPerCompany }
+    ...(config.limits.maxPerCompany !== undefined
+      ? { maxPerCompany: config.limits.maxPerCompany }
       : {}),
-    ...(typeof context.config.limits.maxPerIndustry === "number"
-      ? { maxPerIndustry: context.config.limits.maxPerIndustry }
+    ...(config.limits.maxPerIndustry !== undefined
+      ? { maxPerIndustry: config.limits.maxPerIndustry }
       : {}),
-    ...(typeof context.config.limits.maxPerSource === "number"
-      ? { maxPerSource: context.config.limits.maxPerSource }
+    ...(config.limits.maxPerSource !== undefined
+      ? { maxPerSource: config.limits.maxPerSource }
       : {}),
-    ...(typeof context.config.limits.maxItemAgeDays === "number"
-      ? { maxUseCaseAgeDays: context.config.limits.maxItemAgeDays }
+    ...(config.limits.maxItemAgeDays !== undefined
+      ? { maxUseCaseAgeDays: config.limits.maxItemAgeDays }
       : {}),
     previouslyPublishedFingerprints: dedupe.previouslyPublishedFingerprints,
     referenceDate: context.startedAt,
@@ -121,11 +124,7 @@ export function useCaseDedupeConfigFromContext(context: PipelineContext): {
   allowPreviouslyPublished: boolean;
   previouslyPublishedFingerprints: ReadonlySet<string>;
 } {
-  const dedupe = context.config.settings?.dedupe;
-  const dedupeSettings =
-    typeof dedupe === "object" && dedupe !== null && !Array.isArray(dedupe)
-      ? (dedupe as { allowPreviouslyPublished?: unknown; previouslyPublishedLookback?: unknown })
-      : {};
+  const dedupeSettings = useCasePipelineConfigFromContext(context).settings?.dedupe ?? {};
   const allowPreviouslyPublished = dedupeSettings.allowPreviouslyPublished === true;
   if (allowPreviouslyPublished) {
     return {
@@ -134,12 +133,7 @@ export function useCaseDedupeConfigFromContext(context: PipelineContext): {
     };
   }
 
-  const lookback =
-    typeof dedupeSettings.previouslyPublishedLookback === "number" &&
-    Number.isInteger(dedupeSettings.previouslyPublishedLookback) &&
-    dedupeSettings.previouslyPublishedLookback > 0
-      ? dedupeSettings.previouslyPublishedLookback
-      : 500;
+  const lookback = dedupeSettings.previouslyPublishedLookback ?? 500;
 
   return {
     allowPreviouslyPublished,
@@ -155,22 +149,20 @@ export function verificationCandidatePoolSize(
   context: PipelineContext,
   targetCount: number,
 ): number {
-  const configuredLimit = context.config.limits.verificationCandidatePoolSize;
-  if (typeof configuredLimit === "number") {
+  const limits = useCasePipelineConfigFromContext(context).limits;
+  const configuredLimit = limits.verificationCandidatePoolSize;
+  if (configuredLimit !== undefined) {
     return configuredLimit;
   }
 
-  const multiplier =
-    typeof context.config.limits.verificationCandidateMultiplier === "number"
-      ? context.config.limits.verificationCandidateMultiplier
-      : 3;
+  const multiplier = limits.verificationCandidateMultiplier ?? 3;
 
   return Math.max(targetCount, Math.ceil(targetCount * multiplier));
 }
 
 export function verificationBatchSize(context: PipelineContext, targetCount: number): number {
-  const configuredLimit = context.config.limits.verificationBatchSize;
-  if (typeof configuredLimit === "number" && Number.isInteger(configuredLimit)) {
+  const configuredLimit = useCasePipelineConfigFromContext(context).limits.verificationBatchSize;
+  if (configuredLimit !== undefined) {
     return Math.max(1, configuredLimit);
   }
 
@@ -178,21 +170,17 @@ export function verificationBatchSize(context: PipelineContext, targetCount: num
 }
 
 export function verificationEnabled(context: PipelineContext): boolean {
-  const verification = context.config.settings?.verification;
-  if (typeof verification !== "object" || verification === null || Array.isArray(verification)) {
-    return true;
-  }
-
-  return (verification as { enabled?: unknown }).enabled !== false;
+  return useCasePipelineConfigFromContext(context).settings?.verification?.enabled !== false;
 }
 
 export function verificationConfigFromContext(context: PipelineContext) {
+  const limits = useCasePipelineConfigFromContext(context).limits;
   return {
-    maxLinks: context.config.limits.maxVerificationLinks ?? 2,
-    maxChars: context.config.limits.verificationMaxChars ?? 12_000,
-    promptLinkedMaxChars: context.config.limits.verificationPromptLinkedMaxChars ?? 1_500,
-    promptSourceMaxChars: context.config.limits.verificationPromptSourceMaxChars ?? 5_000,
-    minVerificationConfidenceScore: context.config.limits.minVerificationConfidenceScore ?? 3,
+    maxLinks: limits.maxVerificationLinks ?? 2,
+    maxChars: limits.verificationMaxChars ?? 12_000,
+    promptLinkedMaxChars: limits.verificationPromptLinkedMaxChars ?? 1_500,
+    promptSourceMaxChars: limits.verificationPromptSourceMaxChars ?? 5_000,
+    minVerificationConfidenceScore: limits.minVerificationConfidenceScore ?? 3,
   };
 }
 
@@ -201,8 +189,7 @@ export function shouldPersistSelectedUseCases(context: PipelineContext): boolean
 }
 
 export function extractionMaxContentChars(context: PipelineContext): number | undefined {
-  const value = context.config.limits.extractionMaxContentChars;
-  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
+  return useCasePipelineConfigFromContext(context).limits.extractionMaxContentChars;
 }
 
 export function extractionSourceEvidenceConfigFromContext(
@@ -210,13 +197,14 @@ export function extractionSourceEvidenceConfigFromContext(
   candidate: CandidateItem,
   contentText: string,
 ) {
+  const config = useCasePipelineConfigFromContext(context);
   return {
-    maxLinks: context.config.limits.extractionMaxSupportingLinks ?? 2,
-    maxChars: context.config.contentFetchPolicy.maxChars,
+    maxLinks: config.limits.extractionMaxSupportingLinks ?? 2,
+    maxChars: config.contentFetchPolicy.maxChars,
     fallbackSourceText: contentText,
     fallbackSourceTitle: candidate.title,
     fetchPolicy: {
-      maxResponseBytes: context.config.contentFetchPolicy.maxResponseBytes,
+      maxResponseBytes: config.contentFetchPolicy.maxResponseBytes,
     },
   };
 }

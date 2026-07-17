@@ -11,10 +11,8 @@ import {
   updateSearchSnapshotResultCount,
 } from "../../db/searchSnapshots.js";
 import { sqlitePipelineRunStore } from "../../db/pipelineRuns.js";
-import { loadPipelineConfig } from "../../framework/pipeline/config.js";
 import { runPipeline } from "../../framework/pipeline/orchestrator.js";
 import type {
-  PipelineConfig,
   PipelineCollectionMethod,
   PipelineLogger,
   PipelineResult,
@@ -24,6 +22,11 @@ import { getDefaultModelClient } from "../../model-providers/default.js";
 import { registerBirbalPipelineComponents } from "../register.js";
 import { collectUseCaseSearchCandidates, rankUseCaseSearchCandidates } from "./search.js";
 import type { UseCaseSearchCandidate, UseCaseSearchConfig } from "./search.js";
+import {
+  loadUseCasePipelineConfig,
+  type UseCasePipelineConfig,
+  USE_CASES_PIPELINE_ID,
+} from "./config.js";
 
 export type UseCaseSearchCommandOptions = {
   configPath?: string;
@@ -72,27 +75,26 @@ type UseCaseSearchFunction = (
 export type UseCaseAdaptivePipelineDependencies = {
   logger?: PipelineLogger;
   persistSnapshot?(
-    config: PipelineConfig,
+    config: UseCasePipelineConfig,
     candidates: readonly UseCaseSearchCandidate[],
     queryCount: number,
     metadata: unknown,
   ): PersistedUseCaseSearchSnapshot;
   processSnapshot?(
-    config: PipelineConfig,
+    config: UseCasePipelineConfig,
     snapshotId: string,
     options: ProcessUseCaseSnapshotOptions,
   ): Promise<PipelineResult>;
   search?: UseCaseSearchFunction;
 };
 
-const USE_CASES_PIPELINE_ID = "use_cases";
 const SNAPSHOT_COLLECTION_METHOD_ID = "search_snapshot";
 const SNAPSHOT_COLLECTOR_ID = "search_snapshot_collector";
 const NOOP_ARTIFACT_WRITER_ID = "noop_artifact_writer";
 const DEFAULT_SEARCH_RETRY_ATTEMPTS = 3;
 
-function useCaseSearchConfig(configPath?: string, limit?: number): PipelineConfig {
-  const config = loadPipelineConfig(configPath ?? USE_CASES_PIPELINE_ID);
+function useCaseSearchConfig(configPath?: string, limit?: number): UseCasePipelineConfig {
+  const config = loadUseCasePipelineConfig(configPath ?? USE_CASES_PIPELINE_ID);
   if (!limit) {
     return config;
   }
@@ -110,8 +112,8 @@ function useCaseSearchConfig(configPath?: string, limit?: number): PipelineConfi
   };
 }
 
-function useCaseProcessConfig(configPath?: string, limit?: number): PipelineConfig {
-  const config = loadPipelineConfig(configPath ?? USE_CASES_PIPELINE_ID);
+function useCaseProcessConfig(configPath?: string, limit?: number): UseCasePipelineConfig {
+  const config = loadUseCasePipelineConfig(configPath ?? USE_CASES_PIPELINE_ID);
   if (!limit) {
     return config;
   }
@@ -135,13 +137,13 @@ function useCaseProcessConfig(configPath?: string, limit?: number): PipelineConf
   };
 }
 
-function enabledUseCaseQueries(config: PipelineConfig): string[] {
+function enabledUseCaseQueries(config: UseCasePipelineConfig): string[] {
   return config.collectionMethods
     .filter((method) => method.enabled !== false)
     .flatMap((method) => method.queries ?? []);
 }
 
-function sourceDomains(config: PipelineConfig): string[] {
+function sourceDomains(config: UseCasePipelineConfig): string[] {
   const sourceRegistry = loadSourceRegistry();
   const allowedSourceIds = new Set(config.sourceIds);
 
@@ -150,7 +152,7 @@ function sourceDomains(config: PipelineConfig): string[] {
     .flatMap((source) => source.domains);
 }
 
-function searchConfig(config: PipelineConfig): UseCaseSearchConfig {
+function searchConfig(config: UseCasePipelineConfig): UseCaseSearchConfig {
   return {
     prioritizedDomains: sourceDomains(config),
     maxSearchQueries: config.limits.maxSearchQueries ?? 1,
@@ -161,7 +163,7 @@ function searchConfig(config: PipelineConfig): UseCaseSearchConfig {
   };
 }
 
-function selectedUseCaseTarget(config: PipelineConfig): number {
+function selectedUseCaseTarget(config: UseCasePipelineConfig): number {
   const target = config.limits.limit ?? config.limits.maxResults ?? config.limits.maxUseCasesPerRun;
   if (typeof target === "number" && Number.isInteger(target) && target > 0) {
     return target;
@@ -170,18 +172,9 @@ function selectedUseCaseTarget(config: PipelineConfig): number {
   return Math.max(1, config.failurePolicy.minItemsRequiredForSuccess);
 }
 
-function searchRetryConfig(config: PipelineConfig): UseCaseSearchRetryConfig {
-  const rawSettings = config.settings?.searchRetry;
-  const settings =
-    typeof rawSettings === "object" && rawSettings !== null && !Array.isArray(rawSettings)
-      ? (rawSettings as { enabled?: unknown; maxAttempts?: unknown })
-      : {};
-  const configuredMaxAttempts =
-    typeof settings.maxAttempts === "number" &&
-    Number.isInteger(settings.maxAttempts) &&
-    settings.maxAttempts > 0
-      ? settings.maxAttempts
-      : DEFAULT_SEARCH_RETRY_ATTEMPTS;
+function searchRetryConfig(config: UseCasePipelineConfig): UseCaseSearchRetryConfig {
+  const settings = config.settings?.searchRetry ?? {};
+  const configuredMaxAttempts = settings.maxAttempts ?? DEFAULT_SEARCH_RETRY_ATTEMPTS;
 
   return {
     enabled: settings.enabled !== false,
@@ -201,14 +194,14 @@ function snapshotCollectionMethod(snapshotId: string): PipelineCollectionMethod 
 }
 
 function processConfigFromSnapshot(
-  config: PipelineConfig,
+  config: UseCasePipelineConfig,
   snapshotId: string,
   options: {
     metadata?: Record<string, unknown>;
     persistSelectedUseCases?: boolean;
     writeArtifact?: boolean;
   } = {},
-): PipelineConfig {
+): UseCasePipelineConfig {
   const writeArtifact = options.writeArtifact ?? true;
   const persistSelectedUseCases = options.persistSelectedUseCases ?? true;
 
@@ -246,7 +239,7 @@ function processModeConfig(mode: UseCaseSnapshotProcessMode): {
 }
 
 function persistSearchSnapshot(
-  config: PipelineConfig,
+  config: UseCasePipelineConfig,
   candidates: readonly UseCaseSearchCandidate[],
   queryCount: number,
   metadata: unknown,
@@ -276,7 +269,7 @@ function persistSearchSnapshot(
 }
 
 async function processSnapshot(
-  config: PipelineConfig,
+  config: UseCasePipelineConfig,
   snapshotId: string,
   options: ProcessUseCaseSnapshotOptions,
 ) {
@@ -325,7 +318,7 @@ export async function runUseCaseSearchSnapshotCommand(
 }
 
 export async function runUseCaseAdaptivePipeline(
-  config: PipelineConfig,
+  config: UseCasePipelineConfig,
   dependencies: UseCaseAdaptivePipelineDependencies = {},
 ): Promise<PipelineResult> {
   const queries = enabledUseCaseQueries(config);
@@ -430,7 +423,7 @@ export async function runUseCaseAdaptivePipeline(
   return finalResult;
 }
 
-export function renderUseCaseAdaptiveDryRun(config: PipelineConfig): unknown {
+export function renderUseCaseAdaptiveDryRun(config: UseCasePipelineConfig): unknown {
   const queries = enabledUseCaseQueries(config);
   const retryConfig = searchRetryConfig(config);
   const targetCount = selectedUseCaseTarget(config);

@@ -16,6 +16,7 @@ import {
   isRecentUseCaseSearchCandidate,
   searchSnapshotItemToCandidate,
 } from "../search.js";
+import { useCasePipelineConfigFromContext } from "../config.js";
 import { snapshotIdFromMethod, useCaseQueries, useCaseScoutConfigFromContext } from "./support.js";
 
 export const braveWebSearchCollector: SourceCollector = {
@@ -67,6 +68,7 @@ export const braveWebSearchCollector: SourceCollector = {
 
 export const searchSnapshotCollector: SourceCollector = {
   async collect(method, context) {
+    const config = useCasePipelineConfigFromContext(context);
     const collectionMethod = method as PipelineCollectionMethod;
     const requestedSnapshotId = snapshotIdFromMethod(collectionMethod);
     const snapshot =
@@ -88,7 +90,7 @@ export const searchSnapshotCollector: SourceCollector = {
       .map(searchSnapshotItemToCandidate)
       .filter((candidate) =>
         isRecentUseCaseSearchCandidate(candidate, {
-          maxCandidateAgeDays: context.config.limits.maxItemAgeDays,
+          maxCandidateAgeDays: config.limits.maxItemAgeDays,
           referenceDate: context.startedAt,
         }),
       );

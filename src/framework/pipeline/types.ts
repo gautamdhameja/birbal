@@ -97,7 +97,10 @@ export type PipelineError = {
   metadata?: PipelineMetadata;
 };
 
-export interface PipelineConfig<TSettings = PipelineMetadata> {
+export interface PipelineConfig<
+  TSettings = PipelineMetadata,
+  TLimits extends Record<string, number | undefined> = PipelineCounts,
+> {
   pipelineId: PipelineId;
   enabled: boolean;
   description: string;
@@ -112,7 +115,7 @@ export interface PipelineConfig<TSettings = PipelineMetadata> {
   rendererId: string;
   finalizerId?: string;
   output: PipelineOutputConfig;
-  limits: PipelineCounts;
+  limits: TLimits;
   execution?: PipelineExecutionConfig;
   failurePolicy: PipelineFailurePolicy;
   schedule?: PipelineScheduleConfig;

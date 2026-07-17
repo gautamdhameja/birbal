@@ -9,6 +9,10 @@ import { describe, it } from "node:test";
 
 import { loadSourceRegistry } from "../src/config/sourceRegistry.js";
 import { loadPipelineConfig } from "../src/framework/pipeline/config.js";
+import {
+  loadUseCasePipelineConfig,
+  parseUseCasePipelineConfig,
+} from "../src/pipelines/useCases/config.js";
 import { applyPipelineCliLimit } from "../src/runPipeline.js";
 
 function writeConfig(value: unknown): string {
@@ -58,7 +62,7 @@ describe("pipeline config", () => {
   });
 
   it("loads use-case pipeline config without requiring known component IDs", () => {
-    const config = loadPipelineConfig("use-cases");
+    const config = loadUseCasePipelineConfig("use-cases");
 
     assert.equal(config.pipelineId, "use_cases");
     assert.equal(config.scorerId, undefined);
@@ -112,6 +116,36 @@ describe("pipeline config", () => {
     });
     assert.equal(config.collectionMethods[0]?.queries?.length, 15);
     assert.equal(config.collectionMethods[0]?.collectorId, "brave_web_search_collector");
+  });
+
+  it("rejects invalid use-case-specific settings and limits", () => {
+    const config = loadPipelineConfig("use-cases");
+
+    assert.throws(
+      () =>
+        parseUseCasePipelineConfig({
+          ...config,
+          limits: {
+            ...config.limits,
+            minConfidenceScore: 6,
+          },
+        }),
+      /<=5/,
+    );
+    assert.throws(
+      () =>
+        parseUseCasePipelineConfig({
+          ...config,
+          settings: {
+            ...config.settings,
+            searchRetry: {
+              enabled: true,
+              maxAttempts: 0,
+            },
+          },
+        }),
+      />0/,
+    );
   });
 
   it("applies CLI limits only to final pipeline output", () => {
