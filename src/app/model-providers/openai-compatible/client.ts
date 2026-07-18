@@ -5,7 +5,6 @@ import { HTTP } from "../../../framework/network/constants.js";
 import { fetchWithTimeout } from "../../../framework/network/fetch.js";
 import type {
   ChatMessage,
-  ModelClient,
   ModelCompleteOptions as CompleteOptions,
 } from "../../../framework/llm/types.js";
 import { buildHttpStatusError, readResponseJson } from "../../../framework/network/client.js";
@@ -16,13 +15,15 @@ import {
   OpenAICompatibleChatCompletionResponseSchema,
   OpenAICompatibleConfigSchema,
 } from "./schema.js";
-import type { OpenAICompatibleConfig } from "./schema.js";
+import type { OpenAICompatibleChatCompletionResponse, OpenAICompatibleConfig } from "./schema.js";
+import type { OpenAICompatibleModelClient, OpenAICompatibleTokenUsage } from "./types.js";
+export type {
+  OpenAICompatibleCompletion,
+  OpenAICompatibleModelClient,
+  OpenAICompatibleTokenUsage,
+} from "./types.js";
 
-type TokenUsage = {
-  prompt_tokens?: number;
-  completion_tokens?: number;
-  total_tokens?: number;
-};
+type RawTokenUsage = NonNullable<OpenAICompatibleChatCompletionResponse["usage"]>;
 
 const MODEL_LOG_EVENTS = {
   STARTED: "model.complete.started",
@@ -69,7 +70,7 @@ function logCompletionFinished(
   options: CompleteOptions,
   startedAt: Date,
   output: string,
-  usage?: TokenUsage,
+  usage?: OpenAICompatibleTokenUsage,
 ): void {
   const finishedAt = new Date();
   logger.debug(
@@ -85,14 +86,28 @@ function logCompletionFinished(
       outputChars: output.length,
       ...(usage
         ? {
-            promptTokens: usage.prompt_tokens,
-            completionTokens: usage.completion_tokens,
-            totalTokens: usage.total_tokens,
+            promptTokens: usage.promptTokens,
+            completionTokens: usage.completionTokens,
+            totalTokens: usage.totalTokens,
           }
         : {}),
     },
     MODEL_LOG_MESSAGES.FINISHED,
   );
+}
+
+function normalizeTokenUsage(
+  usage: RawTokenUsage | undefined,
+): OpenAICompatibleTokenUsage | undefined {
+  if (!usage) {
+    return undefined;
+  }
+
+  return {
+    ...(usage.prompt_tokens !== undefined ? { promptTokens: usage.prompt_tokens } : {}),
+    ...(usage.completion_tokens !== undefined ? { completionTokens: usage.completion_tokens } : {}),
+    ...(usage.total_tokens !== undefined ? { totalTokens: usage.total_tokens } : {}),
+  };
 }
 
 function logCompletionFailed(
@@ -146,9 +161,13 @@ function buildChatCompletionRequest(
 
 export function createOpenAICompatibleModelClient(
   loadConfig: () => OpenAICompatibleConfig,
-): ModelClient {
-  return {
+): OpenAICompatibleModelClient {
+  const client: OpenAICompatibleModelClient = {
     async complete(messages, options = {}) {
+      return (await client.completeDetailed(messages, options)).content;
+    },
+
+    async completeDetailed(messages, options = {}) {
       const config = OpenAICompatibleConfigSchema.parse(loadConfig());
       const parsedOptions = CompleteOptionsSchema.parse(options);
       const modelCallId = randomUUID();
@@ -211,17 +230,21 @@ export function createOpenAICompatibleModelClient(
         throw error;
       }
 
-      const output = firstChoice.message.content;
-      logCompletionFinished(
-        modelCallId,
-        config,
-        parsedOptions,
-        startedAt,
-        output,
-        parsedPayload.data.usage,
-      );
+      const output = firstChoice.message.content ?? "";
+      const usage = normalizeTokenUsage(parsedPayload.data.usage);
+      logCompletionFinished(modelCallId, config, parsedOptions, startedAt, output, usage);
 
-      return output;
+      const reasoningContent = firstChoice.message.reasoning_content ?? undefined;
+      const finishReason = firstChoice.finish_reason ?? undefined;
+
+      return {
+        content: output,
+        ...(reasoningContent ? { reasoningContent } : {}),
+        ...(finishReason ? { finishReason } : {}),
+        ...(usage ? { usage } : {}),
+      };
     },
   };
+
+  return client;
 }

@@ -12,6 +12,7 @@ import { LOCAL_MODEL_SMOKE_EVAL_SUITE_ID } from "../constants.js";
 const LocalModelSmokeResponseSchema = z.strictObject({
   ok: z.literal(true),
 });
+const LOCAL_MODEL_OUTPUT_TOKEN_BUDGET = 128;
 
 function isLoopbackUrl(value: string): boolean {
   const hostname = new URL(value).hostname.replace(/^\[|\]$/gu, "");
@@ -42,7 +43,7 @@ const localModelCase: EvalCase = {
       throw new Error("Local-model smoke eval refuses to call a non-loopback MODEL_BASE_URL.");
     }
 
-    const content = await llamaCppModelAdapter.complete(
+    const completion = await llamaCppModelAdapter.completeDetailed(
       [
         {
           role: "system",
@@ -55,11 +56,20 @@ const localModelCase: EvalCase = {
       ],
       {
         temperature: 0,
-        maxOutputTokens: 128,
+        maxOutputTokens: LOCAL_MODEL_OUTPUT_TOKEN_BUDGET,
         response_format: { type: MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT },
         traceLabel: "evals.local_model_smoke",
       },
     );
+    const { content } = completion;
+    const hasContent = /\S/u.test(content);
+    const outputBudgetExhausted =
+      !hasContent &&
+      (completion.finishReason === "length" ||
+        (completion.usage?.completionTokens ?? 0) >= LOCAL_MODEL_OUTPUT_TOKEN_BUDGET);
+    const budgetFailureMessage = completion.reasoningContent
+      ? `Model reasoning exhausted the ${LOCAL_MODEL_OUTPUT_TOKEN_BUDGET}-token output budget before producing answer content.`
+      : `Model exhausted the ${LOCAL_MODEL_OUTPUT_TOKEN_BUDGET}-token output budget before producing answer content.`;
 
     let parsedJson: unknown;
     try {
@@ -71,7 +81,12 @@ const localModelCase: EvalCase = {
 
     return {
       assertions: [
-        expectTrue("model returns nonempty content", content.trim().length > 0),
+        expectTrue("model returns nonempty content", hasContent),
+        expectTrue(
+          "model preserves output budget for answer content",
+          !outputBudgetExhausted,
+          budgetFailureMessage,
+        ),
         expectTrue("model returns valid JSON", parsedJson !== null),
         expectEqual("model follows the structured response contract", parsedResponse.success, true),
       ],
@@ -79,6 +94,10 @@ const localModelCase: EvalCase = {
         baseUrl: config.baseUrl,
         model: config.model,
         outputChars: content.length,
+        reasoningChars: completion.reasoningContent?.length ?? 0,
+        finishReason: completion.finishReason,
+        completionTokens: completion.usage?.completionTokens,
+        outputTokenBudget: LOCAL_MODEL_OUTPUT_TOKEN_BUDGET,
       },
     };
   },

@@ -171,6 +171,141 @@ describe("Birbal evals", () => {
     );
   });
 
+  it("diagnoses local-model reasoning that exhausts the answer budget", async () => {
+    await withModelEnvironment(
+      {
+        MODEL_PROVIDER: "llama_cpp",
+        MODEL_BASE_URL: "http://127.0.0.1:8080",
+        MODEL_NAME: "reasoning-model",
+      },
+      (async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: { content: "", reasoning_content: "Still reasoning" },
+                finish_reason: "length",
+              },
+            ],
+            usage: { completion_tokens: 10 },
+          }),
+          { status: 200 },
+        )) as typeof fetch,
+      async () => {
+        const result = await runBirbalEvals({ suiteIds: [LOCAL_MODEL_SMOKE_EVAL_SUITE_ID] });
+        const assertion = result.suites[0]?.cases[0]?.assertions.find(
+          ({ name }) => name === "model preserves output budget for answer content",
+        );
+
+        assert.equal(result.status, "failed");
+        assert.equal(assertion?.passed, false);
+        assert.match(assertion?.message ?? "", /reasoning exhausted the 128-token output budget/u);
+      },
+    );
+  });
+
+  it("does not misclassify bounded reasoning as budget exhaustion", async () => {
+    await withModelEnvironment(
+      {
+        MODEL_PROVIDER: "llama_cpp",
+        MODEL_BASE_URL: "http://127.0.0.1:8080",
+        MODEL_NAME: "reasoning-model",
+      },
+      (async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: { content: "", reasoning_content: "Brief reasoning" },
+                finish_reason: "stop",
+              },
+            ],
+            usage: { completion_tokens: 10 },
+          }),
+          { status: 200 },
+        )) as typeof fetch,
+      async () => {
+        const result = await runBirbalEvals({ suiteIds: [LOCAL_MODEL_SMOKE_EVAL_SUITE_ID] });
+        const assertion = result.suites[0]?.cases[0]?.assertions.find(
+          ({ name }) => name === "model preserves output budget for answer content",
+        );
+
+        assert.equal(result.status, "failed");
+        assert.equal(assertion?.passed, true);
+      },
+    );
+  });
+
+  it("detects token-budget exhaustion without a length finish reason", async () => {
+    await withModelEnvironment(
+      {
+        MODEL_PROVIDER: "llama_cpp",
+        MODEL_BASE_URL: "http://127.0.0.1:8080",
+        MODEL_NAME: "reasoning-model",
+      },
+      (async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: { content: "", reasoning_content: "Reasoning consumed the budget" },
+                finish_reason: "stop",
+              },
+            ],
+            usage: { completion_tokens: 128 },
+          }),
+          { status: 200 },
+        )) as typeof fetch,
+      async () => {
+        const result = await runBirbalEvals({ suiteIds: [LOCAL_MODEL_SMOKE_EVAL_SUITE_ID] });
+        const assertion = result.suites[0]?.cases[0]?.assertions.find(
+          ({ name }) => name === "model preserves output budget for answer content",
+        );
+
+        assert.equal(result.status, "failed");
+        assert.equal(assertion?.passed, false);
+        assert.match(assertion?.message ?? "", /reasoning exhausted/u);
+      },
+    );
+  });
+
+  it("keeps strict JSON and sentinel failures distinct", async () => {
+    const cases = [
+      { content: "not json", failedAssertion: "model returns valid JSON" },
+      {
+        content: '{"ok":true,"extra":1}',
+        failedAssertion: "model follows the structured response contract",
+      },
+      {
+        content: '{"ok":false}',
+        failedAssertion: "model follows the structured response contract",
+      },
+    ];
+
+    for (const testCase of cases) {
+      await withModelEnvironment(
+        {
+          MODEL_PROVIDER: "llama_cpp",
+          MODEL_BASE_URL: "http://127.0.0.1:8080",
+          MODEL_NAME: "local-test-model",
+        },
+        (async () =>
+          new Response(JSON.stringify({ choices: [{ message: { content: testCase.content } }] }), {
+            status: 200,
+          })) as typeof fetch,
+        async () => {
+          const result = await runBirbalEvals({ suiteIds: [LOCAL_MODEL_SMOKE_EVAL_SUITE_ID] });
+          const assertion = result.suites[0]?.cases[0]?.assertions.find(
+            ({ name }) => name === testCase.failedAssertion,
+          );
+
+          assert.equal(result.status, "failed");
+          assert.equal(assertion?.passed, false);
+        },
+      );
+    }
+  });
+
   it("rejects unknown suite IDs in the generic runner", async () => {
     await assert.rejects(
       runEvalSuites([evalSuite("known")], { suiteIds: ["missing"] }),

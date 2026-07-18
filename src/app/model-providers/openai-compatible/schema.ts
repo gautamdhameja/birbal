@@ -46,8 +46,10 @@ export const OpenAICompatibleChatCompletionResponseSchema = z.object({
     .array(
       z.object({
         message: z.object({
-          content: z.string(),
+          content: z.string().nullable(),
+          reasoning_content: z.string().nullable().optional(),
         }),
+        finish_reason: z.string().nullable().optional(),
       }),
     )
     .min(1),
@@ -60,6 +62,10 @@ export const OpenAICompatibleChatCompletionResponseSchema = z.object({
     .passthrough()
     .optional(),
 });
+
+export type OpenAICompatibleChatCompletionResponse = z.infer<
+  typeof OpenAICompatibleChatCompletionResponseSchema
+>;
 
 export const OpenAICompatibleConfigSchema = z.strictObject({
   providerId: z.string().min(1),

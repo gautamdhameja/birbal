@@ -37,7 +37,9 @@ birbal evals --suite local_model_smoke
 ```
 
 This suite is intentionally excluded from the default run. It refuses non-local model providers and
-non-loopback URLs, then checks for nonempty, valid structured output.
+non-loopback URLs, then checks for nonempty, valid structured output. When a reasoning model returns
+no answer, the failure distinguishes probable reasoning-budget exhaustion using reasoning content,
+finish reason, and completion-token usage.
 
 ## Current Suites
 
