@@ -8,10 +8,14 @@ import { buildSystemPrompt } from "../src/app/agent/prompts.js";
 import { runAgent } from "../src/app/agent/run.js";
 
 describe("runAgent", () => {
-  it("loads the application system prompt from the repository prompt directory", () => {
+  it("loads the research reading-list contract and runtime preferences", () => {
     const prompt = buildSystemPrompt("example_tool");
 
-    assert.match(prompt, /^You are controlled by a TypeScript agent harness\./);
+    assert.match(prompt, /^You are Birbal, a research agent\./);
+    assert.match(prompt, /Return a concise reading list/);
+    assert.match(prompt, /LLM agents/);
+    assert.match(prompt, /Avoid:.*press release/);
+    assert.doesNotMatch(prompt, /newsletter/i);
     assert.match(prompt, /Available tools:\nexample_tool$/);
   });
 

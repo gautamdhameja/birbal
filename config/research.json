@@ -1,0 +1,14 @@
+{
+  "interests": [
+    "LLM agents",
+    "agent evaluation",
+    "RAG systems",
+    "local LLM inference",
+    "llama.cpp",
+    "vLLM",
+    "AI engineering"
+  ],
+  "avoid": ["funding announcement", "press release", "crypto", "generic AI news", "listicle"],
+  "preferredDifficulty": "advanced",
+  "maxReadingListItems": 8
+}

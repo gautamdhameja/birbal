@@ -6,18 +6,13 @@ export type AgentFinalResponse = {
   answer: string;
 };
 
-export type AgentClarifyResponse = {
-  type: "clarify";
-  question: string;
-};
-
 export type AgentToolCallResponse = {
   type: "tool_call";
   tool: string;
   args: unknown;
 };
 
-export type AgentResponse = AgentFinalResponse | AgentClarifyResponse | AgentToolCallResponse;
+export type AgentResponse = AgentFinalResponse | AgentToolCallResponse;
 
 export type AgentLogger = {
   debug(payload: Record<string, unknown>, message?: string): void;
@@ -71,7 +66,6 @@ export type AgentHarnessConfig<TParsedResponse extends AgentResponse = AgentResp
   };
   messages?: {
     toolResultType: string;
-    clarificationPrefix: string;
     invalidResponsePrefix: string;
     maxStepsPrefix: string;
   };

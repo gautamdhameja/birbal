@@ -1,7 +1,8 @@
 export const ENV_FILE_PATHS = [".env.local", ".env"];
 
 export const CLI = {
-  DEFAULT_TASK: "Say hello through the final response protocol.",
+  DEFAULT_TASK:
+    "Research the most useful recent developments in LLM agent engineering and return a concise reading list.",
 } as const;
 
 export const LOGGING = {

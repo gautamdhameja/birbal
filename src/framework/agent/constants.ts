@@ -11,12 +11,10 @@ export const FRAMEWORK_AGENT = {
   RESPONSE_TYPES: {
     FINAL: "final",
     TOOL_CALL: "tool_call",
-    CLARIFY: "clarify",
   },
   ERRORS: {
     INVALID_RESPONSE_PREFIX: "Agent returned an invalid response:",
     MAX_STEPS_PREFIX: "Agent stopped after reaching the maximum step limit of",
-    CLARIFICATION_PREFIX: "Clarification needed:",
   },
   LOG_EVENTS: {
     RUN_START: "agent.run.start",
@@ -26,7 +24,6 @@ export const FRAMEWORK_AGENT = {
     RESPONSE_PARSE_REPAIR: "agent.response.parse_repair",
     RESPONSE_PARSED: "agent.response.parsed",
     RUN_FINAL: "agent.run.final",
-    RUN_CLARIFY: "agent.run.clarify",
     HARNESS_TO_TOOL: "handoff.harness_to_tool",
     TOOL_TO_HARNESS: "handoff.tool_to_harness",
     APPEND_TOOL_RESULT: "agent.messages.append_tool_result",
@@ -40,7 +37,6 @@ export const FRAMEWORK_AGENT = {
     RESPONSE_PARSE_REPAIR: "requesting model protocol repair",
     RESPONSE_PARSED: "parsed model response",
     RUN_FINAL: "agent run completed with final answer",
-    RUN_CLARIFY: "agent run completed with clarification request",
     HARNESS_TO_TOOL: "dispatching tool call",
     TOOL_TO_HARNESS: "received tool result",
     APPEND_TOOL_RESULT: "appended tool result message",

@@ -11,15 +11,9 @@ export const FrameworkAgentToolCallResponseSchema = z.strictObject({
   args: z.record(z.string(), z.unknown()),
 });
 
-export const FrameworkAgentClarifyResponseSchema = z.strictObject({
-  type: z.literal("clarify"),
-  question: z.string(),
-});
-
 export const FrameworkAgentResponseSchema = z.discriminatedUnion("type", [
   FrameworkAgentFinalResponseSchema,
   FrameworkAgentToolCallResponseSchema,
-  FrameworkAgentClarifyResponseSchema,
 ]);
 
 export type FrameworkAgentResponse = z.infer<typeof FrameworkAgentResponseSchema>;

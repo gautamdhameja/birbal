@@ -45,7 +45,6 @@ function buildProtocolRepairMessage(error: string, role: ChatMessage["role"]): C
       "Use exactly one of these shapes:",
       '{"type":"final","answer":"..."}',
       '{"type":"tool_call","tool":"...","args":{}}',
-      '{"type":"clarify","question":"..."}',
       "If you intended to call a tool, return only the tool_call object.",
     ].join("\n"),
   };
@@ -61,7 +60,6 @@ export function createAgentHarness<TParsedResponse extends AgentResponse = Agent
   };
   const messages = config.messages ?? {
     toolResultType: FRAMEWORK_AGENT.TOOL_RESULT_TYPE,
-    clarificationPrefix: FRAMEWORK_AGENT.ERRORS.CLARIFICATION_PREFIX,
     invalidResponsePrefix: FRAMEWORK_AGENT.ERRORS.INVALID_RESPONSE_PREFIX,
     maxStepsPrefix: FRAMEWORK_AGENT.ERRORS.MAX_STEPS_PREFIX,
   };
@@ -228,20 +226,6 @@ export function createAgentHarness<TParsedResponse extends AgentResponse = Agent
           FRAMEWORK_AGENT.LOG_MESSAGES.RUN_FINAL,
         );
         return parsed.answer;
-      }
-
-      if (parsed.type === "clarify") {
-        config.logger?.debug(
-          {
-            event: FRAMEWORK_AGENT.LOG_EVENTS.RUN_CLARIFY,
-            traceId,
-            modelPassId,
-            step,
-            question: parsed.question,
-          },
-          FRAMEWORK_AGENT.LOG_MESSAGES.RUN_CLARIFY,
-        );
-        return `${messages.clarificationPrefix} ${parsed.question}`;
       }
 
       config.logger?.debug(

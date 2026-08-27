@@ -47,16 +47,12 @@ describe("CLI module loading", () => {
     assert.equal(result.stdout, "debug");
   });
 
-  it("keeps full, search, and process shortcut commands registered", () => {
+  it("exposes only the research agent workflow", () => {
     const topLevelHelp = runCli(["--help"]);
-    const useCaseHelp = runCli(["use-cases", "--help"]);
 
     assert.equal(topLevelHelp.status, 0, topLevelHelp.stderr);
-    assert.match(topLevelHelp.stdout, /use-cases-process/);
-    assert.match(topLevelHelp.stdout, /use-cases-search/);
-    assert.match(topLevelHelp.stdout, /use-cases-full/);
-    assert.equal(useCaseHelp.status, 0, useCaseHelp.stderr);
-    assert.match(useCaseHelp.stdout, /search/);
-    assert.match(useCaseHelp.stdout, /process/);
+    assert.match(topLevelHelp.stdout, /agent/);
+    assert.match(topLevelHelp.stdout, /research/);
+    assert.doesNotMatch(topLevelHelp.stdout, /daily|digest|newsletter|pipeline|use-cases/i);
   });
 });

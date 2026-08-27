@@ -15,15 +15,15 @@ describe("parseAgentResponse", () => {
   });
 
   it("allows surrounding whitespace", () => {
-    assert.deepEqual(parseAgentResponse('  {"type":"clarify","question":"Continue?"}\n'), {
-      type: "clarify",
-      question: "Continue?",
+    assert.deepEqual(parseAgentResponse('  {"type":"final","answer":"Continue?"}\n'), {
+      type: "final",
+      answer: "Continue?",
     });
   });
 
   it("rejects surrounding prose", () => {
     assert.throws(
-      () => parseAgentResponse('before {"type":"clarify","question":"Continue?"} after'),
+      () => parseAgentResponse('before {"type":"final","answer":"Continue?"} after'),
       /must be valid JSON/,
     );
   });
