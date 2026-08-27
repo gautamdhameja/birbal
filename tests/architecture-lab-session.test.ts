@@ -4,12 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import {
-  createArchitectureLabSession,
-  type ArchitectureLabInput,
-  type ArchitectureLabInputPort,
-  type ArchitectureLabSessionOutput,
-} from "../src/app/architecture-lab/session.js";
+import { createArchitectureLabSession } from "../src/app/architecture-lab/session.js";
 import {
   renderArchitectureChallenge,
   renderArchitectureReview,
@@ -20,8 +15,11 @@ import {
 import { createArchitectureLabOperations } from "../src/app/architecture-lab/operations.js";
 import type {
   ArchitectureChallenge,
+  ArchitectureLabInput,
+  ArchitectureLabInputPort,
   ArchitectureLabOperationError,
   ArchitectureLabOperations,
+  ArchitectureLabSessionOutput,
   ArchitectureReview,
   CaseBrief,
   GatherArchitectureEvidenceRequest,
@@ -91,8 +89,52 @@ function scriptedInput(events: ArchitectureLabInput[]): ScriptedInput {
     getTerminalOutcome() {
       return terminalOutcome;
     },
+    discardBufferedLines() {},
     latch(outcome) {
       terminalOutcome = outcome;
+    },
+  };
+}
+
+type BufferedInput = ArchitectureLabInputPort & {
+  discardBufferedLines(): void;
+  push(...events: ArchitectureLabInput[]): void;
+};
+
+function bufferedInput(): BufferedInput {
+  const events: ArchitectureLabInput[] = [];
+  let pendingRead: ((event: ArchitectureLabInput) => void) | undefined;
+  let terminalOutcome: Exclude<ArchitectureLabInput, { type: "line" }> | undefined;
+
+  return {
+    read() {
+      const event = events.shift();
+      if (event) {
+        return Promise.resolve(event);
+      }
+      return new Promise((resolve) => {
+        pendingRead = resolve;
+      });
+    },
+    getTerminalOutcome() {
+      return terminalOutcome;
+    },
+    discardBufferedLines() {
+      events.splice(0, events.length, ...events.filter((event) => event.type !== "line"));
+    },
+    push(...nextEvents) {
+      for (const event of nextEvents) {
+        if (event.type !== "line") {
+          terminalOutcome = event;
+        }
+        if (pendingRead) {
+          const resolve = pendingRead;
+          pendingRead = undefined;
+          resolve(event);
+        } else {
+          events.push(event);
+        }
+      }
     },
   };
 }
@@ -361,6 +403,90 @@ describe("Architecture Case Lab session", () => {
     assert.deepEqual(
       run.outputs.filter((output) => output.type === "progress").map((output) => output.phase),
       ["case_research", "challenge", "architecture_evidence", "review"],
+    );
+  });
+
+  it("counts multiline separators once and recognizes normalized whole-line commands", async () => {
+    const firstLine = "a".repeat(4_000);
+    const secondLine = "b".repeat(3_999);
+    const run = runWith([
+      { type: "line", line: firstLine },
+      { type: "line", line: secondLine },
+      { type: "line", line: "  /SuBmIt  " },
+      { type: "line", line: "  /FiNiSh  " },
+    ]);
+
+    assert.equal((await run.result).type, "completed");
+    assert.equal(run.operations.calls.challenge.length, 1);
+    assert.equal(run.operations.calls.review.length, 1);
+    assert.equal(run.operations.calls.review[0]?.transcript[0]?.content.length, 8_000);
+    assert.equal(
+      run.operations.calls.review[0]?.transcript[0]?.content,
+      `${firstLine}\n${secondLine}`,
+    );
+    assert.doesNotMatch(
+      run.outputs
+        .filter((output) => output.type === "retry")
+        .map((output) => output.content)
+        .join("\n"),
+      /turn limit/i,
+    );
+  });
+
+  it("discards submissions typed before each newly visible turn", async () => {
+    const input = bufferedInput();
+    input.push({ type: "line", line: "premature proposal" }, { type: "line", line: "/submit" });
+    const operations = fakeOperations();
+    const generateChallenge = operations.generateChallenge.bind(operations);
+    operations.generateChallenge = async (request) => {
+      const result = generateChallenge(request);
+      input.push({ type: "line", line: "premature answer" }, { type: "line", line: "/submit" });
+      return result;
+    };
+
+    const outputs: ArchitectureLabSessionOutput[] = [];
+    const session = createArchitectureLabSession({
+      operations,
+      input,
+      onOutput(output) {
+        outputs.push(output);
+        if (output.type === "case_brief") {
+          queueMicrotask(() => {
+            input.push(
+              { type: "line", line: "learner proposal" },
+              { type: "line", line: "/submit" },
+            );
+          });
+        }
+        if (output.type === "challenge") {
+          queueMicrotask(() => input.push({ type: "line", line: "/finish" }));
+        }
+      },
+    });
+
+    const result = await session.run({ caseName: "AI support triage" });
+
+    assert.equal(result.type, "completed");
+    assert.equal(operations.calls.challenge.length, 1);
+    assert.equal(operations.calls.review.length, 1);
+    assert.deepEqual(
+      operations.calls.review[0]?.transcript.map(({ role, phase, content }) => ({
+        role,
+        phase,
+        content,
+      })),
+      [
+        {
+          role: "learner",
+          phase: "proposal",
+          content: "learner proposal",
+        },
+        {
+          role: "birbal",
+          phase: "challenge",
+          content: challenges[0]!.question,
+        },
+      ],
     );
   });
 

@@ -5,18 +5,21 @@ import {
   renderCaseBrief,
   renderProgress,
   renderRetry,
-  type ArchitectureLabProgressPhase,
-  type ArchitectureLabRetry,
 } from "./render.js";
 import { ARCHITECTURE_LAB_SESSION_LIMITS } from "./constants.js";
 import type {
-  ArchitectureChallenge,
   ArchitectureLabInput,
   ArchitectureLabInputPort,
   ArchitectureLabOperationError,
   ArchitectureLabOperations,
+  ArchitectureLabProgressPhase,
+  ArchitectureLabRetry,
   ArchitectureLabResult,
-  ArchitectureReview,
+  ArchitectureLabSession,
+  ArchitectureLabSessionFailure,
+  ArchitectureLabSessionOutput,
+  ArchitectureLabSessionResult,
+  ArchitectureLabSessionState,
   CaseBrief,
   LabTranscriptTurn,
 } from "./types.js";
@@ -28,54 +31,6 @@ export type {
   ArchitectureLabTerminalInput,
 } from "./types.js";
 
-export type ArchitectureLabSessionState =
-  | "idle"
-  | "preparing"
-  | "awaiting_proposal"
-  | "generating_challenge"
-  | "awaiting_answer"
-  | "generating_review"
-  | "completed"
-  | "exited"
-  | "interrupted"
-  | "failed";
-
-export type ArchitectureLabSessionOutput =
-  | {
-      type: "progress";
-      phase: ArchitectureLabProgressPhase;
-      content: string;
-    }
-  | {
-      type: "case_brief";
-      brief: CaseBrief;
-      content: string;
-    }
-  | {
-      type: "challenge";
-      challenge: ArchitectureChallenge;
-      round: number;
-      content: string;
-    }
-  | ({ type: "retry"; content: string } & ArchitectureLabRetry);
-
-export type ArchitectureLabSessionFailure = {
-  code: "case_name_too_long" | "input_failed" | "transcript_too_long" | "operation_failed";
-  message: string;
-  operation?: ArchitectureLabOperationError;
-};
-
-export type ArchitectureLabSessionResult =
-  | { type: "completed"; review: ArchitectureReview; output: string }
-  | { type: "exited" }
-  | { type: "interrupted" }
-  | { type: "failed"; error: ArchitectureLabSessionFailure; output: string };
-
-export type ArchitectureLabSession = {
-  run(request?: { caseName?: string }): Promise<ArchitectureLabSessionResult>;
-  getState(): ArchitectureLabSessionState;
-};
-
 type ArchitectureLabSessionDependencies = {
   operations: ArchitectureLabOperations;
   input: ArchitectureLabInputPort;
@@ -83,13 +38,22 @@ type ArchitectureLabSessionDependencies = {
 };
 
 type WaitingState = "awaiting_proposal" | "awaiting_answer";
+type ArchitectureLabCommand = "/submit" | "/finish" | "/exit";
 
 function transcriptLength(transcript: readonly LabTranscriptTurn[]): number {
   return transcript.reduce((total, turn) => total + turn.content.length, 0);
 }
 
-function isCommand(line: string, command: "/submit" | "/finish" | "/exit"): boolean {
-  return line.trim().toLowerCase() === command;
+function commandFromLine(line: string): ArchitectureLabCommand | undefined {
+  const normalized = line.trim().toLowerCase();
+  switch (normalized) {
+    case "/submit":
+    case "/finish":
+    case "/exit":
+      return normalized;
+    default:
+      return undefined;
+  }
 }
 
 export function createArchitectureLabSession({
@@ -99,10 +63,10 @@ export function createArchitectureLabSession({
 }: ArchitectureLabSessionDependencies): ArchitectureLabSession {
   let state: ArchitectureLabSessionState = "idle";
   let runPromise: Promise<ArchitectureLabSessionResult> | undefined;
-  let caseBrief: CaseBrief | undefined;
   const transcript: LabTranscriptTurn[] = [];
   let round = 0;
   let draftLines: string[] = [];
+  let draftCharacterCount = 0;
 
   function finish(result: ArchitectureLabSessionResult): ArchitectureLabSessionResult {
     state = result.type;
@@ -186,7 +150,7 @@ export function createArchitectureLabSession({
 
   function appendDraft(line: string): void {
     const separatorLength = draftLines.length === 0 ? 0 : 1;
-    const nextLength = draftLines.join("\n").length + separatorLength + line.length;
+    const nextLength = draftCharacterCount + separatorLength + line.length;
     if (nextLength > ARCHITECTURE_LAB_SESSION_LIMITS.turnCharacters) {
       retry({
         reason: "turn_too_long",
@@ -195,27 +159,33 @@ export function createArchitectureLabSession({
       return;
     }
     draftLines.push(line);
+    draftCharacterCount = nextLength;
+  }
+
+  function clearDraft(): void {
+    draftLines = [];
+    draftCharacterCount = 0;
   }
 
   function takeDraft(): string | undefined {
     const content = draftLines.join("\n").trim();
     if (!content) {
       retry({ reason: "blank", limit: ARCHITECTURE_LAB_SESSION_LIMITS.turnCharacters });
-      draftLines = [];
+      clearDraft();
       return undefined;
     }
     if (
       transcriptLength(transcript) + content.length >
       ARCHITECTURE_LAB_SESSION_LIMITS.transcriptCharacters
     ) {
-      draftLines = [];
+      clearDraft();
       retry({
         reason: "transcript_too_long",
         limit: ARCHITECTURE_LAB_SESSION_LIMITS.transcriptCharacters,
       });
       return undefined;
     }
-    draftLines = [];
+    clearDraft();
     return content;
   }
 
@@ -234,26 +204,26 @@ export function createArchitectureLabSession({
       if (event.type !== "line") {
         continue;
       }
-      if (isCommand(event.line, "/exit")) {
-        return finish({ type: "exited" });
-      }
-      if (isCommand(event.line, "/finish")) {
-        if (draftLines.length > 0) {
-          retry({ reason: "draft_pending" });
+      switch (commandFromLine(event.line)) {
+        case "/exit":
+          return finish({ type: "exited" });
+        case "/finish":
+          if (draftLines.length > 0) {
+            retry({ reason: "draft_pending" });
+            continue;
+          }
+          if (waitingState === "awaiting_proposal") {
+            retry({ reason: "proposal_required" });
+            continue;
+          }
+          return { type: "finish" };
+        case "/submit": {
+          const content = takeDraft();
+          if (content !== undefined) {
+            return { type: "turn", content };
+          }
           continue;
         }
-        if (waitingState === "awaiting_proposal") {
-          retry({ reason: "proposal_required" });
-          continue;
-        }
-        return { type: "finish" };
-      }
-      if (isCommand(event.line, "/submit")) {
-        const content = takeDraft();
-        if (content !== undefined) {
-          return { type: "turn", content };
-        }
-        continue;
       }
       appendDraft(event.line);
     }
@@ -280,11 +250,9 @@ export function createArchitectureLabSession({
     });
   }
 
-  async function generateChallenge(): Promise<ArchitectureLabSessionResult | undefined> {
-    const activeBrief = caseBrief;
-    if (!activeBrief) {
-      throw new Error("Architecture Lab invariant violated: challenge without a case brief.");
-    }
+  async function generateChallenge(
+    activeBrief: CaseBrief,
+  ): Promise<ArchitectureLabSessionResult | undefined> {
     state = "generating_challenge";
     progress("challenge");
     const nextRound = round + 1;
@@ -329,14 +297,11 @@ export function createArchitectureLabSession({
       round,
       content: renderArchitectureChallenge(challenge, round),
     });
+    input.discardBufferedLines();
     return undefined;
   }
 
-  async function generateReview(): Promise<ArchitectureLabSessionResult> {
-    const activeBrief = caseBrief;
-    if (!activeBrief) {
-      throw new Error("Architecture Lab invariant violated: review without a case brief.");
-    }
+  async function generateReview(activeBrief: CaseBrief): Promise<ArchitectureLabSessionResult> {
     state = "generating_review";
     progress("architecture_evidence");
     const reviewContext = {
@@ -429,8 +394,8 @@ export function createArchitectureLabSession({
       });
     }
 
-    caseBrief = candidateBrief;
-    emit({ type: "case_brief", brief: structuredClone(caseBrief), content: opening });
+    emit({ type: "case_brief", brief: structuredClone(candidateBrief), content: opening });
+    input.discardBufferedLines();
 
     const proposal = await awaitCommittedTurn("awaiting_proposal");
     if (proposal.type !== "turn") {
@@ -438,7 +403,7 @@ export function createArchitectureLabSession({
     }
     transcript.push({ role: "learner", phase: "proposal", content: proposal.content });
 
-    const firstChallengeTerminal = await generateChallenge();
+    const firstChallengeTerminal = await generateChallenge(candidateBrief);
     if (firstChallengeTerminal) {
       return firstChallengeTerminal;
     }
@@ -446,7 +411,7 @@ export function createArchitectureLabSession({
     while (true) {
       const answer = await awaitCommittedTurn("awaiting_answer");
       if (answer.type === "finish") {
-        return generateReview();
+        return generateReview(candidateBrief);
       }
       if (answer.type !== "turn") {
         return answer;
@@ -454,9 +419,9 @@ export function createArchitectureLabSession({
       transcript.push({ role: "learner", phase: "answer", content: answer.content });
 
       if (round >= ARCHITECTURE_LAB_SESSION_LIMITS.challengeRounds) {
-        return generateReview();
+        return generateReview(candidateBrief);
       }
-      const challengeTerminal = await generateChallenge();
+      const challengeTerminal = await generateChallenge(candidateBrief);
       if (challengeTerminal) {
         return challengeTerminal;
       }

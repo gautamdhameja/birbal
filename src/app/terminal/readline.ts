@@ -1,46 +1,11 @@
-import {
-  createInterface as createNodeReadlineInterface,
-  type ReadLineOptions,
-} from "node:readline";
+import { createInterface as createNodeReadlineInterface } from "node:readline";
 
 import type {
+  ReadlineTerminalInputOptions,
   TerminalInputOutcome,
   TerminalInputPort,
   TerminalInputTerminalOutcome,
 } from "./types.js";
-
-type TtyReadableStream = NodeJS.ReadableStream & {
-  isTTY?: boolean;
-};
-
-type TtyWritableStream = NodeJS.WritableStream & {
-  isTTY?: boolean;
-};
-
-export type ReadlineInterfaceLike = {
-  on(event: "line", listener: (line: string) => void): unknown;
-  on(event: "close" | "SIGINT", listener: () => void): unknown;
-  on(event: "error", listener: (error: unknown) => void): unknown;
-  off(event: "line", listener: (line: string) => void): unknown;
-  off(event: "close" | "SIGINT", listener: () => void): unknown;
-  off(event: "error", listener: (error: unknown) => void): unknown;
-  close(): void;
-};
-
-export type ReadlineInterfaceFactory = (options: ReadLineOptions) => ReadlineInterfaceLike;
-
-export type InterruptSignalSource = {
-  on(event: "SIGINT", listener: () => void): unknown;
-  off(event: "SIGINT", listener: () => void): unknown;
-};
-
-export type ReadlineTerminalInputOptions = {
-  input: TtyReadableStream;
-  interactionOutput: TtyWritableStream;
-  maxQueuedCharacters: number;
-  interruptSignalSource?: InterruptSignalSource;
-  createInterface?: ReadlineInterfaceFactory;
-};
 
 type PendingRead = {
   resolve: (outcome: TerminalInputOutcome) => void;
@@ -66,7 +31,8 @@ export function createReadlineTerminalInput({
   let queuedCharacters = 0;
   let pendingRead: PendingRead | undefined;
   let terminalOutcome: TerminalInputTerminalOutcome | undefined;
-  let listenersAttached = true;
+  let readlineListenersAttached = true;
+  let interruptListenerAttached = true;
   let closeInvoked = false;
 
   const readlineInterface = createInterface({
@@ -75,16 +41,28 @@ export function createReadlineTerminalInput({
     terminal: input.isTTY === true && interactionOutput.isTTY === true,
   });
 
-  const detachListeners = (): void => {
-    if (!listenersAttached) {
+  const detachReadlineListeners = (): void => {
+    if (!readlineListenersAttached) {
       return;
     }
-    listenersAttached = false;
+    readlineListenersAttached = false;
     readlineInterface.off("line", handleLine);
     readlineInterface.off("close", handleClose);
     readlineInterface.off("SIGINT", handleInterrupt);
     readlineInterface.off("error", handleInputError);
+  };
+
+  const detachInterruptListener = (): void => {
+    if (!interruptListenerAttached) {
+      return;
+    }
+    interruptListenerAttached = false;
     interruptSignalSource.off("SIGINT", handleInterrupt);
+  };
+
+  const detachListeners = (): void => {
+    detachReadlineListeners();
+    detachInterruptListener();
   };
 
   const clearLines = (): void => {
@@ -143,14 +121,18 @@ export function createReadlineTerminalInput({
     outcome: TerminalInputTerminalOutcome,
     options: { discardLines: boolean },
   ): boolean => {
-    if (terminalOutcome) {
+    const upgradesEof = terminalOutcome?.type === "eof" && outcome.type === "interrupted";
+    if (terminalOutcome && !upgradesEof) {
       return false;
     }
     terminalOutcome = outcome;
     if (options.discardLines) {
       clearLines();
     }
-    detachListeners();
+    detachReadlineListeners();
+    if (outcome.type !== "eof") {
+      detachInterruptListener();
+    }
     settlePendingRead();
     return true;
   };
@@ -254,8 +236,13 @@ export function createReadlineTerminalInput({
       return terminalOutcome;
     },
 
+    discardBufferedLines(): void {
+      clearLines();
+    },
+
     close(): void {
       latchTerminalOutcome({ type: "eof" }, { discardLines: true });
+      detachListeners();
       closeReadlineInterface();
     },
   };

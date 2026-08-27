@@ -64,6 +64,7 @@ describe("default runtime composition", () => {
       getTerminalOutcome() {
         return undefined;
       },
+      discardBufferedLines() {},
     };
 
     const first = runtime.createLabSession({ input });

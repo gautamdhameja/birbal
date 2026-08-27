@@ -1,6 +1,8 @@
 import type {
   ArchitectureChallenge,
-  ArchitectureLabOperationError,
+  ArchitectureLabProgressPhase,
+  ArchitectureLabRetry,
+  ArchitectureLabSessionFailure,
   ArchitectureReview,
   CaseBrief,
 } from "./types.js";
@@ -24,19 +26,6 @@ function sanitizeTerminalOutput(value: string): string {
     .filter((character) => !isUnsafeTerminalCodePoint(character.codePointAt(0)!))
     .join("");
 }
-
-export type ArchitectureLabProgressPhase =
-  | "case_research"
-  | "challenge"
-  | "architecture_evidence"
-  | "review";
-
-export type ArchitectureLabRetry =
-  | { reason: "blank"; limit: number }
-  | { reason: "turn_too_long"; limit: number }
-  | { reason: "transcript_too_long"; limit: number }
-  | { reason: "proposal_required" }
-  | { reason: "draft_pending" };
 
 function list(items: readonly string[]): string {
   return items.length === 0 ? "- None identified." : items.map((item) => `- ${item}`).join("\n");
@@ -162,10 +151,9 @@ export function renderRetry(retry: ArchitectureLabRetry): string {
   }
 }
 
-export function renderArchitectureLabFailure(error: {
-  code: "case_name_too_long" | "input_failed" | "transcript_too_long" | "operation_failed";
-  operation?: ArchitectureLabOperationError;
-}): string {
+export function renderArchitectureLabFailure(
+  error: Pick<ArchitectureLabSessionFailure, "code" | "operation">,
+): string {
   switch (error.code) {
     case "case_name_too_long":
       return sanitizeTerminalOutput(

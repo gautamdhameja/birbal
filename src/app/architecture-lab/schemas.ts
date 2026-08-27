@@ -88,9 +88,9 @@ export const SupportedFactSchema = z.strictObject({
 const MASTERY_SCORE_PATTERN = new RegExp(
   [
     String.raw`\bmastery\s+score\b`,
-    String.raw`\b(?:score(?:d)?|rating)\s*[:=-]?\s*\d+(?:\s*(?:\/|out\s+of)\s*(?:5|10|100))?\b`,
-    String.raw`\brate(?:d)?\s+(?:this\s+architecture\s+)?\d+\s*(?:\/|out\s+of)\s*(?:5|10|100)\b`,
-    String.raw`\b\d+\s*(?:\/|out\s+of)\s*(?:5|10|100)\b`,
+    String.raw`\bmastery(?:\s+level)?\s*(?:(?:is|was|of)\s+|[:=-]\s*)?\d+(?:\s*(?:\/|out\s+of)\s*(?:5|10|100))?\b`,
+    String.raw`\b(?:score(?:d)?|rating)\s*(?:(?:is|was|of)\s+|[:=-]\s*)?\d+(?:\s*(?:\/|out\s+of)\s*(?:5|10|100))?\b`,
+    String.raw`\brate(?:d)?\s+(?:(?:this|the)\s+(?:architecture|proposal|design)\s+)?\d+\s*(?:\/|out\s+of)\s*(?:5|10|100)\b`,
   ].join("|"),
   "i",
 );
@@ -101,7 +101,7 @@ export const ArchitectureReviewSchema = z
     unresolvedRisks: BoundedTextListSchema,
     missingComponents: BoundedTextListSchema,
     alternatives: BoundedTextListSchema,
-    supportedFacts: z.array(SupportedFactSchema).max(ARCHITECTURE_LAB.MAX_EVIDENCE_CLAIMS),
+    supportedFacts: z.array(SupportedFactSchema).min(1).max(ARCHITECTURE_LAB.MAX_EVIDENCE_CLAIMS),
     inferences: BoundedTextListSchema,
     judgments: BoundedTextListSchema,
     nextChallenge: NonEmptyTextSchema,

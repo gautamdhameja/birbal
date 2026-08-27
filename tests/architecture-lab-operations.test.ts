@@ -15,17 +15,21 @@ import { renderArchitectureReview } from "../src/app/architecture-lab/render.js"
 import { ArchitectureReviewSchema } from "../src/app/architecture-lab/schemas.js";
 import {
   assessSourceDossier,
+  validateArchitectureEvidence,
   validateCaseBriefEvidence,
+  validateReviewEvidence,
 } from "../src/app/architecture-lab/evidence.js";
 import {
-  buildArchitectureLabSystemPrompt,
   buildCaseBriefMessages,
   buildChallengeMessages,
+  createArchitectureLabSystemPromptBuilder,
 } from "../src/app/architecture-lab/prompts.js";
 import type {
   ArchitectureEvidence,
   ArchitectureLabResearchOperation,
+  ArchitectureLabResearchRequest,
   ArchitectureLabResearchResult,
+  ArchitectureReviewDraft,
   CaseBrief,
   LabTranscriptTurn,
   SourceDossier,
@@ -133,6 +137,23 @@ function briefJson(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({ ...extractedBrief, ...overrides });
 }
 
+const validReviewDraft: ArchitectureReviewDraft = {
+  strengths: ["The proposal includes explicit escalation."],
+  unresolvedRisks: ["Routing failure behavior is unspecified."],
+  missingComponents: ["Recovery policy"],
+  alternatives: ["Use a durable queue before classification."],
+  supportedFacts: [
+    {
+      claim: "The case evidence identifies response delay as a material constraint.",
+      sourceIds: ["support-study"],
+    },
+  ],
+  inferences: ["A durable queue may reduce lost work."],
+  judgments: ["The human handoff boundary is the strongest design choice."],
+  nextChallenge: "Specify recovery semantics for an interrupted routing attempt.",
+  evidenceQuality: "sufficient",
+};
+
 describe("Architecture Case Lab operations", () => {
   it("grounds a learner-selected case without an architecture field", async () => {
     const researchRequests: unknown[] = [];
@@ -214,6 +235,93 @@ describe("Architecture Case Lab operations", () => {
       sources: [{ ...limitedDossier.sources[0]!, publishedAt: "2024-02-29" }],
     };
     assert.equal(assessSourceDossier(leapDayDossier, "learner", NOW).ok, true);
+  });
+
+  it("rejects ambiguous or unresolvable evidence references", () => {
+    const checks: Array<{
+      name: string;
+      run: () => ReturnType<typeof assessSourceDossier>;
+      message: RegExp;
+    }> = [
+      {
+        name: "duplicate source IDs",
+        run: () =>
+          assessSourceDossier(
+            {
+              ...recentDossier,
+              sources: [recentDossier.sources[0]!, structuredClone(recentDossier.sources[0]!)],
+            },
+            "learner",
+            NOW,
+          ),
+        message: /source ID is duplicated/i,
+      },
+      {
+        name: "dossier outcome source",
+        run: () =>
+          assessSourceDossier(
+            {
+              ...recentDossier,
+              desiredOutcome: { ...recentDossier.desiredOutcome, sourceIds: ["missing-source"] },
+            },
+            "learner",
+            NOW,
+          ),
+        message: /outcome references sources absent from the dossier/i,
+      },
+      {
+        name: "brief outcome source",
+        run: () =>
+          validateCaseBriefEvidence(
+            {
+              ...extractedBrief,
+              desiredOutcome: { ...extractedBrief.desiredOutcome, sourceIds: ["missing-source"] },
+            },
+            recentDossier,
+            "learner",
+            NOW,
+          ),
+        message: /brief outcome references absent sources/i,
+      },
+      {
+        name: "architecture claim source",
+        run: () =>
+          validateArchitectureEvidence({
+            ...architectureEvidence,
+            claims: [
+              {
+                id: "missing-reference",
+                claim: "This claim has no source.",
+                sourceIds: ["missing-source"],
+              },
+            ],
+          }),
+        message: /architecture evidence claim missing-reference references absent sources/i,
+      },
+      {
+        name: "cross-phase source URL",
+        run: () =>
+          validateReviewEvidence(validReviewDraft, extractedBrief, {
+            ...architectureEvidence,
+            sources: [
+              {
+                ...architectureEvidence.sources[0]!,
+                id: "support-study",
+                url: "https://conflict.example.com/support-study",
+              },
+            ],
+          }),
+        message: /source ID support-study resolves to inconsistent URLs/i,
+      },
+    ];
+
+    for (const check of checks) {
+      const result = check.run();
+      assert.equal(result.ok, false, check.name);
+      if (!result.ok) {
+        assert.match(result.message, check.message, check.name);
+      }
+    }
   });
 
   it("accepts an automatically selected case when the deterministic evidence gate passes", async () => {
@@ -540,7 +648,7 @@ describe("Architecture Case Lab operations", () => {
           unresolvedRisks: [],
           missingComponents: [],
           alternatives: [],
-          supportedFacts: [],
+          supportedFacts: validReviewDraft.supportedFacts,
           inferences: ["The available evidence does not establish production outcomes."],
           judgments: ["More evidence is needed before selecting an architecture."],
           nextChallenge: "Find a second independent source and revisit the constraints.",
@@ -561,6 +669,28 @@ describe("Architecture Case Lab operations", () => {
     }
   });
 
+  it("rejects a sufficient review without a supported fact or bibliography", async () => {
+    const unsourcedReview = JSON.stringify({ ...validReviewDraft, supportedFacts: [] });
+    const operations = createArchitectureLabOperations({
+      now: () => NOW,
+      research: successfulResearch(),
+      completeFn: sequenceComplete([unsourcedReview, unsourcedReview]),
+    });
+
+    const result = await operations.generateReview({
+      brief: extractedBrief,
+      transcript,
+      evidence: structuredClone(architectureEvidence),
+    });
+
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.error.phase, "review");
+      assert.equal(result.error.code, "invalid_model_output");
+      assert.equal(result.error.repairAttempted, true);
+    }
+  });
+
   it("converts a thrown research error into a typed phase failure", async () => {
     const operations = createArchitectureLabOperations({
       now: () => NOW,
@@ -577,6 +707,68 @@ describe("Architecture Case Lab operations", () => {
       assert.equal(result.error.phase, "case_research");
       assert.equal(result.error.code, "research_failed");
       assert.doesNotMatch(result.error.message, /provider secret|stack detail/);
+    }
+  });
+
+  it("maps a thrown structured model completion to a sanitized phase failure", async () => {
+    const operations = createArchitectureLabOperations({
+      now: () => NOW,
+      research: successfulResearch(),
+      completeFn: async () => {
+        throw new Error("provider secret and structured stack detail");
+      },
+    });
+
+    const result = await operations.generateChallenge({
+      brief: extractedBrief,
+      transcript,
+      round: 1,
+    });
+
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.error.phase, "challenge");
+      assert.equal(result.error.code, "model_failed");
+      assert.doesNotMatch(result.error.message, /provider secret|stack detail/);
+    }
+  });
+
+  it("maps thrown research-model errors to sanitized request phases", async () => {
+    const cases: Array<{
+      request: ArchitectureLabResearchRequest;
+      expectedPhase: "case_research" | "architecture_evidence";
+    }> = [
+      {
+        request: { phase: "case_setup", selection: "learner", caseName: "AI support triage" },
+        expectedPhase: "case_research",
+      },
+      {
+        request: { phase: "architecture_evidence", brief: extractedBrief, transcript },
+        expectedPhase: "architecture_evidence",
+      },
+    ];
+
+    for (const testCase of cases) {
+      const runResearch = createArchitectureLabResearchRunner({
+        modelClient: {
+          complete: async () => {
+            throw new Error("provider secret and research stack detail");
+          },
+        },
+        toolRunner: async () => {
+          throw new Error("tool runner must not be called");
+        },
+        renderToolsForPrompt: () => "name: search_web",
+      });
+
+      const result = await runResearch(testCase.request);
+
+      assert.equal(result.ok, false);
+      if (!result.ok) {
+        assert.equal(result.error.phase, testCase.expectedPhase);
+        assert.equal(result.error.code, "research_failed");
+        assert.doesNotMatch(result.error.message, /provider secret|stack detail/);
+      }
     }
   });
 
@@ -705,25 +897,59 @@ describe("Architecture Case Lab operations", () => {
     assert.equal(result.ok, true);
   });
 
+  it("uses the runner's default eight-step research bound", async () => {
+    let modelCalls = 0;
+    const runResearch = createArchitectureLabResearchRunner({
+      modelClient: {
+        complete: async () => {
+          modelCalls += 1;
+          return JSON.stringify({
+            type: "tool_call",
+            tool: "search_web",
+            args: { query: `attempt ${modelCalls}` },
+          });
+        },
+      },
+      toolRunner: async () => ({ results: [] }),
+      renderToolsForPrompt: () => "name: search_web",
+    });
+
+    const result = await runResearch({
+      phase: "case_setup",
+      selection: "learner",
+      caseName: "AI support triage",
+    });
+
+    assert.equal(modelCalls, 8);
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.error.phase, "case_research");
+      assert.equal(result.error.code, "invalid_research_output");
+    }
+  });
+
   it("rejects mastery ratings but permits ordinary numeric facts", () => {
     const baseReview = {
-      strengths: ["The proposal includes explicit escalation."],
-      unresolvedRisks: [],
-      missingComponents: [],
-      alternatives: [],
-      supportedFacts: [],
-      inferences: [],
+      ...validReviewDraft,
       judgments: ["The boundary is clearly described."],
-      nextChallenge: "Specify recovery semantics.",
-      evidenceQuality: "sufficient",
     };
 
-    for (const judgment of [
-      "Score: 8 out of 10.",
-      "rating: 80",
+    const masteryRatings = [
+      "Your mastery is 8 out of 10.",
+      "Mastery: 8/10.",
+      "Mastery level 8 out of 10.",
+      "The score is 8 out of 10.",
+      "The rating is 8 out of 10.",
+      "The rating was 8/10.",
+      "A rating of 8/10 was assigned.",
       "I rate this architecture 8 out of 10.",
+      "I rated the design 8/10.",
+      "The architecture was rated 8 out of 10.",
       "The proposal scored 8/10.",
-    ]) {
+      "Rating: 80.",
+    ];
+
+    for (const judgment of masteryRatings) {
       assert.equal(
         ArchitectureReviewSchema.safeParse({ ...baseReview, judgments: [judgment] }).success,
         false,
@@ -731,18 +957,22 @@ describe("Architecture Case Lab operations", () => {
       );
     }
 
-    assert.equal(
-      ArchitectureReviewSchema.safeParse({
-        ...baseReview,
-        supportedFacts: [
-          {
-            claim: "A 2026 report observed 99.9% availability across 80 deployments.",
-            sourceIds: ["support-study"],
-          },
-        ],
-      }).success,
-      true,
-    );
+    const ordinaryFacts = [
+      "A 2026 report observed 99.9% availability across 80 deployments.",
+      "5 out of 10 interrupted requests were recovered.",
+      "The benchmark recovered 8/10 requests without retry.",
+    ];
+
+    for (const claim of ordinaryFacts) {
+      assert.equal(
+        ArchitectureReviewSchema.safeParse({
+          ...baseReview,
+          supportedFacts: [{ claim, sourceIds: ["support-study"] }],
+        }).success,
+        true,
+        claim,
+      );
+    }
   });
 
   it("loads the bundled lab prompt outside the repository working directory", () => {
@@ -750,9 +980,47 @@ describe("Architecture Case Lab operations", () => {
     process.chdir(mkdtempSync(join(tmpdir(), "birbal-lab-cwd-")));
 
     try {
-      assert.match(buildArchitectureLabSystemPrompt("name: search_web"), /name: search_web/);
+      const buildSystemPrompt = createArchitectureLabSystemPromptBuilder();
+      assert.match(buildSystemPrompt("name: search_web"), /name: search_web/);
     } finally {
       process.chdir(originalCwd);
     }
+  });
+
+  it("isolates bundled prompt caches across builders while injected loaders stay dynamic", () => {
+    let firstBundledLoads = 0;
+    const firstBundledBuilder = createArchitectureLabSystemPromptBuilder({}, () => {
+      firstBundledLoads += 1;
+      return `first bundled template ${firstBundledLoads}`;
+    });
+    let secondBundledLoads = 0;
+    const secondBundledBuilder = createArchitectureLabSystemPromptBuilder({}, () => {
+      secondBundledLoads += 1;
+      return `second bundled template ${secondBundledLoads}`;
+    });
+
+    assert.match(firstBundledBuilder("tool one"), /first bundled template 1.*tool one/s);
+    assert.match(secondBundledBuilder("tool two"), /second bundled template 1.*tool two/s);
+    assert.match(firstBundledBuilder("tool three"), /first bundled template 1.*tool three/s);
+    assert.match(secondBundledBuilder("tool four"), /second bundled template 1.*tool four/s);
+    assert.equal(firstBundledLoads, 1);
+    assert.equal(secondBundledLoads, 1);
+
+    let injectedLoads = 0;
+    const injectedBuilder = createArchitectureLabSystemPromptBuilder(
+      {
+        loadTemplate: () => {
+          injectedLoads += 1;
+          return `injected template ${injectedLoads}`;
+        },
+      },
+      () => {
+        throw new Error("the bundled loader must not run for an injected template");
+      },
+    );
+
+    assert.match(injectedBuilder("tool one"), /injected template 1.*tool one/s);
+    assert.match(injectedBuilder("tool two"), /injected template 2.*tool two/s);
+    assert.equal(injectedLoads, 2);
   });
 });

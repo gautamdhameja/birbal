@@ -1,23 +1,25 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { EventEmitter } from "node:events";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { PassThrough } from "node:stream";
 import { pathToFileURL } from "node:url";
 import { describe, it } from "node:test";
 
-import {
-  createArchitectureLabSession,
-  type ArchitectureLabInputPort,
-} from "../src/app/architecture-lab/session.js";
+import { createArchitectureLabSession } from "../src/app/architecture-lab/session.js";
 import type {
+  ArchitectureLabInputPort,
   ArchitectureLabOperations,
   ArchitectureReview,
   CaseBrief,
 } from "../src/app/architecture-lab/types.js";
 import { runBirbalCli } from "../src/app/cli.js";
 import { CLI } from "../src/app/constants/runtime.js";
+import { createReadlineTerminalInput } from "../src/app/terminal/readline.js";
 import type {
+  ReadlineInterfaceLike,
   TerminalInputOutcome,
   TerminalInputPort,
   TerminalInputTerminalOutcome,
@@ -110,6 +112,12 @@ type TestInput = TerminalInputPort & {
   latch(outcome: TerminalInputTerminalOutcome): void;
 };
 
+class CliReadlineInterface extends EventEmitter implements ReadlineInterfaceLike {
+  close(): void {
+    this.emit("close");
+  }
+}
+
 function testInput(events: TerminalInputOutcome[] = []): TestInput {
   let terminalOutcome: TerminalInputTerminalOutcome | undefined;
   return {
@@ -124,6 +132,7 @@ function testInput(events: TerminalInputOutcome[] = []): TestInput {
     getTerminalOutcome() {
       return terminalOutcome;
     },
+    discardBufferedLines() {},
     latch(outcome) {
       terminalOutcome = outcome;
     },
@@ -532,6 +541,41 @@ describe("CLI module loading", () => {
     assert.equal(reviewInput.closeCalls, 1);
   });
 
+  it("lets SIGINT replace EOF while a lab operation is active", async () => {
+    const readlineInterface = new CliReadlineInterface();
+    const interruptSignalSource = new EventEmitter();
+    const input = createReadlineTerminalInput({
+      input: new PassThrough(),
+      interactionOutput: new PassThrough(),
+      maxQueuedCharacters: 1_024,
+      interruptSignalSource,
+      createInterface: () => readlineInterface,
+    });
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const operations = fakeLabOperations({
+      async prepareCase() {
+        readlineInterface.emit("close");
+        interruptSignalSource.emit("SIGINT");
+        return { ok: true, value: structuredClone(labBrief) };
+      },
+    });
+
+    const status = await runBirbalCli(["lab"], {
+      loadEnvironment() {},
+      loadRuntime: async () => labRuntime(operations),
+      loadTerminalInput: async () => input,
+      writeOutput: (message) => stdout.push(message),
+      writeError: (message) => stderr.push(message),
+    });
+
+    assert.equal(status, 130);
+    assert.deepEqual(stdout, []);
+    assert.doesNotMatch(stderr.join("\n"), /Architecture Case:/);
+    assert.deepEqual(input.getTerminalOutcome(), { type: "interrupted" });
+    assert.equal(interruptSignalSource.listenerCount("SIGINT"), 0);
+  });
+
   it("reports one actionable phase failure and still closes the adapter", async () => {
     const input = testInput();
     const stdout: string[] = [];
@@ -566,6 +610,31 @@ describe("CLI module loading", () => {
       ).length,
       1,
     );
+    assert.equal(input.closeCalls, 1);
+  });
+
+  it("reports an unexpected startup failure and still closes the adapter", async () => {
+    const input = testInput();
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+
+    const status = await runBirbalCli(["lab"], {
+      loadEnvironment() {},
+      loadRuntime: async () => {
+        throw new Error(`provider failed ${String.fromCharCode(27)}[31msecret detail`);
+      },
+      loadTerminalInput: async () => input,
+      writeOutput: (message) => stdout.push(message),
+      writeError: (message) => stderr.push(message),
+    });
+
+    assert.equal(status, 1);
+    assert.deepEqual(stdout, []);
+    assert.deepEqual(stderr, [
+      "The Architecture Case Lab failed. Start a fresh lab session to try again.",
+    ]);
+    assert.doesNotMatch(stderr.join("\n"), /provider failed|secret detail/);
+    assert.equal(stderr.join("\n").includes(String.fromCharCode(27)), false);
     assert.equal(input.closeCalls, 1);
   });
 

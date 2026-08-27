@@ -58,7 +58,7 @@ async function runAgentCommand(
   options: TraceOptions,
   program: Command,
   dependencies: CliDependencies,
-): Promise<CliExitStatus> {
+): Promise<void> {
   const trace = Boolean(options.trace ?? program.opts<TraceOptions>().trace);
 
   const runtime = await (dependencies.loadRuntime ?? loadDefaultRuntime)({ trace });
@@ -68,7 +68,6 @@ async function runAgentCommand(
 
   const task = taskParts.join(" ").trim() || CLI.DEFAULT_TASK;
   (dependencies.writeOutput ?? console.log)(await runtime.runAgent(task));
-  return 0;
 }
 
 async function runLabCommand(
@@ -135,7 +134,7 @@ export async function runBirbalCli(
     .argument("[task...]", "research task")
     .option("--trace", "enable debug tracing")
     .action(async (taskParts: string[], options: TraceOptions) => {
-      status = await runAgentCommand(taskParts, options, program, dependencies);
+      await runAgentCommand(taskParts, options, program, dependencies);
     });
 
   program
@@ -150,7 +149,7 @@ export async function runBirbalCli(
   program
     .argument("[task...]", "research task")
     .action(async (taskParts: string[], options: TraceOptions) => {
-      status = await runAgentCommand(taskParts, options, program, dependencies);
+      await runAgentCommand(taskParts, options, program, dependencies);
     });
 
   await program.parseAsync(

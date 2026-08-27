@@ -4,7 +4,7 @@ import type {
   ArchitectureLabInputPort,
   ArchitectureLabSession,
   ArchitectureLabSessionOutput,
-} from "../architecture-lab/session.js";
+} from "../architecture-lab/types.js";
 import type { AppLoggingOptions } from "../logging/types.js";
 
 export type ArchitectureLabSessionFactoryOptions = {

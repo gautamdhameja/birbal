@@ -3,10 +3,14 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { describe, it } from "node:test";
 
-import {
-  createReadlineTerminalInput,
-  type ReadlineInterfaceLike,
-} from "../src/app/terminal/readline.js";
+import { createReadlineTerminalInput } from "../src/app/terminal/readline.js";
+import type { ReadlineInterfaceLike } from "../src/app/terminal/types.js";
+
+const NON_INTERACTIVE_TTY_COMBINATIONS = [
+  { inputTty: false, outputTty: false },
+  { inputTty: false, outputTty: true },
+  { inputTty: true, outputTty: false },
+] as const;
 
 class FakeReadlineInterface extends EventEmitter implements ReadlineInterfaceLike {
   closeCalls = 0;
@@ -73,6 +77,23 @@ describe("Node terminal input adapter", () => {
     adapter.close();
   });
 
+  it("discards only lines buffered before a newly visible turn", async () => {
+    const { adapter, readlineInterface } = createFakeAdapter();
+
+    readlineInterface.emit("line", "stale first");
+    readlineInterface.emit("line", "stale second");
+    adapter.discardBufferedLines();
+
+    const pending = adapter.read();
+    readlineInterface.emit("line", "visible first");
+    readlineInterface.emit("line", "visible second");
+
+    assert.deepEqual(await pending, { type: "line", line: "visible first" });
+    assert.deepEqual(await adapter.read(), { type: "line", line: "visible second" });
+    assert.equal(adapter.getTerminalOutcome(), undefined);
+    adapter.close();
+  });
+
   it("delivers a final unterminated line before EOF", async () => {
     const input = new PassThrough();
     const output = new PassThrough();
@@ -97,6 +118,40 @@ describe("Node terminal input adapter", () => {
 
     assert.deepEqual(await pending, { type: "eof" });
     assert.deepEqual(adapter.getTerminalOutcome(), { type: "eof" });
+    adapter.close();
+  });
+
+  it("drains every queued line before returning stable EOF", async () => {
+    const { adapter, readlineInterface, interruptSignalSource } = createFakeAdapter();
+
+    readlineInterface.emit("line", "first");
+    readlineInterface.emit("line", "second");
+    readlineInterface.emit("close");
+
+    assert.deepEqual(await adapter.read(), { type: "line", line: "first" });
+    assert.deepEqual(await adapter.read(), { type: "line", line: "second" });
+    assert.deepEqual(await adapter.read(), { type: "eof" });
+    assert.deepEqual(await adapter.read(), { type: "eof" });
+    assert.deepEqual(adapter.getTerminalOutcome(), { type: "eof" });
+    assert.equal(interruptSignalSource.listenerCount("SIGINT"), 1);
+
+    adapter.close();
+    assert.equal(interruptSignalSource.listenerCount("SIGINT"), 0);
+  });
+
+  it("lets SIGINT upgrade EOF until the adapter closes", async () => {
+    const { adapter, readlineInterface, interruptSignalSource } = createFakeAdapter();
+
+    readlineInterface.emit("close");
+    assert.deepEqual(adapter.getTerminalOutcome(), { type: "eof" });
+    assert.equal(interruptSignalSource.listenerCount("SIGINT"), 1);
+
+    interruptSignalSource.emit("SIGINT");
+
+    assert.deepEqual(await adapter.read(), { type: "interrupted" });
+    assert.deepEqual(adapter.getTerminalOutcome(), { type: "interrupted" });
+    assert.equal(interruptSignalSource.listenerCount("SIGINT"), 0);
+    adapter.close();
   });
 
   it("lets SIGINT preempt queued lines and the subsequent close event", async () => {
@@ -110,16 +165,18 @@ describe("Node terminal input adapter", () => {
     assert.deepEqual(adapter.getTerminalOutcome(), { type: "interrupted" });
   });
 
-  it("reports input errors distinctly from EOF", async () => {
-    const { adapter, readlineInterface } = createFakeAdapter();
+  it("reports input errors distinctly from EOF and preserves their priority", async () => {
+    const { adapter, readlineInterface, interruptSignalSource } = createFakeAdapter();
     const failure = new Error("input broke");
     const pending = adapter.read();
 
     readlineInterface.emit("error", failure);
     readlineInterface.emit("close");
+    interruptSignalSource.emit("SIGINT");
 
     assert.deepEqual(await pending, { type: "input_error", error: failure });
     assert.deepEqual(adapter.getTerminalOutcome(), { type: "input_error", error: failure });
+    assert.equal(interruptSignalSource.listenerCount("SIGINT"), 0);
   });
 
   it("handles errors forwarded by the real Node readline interface", async () => {
@@ -251,11 +308,7 @@ describe("Node terminal input adapter", () => {
     adapter.close();
   });
 
-  for (const ttyCombination of [
-    { inputTty: false, outputTty: false },
-    { inputTty: false, outputTty: true },
-    { inputTty: true, outputTty: false },
-  ]) {
+  for (const ttyCombination of NON_INTERACTIVE_TTY_COMBINATIONS) {
     it(`disables terminal editing for inputTTY=${ttyCombination.inputTty} outputTTY=${ttyCombination.outputTty}`, () => {
       const { adapter, receivedTerminalOptions } = createFakeAdapter(ttyCombination);
 
@@ -264,11 +317,7 @@ describe("Node terminal input adapter", () => {
     });
   }
 
-  for (const ttyCombination of [
-    { inputTty: false, outputTty: false },
-    { inputTty: false, outputTty: true },
-    { inputTty: true, outputTty: false },
-  ]) {
+  for (const ttyCombination of NON_INTERACTIVE_TTY_COMBINATIONS) {
     it(`latches SIGINT for inputTTY=${ttyCombination.inputTty} outputTTY=${ttyCombination.outputTty}`, async () => {
       const { adapter, interruptSignalSource, readlineInterface } =
         createFakeAdapter(ttyCombination);

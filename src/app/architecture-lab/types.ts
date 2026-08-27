@@ -43,6 +43,31 @@ export type ArchitectureReview = ArchitectureReviewDraft & {
   sources: CaseBriefSource[];
 };
 
+export type ArchitectureLabProgressPhase =
+  | "case_research"
+  | "challenge"
+  | "architecture_evidence"
+  | "review";
+
+export type ArchitectureLabRetry =
+  | { reason: "blank"; limit: number }
+  | { reason: "turn_too_long"; limit: number }
+  | { reason: "transcript_too_long"; limit: number }
+  | { reason: "proposal_required" }
+  | { reason: "draft_pending" };
+
+export type ArchitectureLabSessionState =
+  | "idle"
+  | "preparing"
+  | "awaiting_proposal"
+  | "generating_challenge"
+  | "awaiting_answer"
+  | "generating_review"
+  | "completed"
+  | "exited"
+  | "interrupted"
+  | "failed";
+
 export type ArchitectureLabInput =
   | { type: "line"; line: string }
   | { type: "eof" }
@@ -54,6 +79,43 @@ export type ArchitectureLabTerminalInput = Exclude<ArchitectureLabInput, { type:
 export type ArchitectureLabInputPort = {
   read(): Promise<ArchitectureLabInput>;
   getTerminalOutcome(): ArchitectureLabTerminalInput | undefined;
+  discardBufferedLines(): void;
+};
+
+export type ArchitectureLabSessionOutput =
+  | {
+      type: "progress";
+      phase: ArchitectureLabProgressPhase;
+      content: string;
+    }
+  | {
+      type: "case_brief";
+      brief: CaseBrief;
+      content: string;
+    }
+  | {
+      type: "challenge";
+      challenge: ArchitectureChallenge;
+      round: number;
+      content: string;
+    }
+  | ({ type: "retry"; content: string } & ArchitectureLabRetry);
+
+export type ArchitectureLabSessionFailure = {
+  code: "case_name_too_long" | "input_failed" | "transcript_too_long" | "operation_failed";
+  message: string;
+  operation?: ArchitectureLabOperationError;
+};
+
+export type ArchitectureLabSessionResult =
+  | { type: "completed"; review: ArchitectureReview; output: string }
+  | { type: "exited" }
+  | { type: "interrupted" }
+  | { type: "failed"; error: ArchitectureLabSessionFailure; output: string };
+
+export type ArchitectureLabSession = {
+  run(request?: { caseName?: string }): Promise<ArchitectureLabSessionResult>;
+  getState(): ArchitectureLabSessionState;
 };
 
 export type CaseResearchRequest = {
@@ -145,4 +207,8 @@ export type ArchitectureLabOperationsDependencies = {
   completeFn: ModelClient["complete"];
   now?: () => Date;
   logger?: DebugWarnLogger;
+};
+
+export type ArchitectureLabSystemPromptDependencies = {
+  loadTemplate?: () => string;
 };

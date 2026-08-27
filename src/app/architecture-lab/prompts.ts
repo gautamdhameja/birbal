@@ -3,12 +3,12 @@ import { readFileSync } from "node:fs";
 import type { ChatMessage } from "../../framework/llm/types.js";
 import { ARCHITECTURE_LAB } from "./constants.js";
 import type {
-  ArchitectureEvidence,
   ArchitectureEvidenceResearchRequest,
-  CaseBrief,
+  ArchitectureLabSystemPromptDependencies,
   CaseResearchRequest,
   CaseSelection,
-  LabTranscriptTurn,
+  GenerateChallengeRequest,
+  GenerateReviewRequest,
   SourceDossier,
 } from "./types.js";
 
@@ -38,22 +38,21 @@ function structuredMessages(system: string, sections: string[]): ChatMessage[] {
   ];
 }
 
-export type ArchitectureLabSystemPromptDependencies = {
-  loadTemplate?: () => string;
-};
-
-export function renderArchitectureLabSystemPrompt(template: string, toolsText = ""): string {
-  return [template.trim(), "Available tools:", toolsText.trim() || NO_TOOLS_AVAILABLE].join("\n\n");
+export function createArchitectureLabSystemPromptBuilder(
+  dependencies: ArchitectureLabSystemPromptDependencies = {},
+  loadBundledTemplate: () => string = loadBundledSystemPrompt,
+): (toolsText?: string) => string {
+  let bundledTemplate: string | undefined;
+  return (toolsText = "") => {
+    const template = dependencies.loadTemplate
+      ? dependencies.loadTemplate()
+      : (bundledTemplate ??= loadBundledTemplate());
+    return renderArchitectureLabSystemPrompt(template, toolsText);
+  };
 }
 
-export function buildArchitectureLabSystemPrompt(
-  toolsText = "",
-  dependencies: ArchitectureLabSystemPromptDependencies = {},
-): string {
-  return renderArchitectureLabSystemPrompt(
-    (dependencies.loadTemplate ?? loadBundledSystemPrompt)(),
-    toolsText,
-  );
+function renderArchitectureLabSystemPrompt(template: string, toolsText = ""): string {
+  return [template.trim(), "Available tools:", toolsText.trim() || NO_TOOLS_AVAILABLE].join("\n\n");
 }
 
 export function buildCaseResearchRequest(request: CaseResearchRequest): string {
@@ -127,11 +126,7 @@ export function buildChallengeMessages({
   brief,
   transcript,
   round,
-}: {
-  brief: CaseBrief;
-  transcript: LabTranscriptTurn[];
-  round: number;
-}): ChatMessage[] {
+}: GenerateChallengeRequest): ChatMessage[] {
   return structuredMessages(
     [
       "Phase: challenge.",
@@ -152,11 +147,7 @@ export function buildReviewMessages({
   brief,
   transcript,
   evidence,
-}: {
-  brief: CaseBrief;
-  transcript: LabTranscriptTurn[];
-  evidence: ArchitectureEvidence;
-}): ChatMessage[] {
+}: GenerateReviewRequest): ChatMessage[] {
   return structuredMessages(
     [
       "Phase: review.",

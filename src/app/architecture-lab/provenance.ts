@@ -1,15 +1,8 @@
+import { parseHttpUrl } from "./http-url.js";
 import type { EvidenceSource } from "./types.js";
 
 function normalizedHttpUrl(value: string): string | undefined {
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      return undefined;
-    }
-    return url.href;
-  } catch {
-    return undefined;
-  }
+  return parseHttpUrl(value)?.href;
 }
 
 function isUrlField(key: string): boolean {

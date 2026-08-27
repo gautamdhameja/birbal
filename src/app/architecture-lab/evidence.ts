@@ -1,4 +1,5 @@
 import { ARCHITECTURE_LAB } from "./constants.js";
+import { parseHttpUrl } from "./http-url.js";
 import type {
   ArchitectureEvidence,
   ArchitectureReviewDraft,
@@ -14,15 +15,7 @@ export type EvidenceAssessment =
   | { ok: false; message: string };
 
 function httpHostname(url: string): string | undefined {
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return undefined;
-    }
-    return parsed.hostname.toLowerCase();
-  } catch {
-    return undefined;
-  }
+  return parseHttpUrl(url)?.hostname.toLowerCase();
 }
 
 function publicationDate(value: string): Date | undefined {

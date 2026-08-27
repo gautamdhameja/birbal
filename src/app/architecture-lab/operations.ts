@@ -16,13 +16,12 @@ import {
 } from "./evidence.js";
 import {
   buildArchitectureEvidenceResearchRequest,
-  buildArchitectureLabSystemPrompt,
   buildCaseBriefMessages,
   buildCaseResearchRequest,
   buildChallengeMessages,
   buildOpeningSafetyMessages,
   buildReviewMessages,
-  type ArchitectureLabSystemPromptDependencies,
+  createArchitectureLabSystemPromptBuilder,
 } from "./prompts.js";
 import { createResearchProvenanceLedger } from "./provenance.js";
 import {
@@ -43,6 +42,7 @@ import type {
   ArchitectureLabResearchOperation,
   ArchitectureLabResearchRequest,
   ArchitectureLabResult,
+  ArchitectureLabSystemPromptDependencies,
   ArchitectureReview,
   CaseBrief,
   CaseSelection,
@@ -64,6 +64,17 @@ type ResearchRunnerDependencies = {
   logger?: AgentLogger;
   prompt?: ArchitectureLabSystemPromptDependencies;
 };
+
+type ResearchOperationPhase = Extract<
+  ArchitectureLabPhase,
+  "case_research" | "architecture_evidence"
+>;
+
+function researchOperationPhase(
+  phase: ArchitectureLabResearchRequest["phase"],
+): ResearchOperationPhase {
+  return phase === "case_setup" ? "case_research" : "architecture_evidence";
+}
 
 function failure(
   phase: ArchitectureLabPhase,
@@ -127,7 +138,7 @@ function parseResearchAnswer(
   raw: string,
   request: ArchitectureLabResearchRequest,
 ): ArchitectureLabResult<SourceDossier | ArchitectureEvidence> {
-  const phase = request.phase === "case_setup" ? "case_research" : "architecture_evidence";
+  const phase = researchOperationPhase(request.phase);
   let parsed: unknown;
   try {
     parsed = parseStrictJson(raw);
@@ -153,6 +164,7 @@ export function createArchitectureLabResearchRunner({
   logger,
   prompt,
 }: ResearchRunnerDependencies): ArchitectureLabResearchOperation {
+  const buildSystemPrompt = createArchitectureLabSystemPromptBuilder(prompt);
   return async (request) => {
     const provenance = createResearchProvenanceLedger();
     const traceLabel =
@@ -163,7 +175,7 @@ export function createArchitectureLabResearchRunner({
       modelClient,
       toolRunner,
       renderToolsForPrompt,
-      buildSystemPrompt: (renderedTools) => buildArchitectureLabSystemPrompt(renderedTools, prompt),
+      buildSystemPrompt,
       parseResponse: (raw) =>
         parseJsonAgentResponse(raw, {
           maxResponseChars: FRAMEWORK_AGENT.MAX_RESPONSE_CHARS,
@@ -184,26 +196,25 @@ export function createArchitectureLabResearchRunner({
         ? buildCaseResearchRequest(request)
         : buildArchitectureEvidenceResearchRequest(request);
     try {
-      const parsed = parseResearchAnswer(
-        await runResearch(task, { maxSteps: ARCHITECTURE_LAB.RESEARCH_MAX_STEPS }),
-        request,
-      );
+      const parsed = parseResearchAnswer(await runResearch(task), request);
       if (!parsed.ok) {
         return parsed;
       }
       const missingSourceIds = provenance.missingSourceIds(parsed.value.sources);
       if (missingSourceIds.length > 0) {
-        const phase = request.phase === "case_setup" ? "case_research" : "architecture_evidence";
         return failure(
-          phase,
+          researchOperationPhase(request.phase),
           "invalid_evidence",
           `Lab research cited sources not returned by research tools: ${missingSourceIds.join(", ")}.`,
         );
       }
       return parsed;
     } catch {
-      const phase = request.phase === "case_setup" ? "case_research" : "architecture_evidence";
-      return failure(phase, "research_failed", "Lab research failed.");
+      return failure(
+        researchOperationPhase(request.phase),
+        "research_failed",
+        "Lab research failed.",
+      );
     }
   };
 }
@@ -212,11 +223,14 @@ async function callResearch(
   research: ArchitectureLabResearchOperation,
   request: ArchitectureLabResearchRequest,
 ): Promise<ArchitectureLabResult<SourceDossier | ArchitectureEvidence>> {
-  const phase = request.phase === "case_setup" ? "case_research" : "architecture_evidence";
   try {
     return await research(request);
   } catch {
-    return failure(phase, "research_failed", "Lab research failed.");
+    return failure(
+      researchOperationPhase(request.phase),
+      "research_failed",
+      "Lab research failed.",
+    );
   }
 }
 
@@ -369,12 +383,20 @@ export function createArchitectureLabOperations({
     if (!assessment.ok) {
       return failure("review", "invalid_evidence", assessment.message);
     }
+    const sources = resolveReviewSources(reviewResult.value, request.brief, request.evidence);
+    if (assessment.quality === "sufficient" && sources.length === 0) {
+      return failure(
+        "review",
+        "invalid_evidence",
+        "A sufficient review must resolve at least one cited source.",
+      );
+    }
     return {
       ok: true,
       value: {
         ...reviewResult.value,
         evidenceQuality: assessment.quality,
-        sources: resolveReviewSources(reviewResult.value, request.brief, request.evidence),
+        sources,
       },
     };
   }
