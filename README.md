@@ -1,71 +1,196 @@
 # Birbal
 
-Birbal is a local TypeScript research agent and architecture learning lab. Give the research agent a topic to get a concise, source-linked reading list, or use the interactive lab to practice designing an impactful AI system and receive a sourced review.
+Birbal is a local TypeScript agent harness for research and artificial intelligence (AI) architecture learning. Use it to generate a source-linked reading list or practice designing an AI system in an interactive Architecture Case Lab.
 
-The agent uses llama.cpp by default and can use hosted OpenAI through the same model interface. Runtime preferences and curated sources are JSON configuration; provider and network settings come from environment variables.
+The project demonstrates the main components of an agent harness: model adapters, structured model output, validated tools, a bounded model-tool loop, application-level orchestration, and host-neutral input and output ports.
 
-## Install
+## Choose a workflow
 
-```bash
-pnpm install
-cp .env.example .env.local
+- **Research a topic:** Birbal investigates a question and returns a concise reading list with source links, reasons to read, and key takeaways.
+- **Practice architecture design:** Birbal researches a case, hides the reference architecture until you submit a proposal, challenges your design, and returns a sourced qualitative review.
+
+Birbal does not save sessions, publish files, or maintain a learner profile.
+
+## Requirements
+
+Before you run Birbal, install or configure the following software and services:
+
+- Node.js 20.18.1 or later.
+- pnpm 10.
+- A llama.cpp-compatible chat-completions server or an OpenAI API key.
+- A Brave Search API key for general web and configured-domain searches.
+
+## Install Birbal
+
+1. Install the dependencies:
+
+   ```bash
+   pnpm install
+   ```
+
+2. Create a local environment file:
+
+   ```bash
+   cp .env.example .env.local
+   ```
+
+3. Configure one model provider in `.env.local`.
+
+## Configure a model provider
+
+### Use llama.cpp
+
+The default configuration connects to a llama.cpp-compatible server at `http://127.0.0.1:8080`.
+
+1. Start a server that implements the OpenAI-compatible chat-completions endpoint.
+2. Keep these values in `.env.local`, or replace them with your server details:
+
+   ```dotenv
+   MODEL_PROVIDER=llama_cpp
+   MODEL_BASE_URL=http://127.0.0.1:8080
+   MODEL_NAME=local
+   ```
+
+### Use OpenAI
+
+Set the following values in `.env.local`:
+
+```dotenv
+MODEL_PROVIDER=openai
+MODEL_API_KEY=your-api-key
+MODEL_NAME=your-model-name
 ```
 
-For local inference, run a llama.cpp-compatible chat-completions server. For hosted OpenAI, set `MODEL_PROVIDER=openai`, `MODEL_API_KEY`, and `MODEL_NAME`.
+Birbal uses `https://api.openai.com` as the default OpenAI base URL. Set `MODEL_BASE_URL` only when you need a different endpoint.
 
-## Research
+### Enable web search
 
-```bash
-pnpm dev -- "Research recent approaches to evaluating LLM agents"
-pnpm cli -- "Compare current local inference engines"
-pnpm cli -- agent "Find primary sources on retrieval evaluation"
+Add your Brave Search API key to `.env.local`:
+
+```dotenv
+BRAVE_SEARCH_API_KEY=your-api-key
 ```
 
-Use `--trace` to print tool definitions and structured handoff logs:
+The arXiv and Hacker News tools don't require this key. The `search_web` and configured-domain search tools do require it.
+
+## Research a topic
+
+Run the default research workflow with a question or topic:
 
 ```bash
-pnpm cli -- --trace "Research agent memory architectures"
+pnpm cli -- "Research recent approaches to evaluating AI agents"
 ```
 
-The answer is printed to stdout. Birbal does not persist results or publish files.
+You can also name the `agent` command explicitly:
 
-## Architecture Case Lab
+```bash
+pnpm cli -- agent "Compare current local inference engines"
+```
 
-Start with an automatically selected case or name one:
+If you omit the topic, Birbal uses its configured default research task:
+
+```bash
+pnpm cli
+```
+
+Birbal writes the final reading list to standard output. It writes logs and trace information to standard error.
+
+To inspect tool definitions and structured handoffs, add `--trace`:
+
+```bash
+pnpm cli -- --trace agent "Research agent memory architectures"
+```
+
+## Practice an architecture case
+
+Start the Architecture Case Lab and let Birbal select a recent, evidence-backed case:
 
 ```bash
 pnpm cli -- lab
+```
+
+To study a specific use case, add its name:
+
+```bash
 pnpm cli -- lab "AI customer-support triage"
 ```
 
-The lab presents sourced problem context without a solution. Enter a multiline architecture draft, then enter `/submit` on its own line. Answer up to three focused challenges the same way, use `/finish` for an early review, or `/exit` to leave without a review.
+Complete the lab as follows:
 
-Progress, the case brief, challenges, and retry messages go to stderr. Only a completed review goes to stdout, so it can be redirected or piped separately. Lab state lasts for one invocation and is never saved.
+1. Read the problem, affected actors, constraints, desired outcome, sources, and evidence status.
+2. Enter your architecture proposal. You can use multiple lines.
+3. Enter `/submit` on its own line.
+4. Answer each architecture challenge, then enter `/submit` again.
+5. Review the final assessment after the third answered challenge.
 
-See [Architecture Case Lab](docs/architecture-case-lab.md) for controls, limits, evidence labels, and interruption behavior.
+The lab recognizes these whole-line commands:
 
-## Configuration
+- `/submit` commits the current multiline draft.
+- `/finish` requests the best available review after you submit a proposal.
+- `/exit` ends the session without a review.
+- Ctrl-D ends input without a review unless a requested final review is already running.
+- Ctrl-C requests interruption and returns exit status 130.
 
-- `config/research.json` controls interests, avoided topics, preferred difficulty, and the maximum reading-list size.
-- `config/source-registry.json` defines curated source IDs and domains.
-- `.env.local` and `.env` configure the model provider, Brave Search, logging, and network limits.
+Birbal writes the case, progress, challenges, and retry guidance to standard error. It writes only the completed architecture review to standard output. Redirect the review without mixing it with interactive content:
 
-Set `RESEARCH_CONFIG_PATH` or `SOURCE_REGISTRY_PATH` to use configuration files outside the package.
+```bash
+pnpm cli -- lab "AI customer-support triage" > review.txt
+```
 
-## Tools
+For the complete learning flow, evidence rules, limits, and interruption behavior, see [Architecture Case Lab](docs/architecture-case-lab.md).
 
-The agent can:
+## Understand the architecture
 
-- search arXiv;
-- search Hacker News;
-- search the web through Brave Search;
-- restrict Brave Search to a configured source;
-- fetch and extract readable text from a public URL;
-- inspect local time.
+Birbal separates reusable harness infrastructure from application workflows:
 
-All tool inputs and outputs are validated with Zod. Public URL fetching rejects private and unsafe network targets, revalidates DNS at connection time, bounds response size, and enforces abort and timeout behavior.
+- `src/framework/agent/` owns the bounded model-tool loop and the `tool_call` or `final` protocol.
+- `src/framework/tools/` owns typed tool registration, input validation, and execution.
+- `src/app/agent/` composes the research and reading-list workflow.
+- `src/app/architecture-lab/` owns typed lab operations, evidence validation, the learning session, and rendering.
+- `src/app/terminal/` adapts Node terminal events to a host-neutral input contract.
+- `src/app/runtime/default.ts` connects concrete providers and clients at the application composition root.
 
-## Development
+The framework never imports application modules. The session controller does not import terminal or provider implementations. These boundaries keep each component replaceable and independently testable.
+
+For the dependency map and lifecycle details, see [Architecture](docs/architecture.md) and [Agent harness](docs/agent-harness.md).
+
+## Review the safety boundaries
+
+Birbal applies the following bounds and validation rules:
+
+- Zod validates all tool inputs, tool outputs, and structured model results.
+- Public URL fetching rejects private or unsafe network targets and revalidates DNS before connecting.
+- Network requests have retry, timeout, and response-size limits.
+- Research runs, challenge rounds, individual drafts, transcripts, and queued terminal input are bounded.
+- The lab checks case openings for solution leakage before it displays them.
+- Research citations must originate from successful tool results.
+- Terminal rendering removes control characters that could alter terminal output.
+
+These checks reduce risk, but model-generated research still requires human judgment. Review cited sources before you rely on a result.
+
+## Configure research behavior
+
+Use the following files and environment variables to change runtime behavior:
+
+| Location                      | Purpose                                                                                       |
+| ----------------------------- | --------------------------------------------------------------------------------------------- |
+| `config/research.json`        | Defines interests, avoided topics, preferred difficulty, and the maximum reading-list size.   |
+| `config/source-registry.json` | Defines curated source identifiers, display names, domains, source types, and enabled status. |
+| `.env.local` and `.env`       | Configure model providers, API keys, endpoints, timeouts, logging, and search limits.         |
+| `RESEARCH_CONFIG_PATH`        | Loads research preferences from another file.                                                 |
+| `SOURCE_REGISTRY_PATH`        | Loads the curated source registry from another file.                                          |
+
+`.env.local` takes precedence over `.env`. For every supported setting, see [Configuration](docs/configuration.md) and [`.env.example`](.env.example).
+
+## Run development checks
+
+Run the complete local check before you commit a change:
+
+```bash
+pnpm check
+```
+
+The command runs formatting verification, ESLint, TypeScript type checking, and the complete test suite. Run an individual check with one of these commands:
 
 ```bash
 pnpm format:check
@@ -74,4 +199,17 @@ pnpm typecheck
 pnpm test
 ```
 
-See [docs/index.md](docs/index.md) for the documentation map.
+## Read the documentation
+
+- [Documentation overview](docs/index.md)
+- [Quickstart](docs/quickstart.md)
+- [Command-line interface](docs/cli.md)
+- [Architecture Case Lab](docs/architecture-case-lab.md)
+- [Architecture](docs/architecture.md)
+- [Agent harness](docs/agent-harness.md)
+- [Tools](docs/tools.md)
+- [Testing](docs/testing.md)
+
+## License
+
+Birbal is available under the [MIT License](LICENSE).
