@@ -30,7 +30,6 @@ const SearchSourceDomainResultSchema = z.strictObject({
       summary: z.string(),
       publishedAt: z.string(),
       discoveredAt: z.string(),
-      contentFetchStatus: z.string(),
       raw: z.unknown(),
     }),
   ),

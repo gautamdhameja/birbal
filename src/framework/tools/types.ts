@@ -24,3 +24,7 @@ export type ToolRunTraceContext = {
   modelPassId?: string;
   step?: number;
 };
+
+export type ToolLogger = {
+  debug(payload: Record<string, unknown>, message?: string): void;
+};

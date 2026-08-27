@@ -2,9 +2,8 @@ import type { SourceRegistryItem } from "../config/sourceRegistry.js";
 import { loadSourceRegistry } from "../config/sourceRegistry.js";
 import { searchWeb } from "../brave-search/client.js";
 import type { SearchWebResult } from "../brave-search/client.js";
-import { CONTENT_FETCH_STATUSES } from "../constants/candidates.js";
-import type { CandidateItem } from "../daily/types.js";
-import { mapLimit } from "../../framework/pipeline/concurrency.js";
+import type { ResearchResult } from "../research/types.js";
+import { mapLimit } from "../../framework/async/mapLimit.js";
 import { normalizeUrl } from "../../framework/network/normalizeUrl.js";
 
 const SITE_QUERY_PREFIX = "site:";
@@ -51,10 +50,10 @@ function isSourceDomainUrl(url: string, domains: readonly string[]): boolean {
   }
 }
 
-function toSourceDomainCandidate(
+function toResearchResult(
   source: SourceRegistryItem,
   result: SearchWebResult,
-): CandidateItem | undefined {
+): ResearchResult | undefined {
   const url = normalizeUrl(result.url);
   if (!url || !isSourceDomainUrl(url, source.domains)) {
     return undefined;
@@ -70,22 +69,21 @@ function toSourceDomainCandidate(
     summary: result.description,
     publishedAt: result.publishedAt ?? "",
     discoveredAt: new Date().toISOString(),
-    contentFetchStatus: CONTENT_FETCH_STATUSES.NOT_FETCHED,
     raw: result.raw,
   };
 }
 
-function dedupeSourceDomainCandidates(candidates: CandidateItem[]): CandidateItem[] {
+function dedupeResearchResults(results: ResearchResult[]): ResearchResult[] {
   const seen = new Set<string>();
-  const deduped: CandidateItem[] = [];
+  const deduped: ResearchResult[] = [];
 
-  for (const candidate of candidates) {
-    if (seen.has(candidate.url)) {
+  for (const result of results) {
+    if (seen.has(result.url)) {
       continue;
     }
 
-    seen.add(candidate.url);
-    deduped.push(candidate);
+    seen.add(result.url);
+    deduped.push(result);
   }
 
   return deduped;
@@ -94,7 +92,7 @@ function dedupeSourceDomainCandidates(candidates: CandidateItem[]): CandidateIte
 export async function searchSourceDomain(
   { sourceId, query, maxResults = 10, signal }: SearchSourceDomainOptions,
   dependencies: SearchSourceDomainDependencies = {},
-): Promise<CandidateItem[]> {
+): Promise<ResearchResult[]> {
   const sourceRegistry = dependencies.sourceRegistry ?? loadSourceRegistry();
   const source = findSource(sourceId, sourceRegistry.sources);
   const candidateGroups = await mapLimit(
@@ -107,9 +105,9 @@ export async function searchSourceDomain(
         signal,
       });
 
-      const candidates: CandidateItem[] = [];
+      const candidates: ResearchResult[] = [];
       for (const result of results) {
-        const candidate = toSourceDomainCandidate(source, result);
+        const candidate = toResearchResult(source, result);
         if (candidate) {
           candidates.push(candidate);
         }
@@ -119,5 +117,5 @@ export async function searchSourceDomain(
     },
   );
 
-  return dedupeSourceDomainCandidates(candidateGroups.flat()).slice(0, maxResults);
+  return dedupeResearchResults(candidateGroups.flat()).slice(0, maxResults);
 }

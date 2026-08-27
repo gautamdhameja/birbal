@@ -10,7 +10,6 @@ import {
   resetBraveSearchQuotaForTests,
   searchWeb,
 } from "../src/app/brave-search/client.js";
-import { CONTENT_FETCH_STATUSES } from "../src/app/constants/candidates.js";
 import { HTTP } from "../src/framework/network/constants.js";
 import { SOURCE_REGISTRY } from "../src/app/constants/source-registry.js";
 import { normalizeHackerNewsHit } from "../src/app/hackernews/client.js";
@@ -448,7 +447,6 @@ describe("tool registry", () => {
             summary: "Practical notes on agent evals.",
             publishedAt: "2026-05-20T00:00:00Z",
             discoveredAt: "<dynamic>",
-            contentFetchStatus: CONTENT_FETCH_STATUSES.NOT_FETCHED,
             raw: {
               title: "Agent evaluation field notes",
               url: "https://example.com/agents#comments",

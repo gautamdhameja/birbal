@@ -14,7 +14,3 @@ export const LOGGING = {
   PRETTY_TRANSLATE_TIME: "SYS:standard",
   LOGGER_NAME: "birbal",
 } as const;
-
-export const OUTPUT = {
-  JSON_INDENT_SPACES: 2,
-} as const;

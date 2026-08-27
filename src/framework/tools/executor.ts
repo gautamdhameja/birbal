@@ -1,14 +1,13 @@
 import { z } from "zod";
 
 import { preview } from "../logging/preview.js";
-import type { PipelineLogger } from "../pipeline/types.js";
 import { FRAMEWORK_TOOLS } from "./constants.js";
 import type { ToolRegistry } from "./registry.js";
-import type { ToolError, ToolRunTraceContext } from "./types.js";
+import type { ToolError, ToolLogger, ToolRunTraceContext } from "./types.js";
 
 export type ToolRunnerOptions = {
   timeoutMs?: number;
-  logger?: Pick<PipelineLogger, "debug">;
+  logger?: ToolLogger;
 };
 
 async function withTimeout<T>(
