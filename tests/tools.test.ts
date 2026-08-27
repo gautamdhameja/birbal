@@ -6,17 +6,20 @@ import { beforeEach, describe, it } from "node:test";
 
 import { buildArxivSearchQuery, parseArxivAtomFeed } from "../src/app/arxiv/client.js";
 import {
+  createBraveSearchClient,
   normalizeBraveWebResult,
-  resetBraveSearchQuotaForTests,
-  searchWeb,
 } from "../src/app/brave-search/client.js";
+import type { SourceRegistry } from "../src/app/config/sourceRegistryTypes.js";
 import { HTTP } from "../src/framework/network/constants.js";
 import { SOURCE_REGISTRY } from "../src/app/constants/source-registry.js";
 import { normalizeHackerNewsHit } from "../src/app/hackernews/client.js";
-import { searchSourceDomain } from "../src/app/source-search/domain.js";
+import { createDefaultToolRegistry } from "../src/app/runtime/default.js";
+import { createSourceDomainSearch } from "../src/app/source-search/domain.js";
+import type { SearchSourceDomainOptions } from "../src/app/source-search/domain.js";
 import { formatLocalIsoString } from "../src/app/tools/get-time.js";
 import { createAppToolExecutor } from "../src/app/tools/executor.js";
-import { createToolRegistry } from "../src/app/tools/registry.js";
+import { createResearchTools, createToolRegistry } from "../src/app/tools/registry.js";
+import type { ResearchToolOperations } from "../src/app/tools/registry.js";
 import { fetchUrlText } from "../src/app/url-text/client.js";
 import { extractUrlText } from "../src/framework/content/extractText.js";
 import type { ToolDefinition } from "../src/framework/tools/types.js";
@@ -36,10 +39,21 @@ const publicHostResolver = async () => [{ address: "93.184.216.34", family: 4 as
 describe("tool registry", () => {
   const toolRegistry = createToolRegistry();
   const runTool = createAppToolExecutor(toolRegistry);
+  let searchWeb = createBraveSearchClient().searchWeb;
 
   beforeEach(() => {
-    resetBraveSearchQuotaForTests();
+    searchWeb = createBraveSearchClient().searchWeb;
   });
+
+  function searchSourceDomain(
+    options: SearchSourceDomainOptions,
+    dependencies: { sourceRegistry: SourceRegistry },
+  ) {
+    return createSourceDomainSearch({
+      loadSourceRegistry: () => dependencies.sourceRegistry,
+      searchWeb,
+    })(options);
+  }
 
   it("formats local ISO timestamps with an explicit timezone offset", () => {
     assert.match(
@@ -111,6 +125,67 @@ describe("tool registry", () => {
     assert.deepEqual(await runFirst("runtime_only", {}), { ok: true });
     assert.deepEqual(await runSecond("runtime_only", {}), {
       error: "Unknown tool: runtime_only",
+    });
+  });
+
+  it("creates a fresh default integration tool graph for every runtime", () => {
+    const first = createDefaultToolRegistry();
+    const second = createDefaultToolRegistry();
+
+    assert.notEqual(first, second);
+    assert.notEqual(first.get("search_web"), second.get("search_web"));
+    assert.notEqual(first.get("search_arxiv"), second.get("search_arxiv"));
+  });
+
+  it("binds fresh research tool graphs to their injected I/O operations", async () => {
+    function operations(sourceName: string): ResearchToolOperations {
+      return {
+        now: () => new Date("2026-08-27T10:00:00.000Z"),
+        searchArxiv: async () => [],
+        searchHackerNews: async () => [],
+        searchWeb: async ({ query }) => [
+          {
+            title: `${sourceName}: ${query}`,
+            url: `https://${sourceName}.example/report`,
+            description: "Injected result",
+            sourceName,
+          },
+        ],
+        searchSourceDomain: async () => [],
+        fetchUrlText: async ({ url }) => ({
+          url,
+          title: sourceName,
+          plainText: "Injected article text",
+          detectedPaywall: false,
+          contentLength: 21,
+        }),
+      };
+    }
+
+    const runFirst = createAppToolExecutor(
+      createToolRegistry(createResearchTools(operations("first"))),
+    );
+    const runSecond = createAppToolExecutor(
+      createToolRegistry(createResearchTools(operations("second"))),
+    );
+
+    assert.deepEqual(await runFirst("search_web", { query: "agents", max_results: 2 }), {
+      query: "agents",
+      results: [
+        {
+          title: "first: agents",
+          url: "https://first.example/report",
+          description: "Injected result",
+          sourceName: "first",
+        },
+      ],
+    });
+    assert.deepEqual(await runSecond("fetch_url_text", { url: "https://example.com/report" }), {
+      url: "https://example.com/report",
+      title: "second",
+      plainText: "Injected article text",
+      detectedPaywall: false,
+      contentLength: 21,
     });
   });
 

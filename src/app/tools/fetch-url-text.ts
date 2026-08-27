@@ -27,16 +27,22 @@ const FetchUrlTextResultSchema = z.strictObject({
 export const fetchUrlTextTool: ToolDefinition<
   typeof FetchUrlTextArgsSchema,
   typeof FetchUrlTextResultSchema
-> = {
-  name: TOOLS.FETCH_URL_TEXT.NAME,
-  description: TOOLS.FETCH_URL_TEXT.DESCRIPTION,
-  argsSchema: FetchUrlTextArgsSchema,
-  resultSchema: FetchUrlTextResultSchema,
-  async run(args, context) {
-    return fetchUrlText({
-      url: args.url,
-      maxChars: args.max_chars,
-      signal: context.signal,
-    });
-  },
-};
+> = createFetchUrlTextTool();
+
+export function createFetchUrlTextTool(
+  runFetch: typeof fetchUrlText = fetchUrlText,
+): ToolDefinition<typeof FetchUrlTextArgsSchema, typeof FetchUrlTextResultSchema> {
+  return {
+    name: TOOLS.FETCH_URL_TEXT.NAME,
+    description: TOOLS.FETCH_URL_TEXT.DESCRIPTION,
+    argsSchema: FetchUrlTextArgsSchema,
+    resultSchema: FetchUrlTextResultSchema,
+    async run(args, context) {
+      return runFetch({
+        url: args.url,
+        maxChars: args.max_chars,
+        signal: context.signal,
+      });
+    },
+  };
+}

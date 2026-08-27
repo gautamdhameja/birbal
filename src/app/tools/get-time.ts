@@ -27,14 +27,21 @@ export function formatLocalIsoString(date: Date): string {
   ].join("");
 }
 
-export const getTimeTool: ToolDefinition<typeof GetTimeArgsSchema, typeof GetTimeResultSchema> = {
-  name: TOOLS.GET_TIME.NAME,
-  description: TOOLS.GET_TIME.DESCRIPTION,
-  argsSchema: GetTimeArgsSchema,
-  resultSchema: GetTimeResultSchema,
-  async run() {
-    return {
-      now: formatLocalIsoString(new Date()),
-    };
-  },
-};
+export const getTimeTool: ToolDefinition<typeof GetTimeArgsSchema, typeof GetTimeResultSchema> =
+  createGetTimeTool();
+
+export function createGetTimeTool(
+  now: () => Date = () => new Date(),
+): ToolDefinition<typeof GetTimeArgsSchema, typeof GetTimeResultSchema> {
+  return {
+    name: TOOLS.GET_TIME.NAME,
+    description: TOOLS.GET_TIME.DESCRIPTION,
+    argsSchema: GetTimeArgsSchema,
+    resultSchema: GetTimeResultSchema,
+    async run() {
+      return {
+        now: formatLocalIsoString(now()),
+      };
+    },
+  };
+}

@@ -32,20 +32,26 @@ const SearchWebResultSchema = z.strictObject({
 export const searchWebTool: ToolDefinition<
   typeof SearchWebArgsSchema,
   typeof SearchWebResultSchema
-> = {
-  name: TOOLS.SEARCH_WEB.NAME,
-  description: TOOLS.SEARCH_WEB.DESCRIPTION,
-  argsSchema: SearchWebArgsSchema,
-  resultSchema: SearchWebResultSchema,
-  async run(args, context) {
-    return {
-      query: args.query,
-      results: await searchWeb({
+> = createSearchWebTool();
+
+export function createSearchWebTool(
+  runSearch: typeof searchWeb = searchWeb,
+): ToolDefinition<typeof SearchWebArgsSchema, typeof SearchWebResultSchema> {
+  return {
+    name: TOOLS.SEARCH_WEB.NAME,
+    description: TOOLS.SEARCH_WEB.DESCRIPTION,
+    argsSchema: SearchWebArgsSchema,
+    resultSchema: SearchWebResultSchema,
+    async run(args, context) {
+      return {
         query: args.query,
-        maxResults: args.max_results,
-        freshness: args.freshness,
-        signal: context.signal,
-      }),
-    };
-  },
-};
+        results: await runSearch({
+          query: args.query,
+          maxResults: args.max_results,
+          freshness: args.freshness,
+          signal: context.signal,
+        }),
+      };
+    },
+  };
+}

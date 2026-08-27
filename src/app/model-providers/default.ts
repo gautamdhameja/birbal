@@ -2,8 +2,9 @@ import { z } from "zod";
 
 import { MODEL_PROVIDERS } from "../constants/model-providers.js";
 import type { ModelClient } from "../../framework/llm/types.js";
-import { llamaCppModelAdapter } from "../llama/adapter.js";
-import { openAIModelAdapter } from "./openai/adapter.js";
+import { createLlamaCppModelAdapter } from "../llama/adapter.js";
+import { createOpenAIModelAdapter } from "./openai/adapter.js";
+import type { OpenAICompatibleClientDependencies } from "./openai-compatible/client.js";
 
 const ModelProviderEnvSchema = z.strictObject({
   MODEL_PROVIDER: z
@@ -19,22 +20,29 @@ export function getConfiguredModelProviderId(): ModelProviderId {
   }).MODEL_PROVIDER;
 }
 
-function selectConfiguredModelClient(): ModelClient {
+function selectConfiguredModelClient(clients: Record<ModelProviderId, ModelClient>): ModelClient {
   const providerId = getConfiguredModelProviderId();
   switch (providerId) {
     case MODEL_PROVIDERS.PROVIDERS.LLAMA_CPP:
-      return llamaCppModelAdapter;
+      return clients[MODEL_PROVIDERS.PROVIDERS.LLAMA_CPP];
     case MODEL_PROVIDERS.PROVIDERS.OPENAI:
-      return openAIModelAdapter;
+      return clients[MODEL_PROVIDERS.PROVIDERS.OPENAI];
     default:
       throw new Error(`${MODEL_PROVIDERS.ERRORS.UNSUPPORTED_PROVIDER}: ${providerId}`);
   }
 }
 
-export function getDefaultModelClient(): ModelClient {
+export function getDefaultModelClient(
+  dependencies: OpenAICompatibleClientDependencies = {},
+): ModelClient {
+  const clients: Record<ModelProviderId, ModelClient> = {
+    [MODEL_PROVIDERS.PROVIDERS.LLAMA_CPP]: createLlamaCppModelAdapter(dependencies),
+    [MODEL_PROVIDERS.PROVIDERS.OPENAI]: createOpenAIModelAdapter(dependencies),
+  };
+
   return {
     complete(messages, options) {
-      return selectConfiguredModelClient().complete(messages, options);
+      return selectConfiguredModelClient(clients).complete(messages, options);
     },
   };
 }

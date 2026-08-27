@@ -6,8 +6,9 @@ import { HTTP } from "../../framework/network/constants.js";
 import { fetchWithRetry } from "../../framework/network/fetch.js";
 import { buildHttpStatusError, readResponseText } from "../../framework/network/client.js";
 import { getArxivConfig } from "./config.js";
+import type { ArxivConfig } from "./config.js";
 
-type ArxivSearchOptions = {
+export type ArxivSearchOptions = {
   query: string;
   maxResults: number;
   signal?: AbortSignal;
@@ -23,8 +24,18 @@ export type ArxivPaper = {
 
 type ParsedXmlRecord = Record<string, unknown>;
 
-let nextArxivRequestAt = 0;
-let arxivRequestQueue = Promise.resolve();
+export type ArxivSearchTransport = typeof fetchWithRetry;
+
+export type ArxivClientDependencies = {
+  loadConfig?: () => ArxivConfig;
+  transport?: ArxivSearchTransport;
+  now?: () => number;
+  delay?: (ms: number, signal?: AbortSignal) => Promise<void>;
+};
+
+export type ArxivClient = {
+  searchArxiv(options: ArxivSearchOptions): Promise<ArxivPaper[]>;
+};
 
 const parser = new XMLParser({
   attributeNamePrefix: "",
@@ -111,8 +122,11 @@ export function parseArxivAtomFeed(xml: string): ArxivPaper[] {
   });
 }
 
-function buildArxivUrl({ query, maxResults }: ArxivSearchOptions, mode: ArxivSearchMode): string {
-  const { ARXIV_QUERY_URL } = getArxivConfig();
+function buildArxivUrl(
+  { query, maxResults }: ArxivSearchOptions,
+  mode: ArxivSearchMode,
+  { ARXIV_QUERY_URL }: ArxivConfig,
+): string {
   const url = new URL(ARXIV_QUERY_URL);
 
   url.searchParams.set(ARXIV.QUERY_PARAMS.SEARCH_QUERY, buildArxivSearchQuery(query, mode));
@@ -124,7 +138,7 @@ function buildArxivUrl({ query, maxResults }: ArxivSearchOptions, mode: ArxivSea
   return url.toString();
 }
 
-function delay(ms: number, signal?: AbortSignal): Promise<void> {
+function defaultDelay(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     const complete = () => {
       clearTimeout(timeout);
@@ -140,59 +154,73 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-async function waitForArxivRequestSlot(signal?: AbortSignal): Promise<void> {
-  const waitTurn = arxivRequestQueue.then(async () => {
-    const waitMs = Math.max(0, nextArxivRequestAt - Date.now());
-    if (waitMs > 0) {
-      await delay(waitMs, signal);
+export function createArxivClient(dependencies: ArxivClientDependencies = {}): ArxivClient {
+  const loadConfig = dependencies.loadConfig ?? getArxivConfig;
+  const transport = dependencies.transport ?? fetchWithRetry;
+  const now = dependencies.now ?? Date.now;
+  const delay = dependencies.delay ?? defaultDelay;
+  let nextRequestAt = 0;
+  let requestQueue = Promise.resolve();
+
+  async function waitForRequestSlot(signal?: AbortSignal): Promise<void> {
+    const waitTurn = requestQueue.then(async () => {
+      const waitMs = Math.max(0, nextRequestAt - now());
+      if (waitMs > 0) {
+        await delay(waitMs, signal);
+      }
+
+      nextRequestAt = now() + ARXIV.REQUEST_INTERVAL_MS;
+    });
+
+    requestQueue = waitTurn.catch(() => undefined);
+    await waitTurn;
+  }
+
+  async function fetchSearch(
+    options: ArxivSearchOptions,
+    mode: ArxivSearchMode,
+  ): Promise<ArxivPaper[]> {
+    const url = buildArxivUrl(options, mode, loadConfig());
+    const response = await transport(
+      url,
+      {
+        signal: options.signal,
+        headers: {
+          accept: HTTP.XML_ACCEPT,
+          [HTTP.USER_AGENT_HEADER]: HTTP.USER_AGENT,
+        },
+      },
+      {
+        retries: ARXIV.MAX_ATTEMPTS - 1,
+        minTimeoutMs: ARXIV.RETRY_DELAY_MS,
+        retryStatusCodes: ARXIV.RETRYABLE_STATUSES,
+        beforeAttempt: () => waitForRequestSlot(options.signal),
+      },
+    );
+
+    if (response.ok) {
+      return parseArxivAtomFeed(
+        await readResponseText(response, undefined, { signal: options.signal }),
+      );
     }
 
-    nextArxivRequestAt = Date.now() + ARXIV.REQUEST_INTERVAL_MS;
-  });
-
-  arxivRequestQueue = waitTurn.catch(() => undefined);
-  await waitTurn;
-}
-
-async function fetchArxivSearch(
-  options: ArxivSearchOptions,
-  mode: ArxivSearchMode,
-): Promise<ArxivPaper[]> {
-  const url = buildArxivUrl(options, mode);
-
-  const response = await fetchWithRetry(
-    url,
-    {
+    throw await buildHttpStatusError(ARXIV.ERRORS.HTTP_FAILED_PREFIX, response, {
       signal: options.signal,
-      headers: {
-        accept: HTTP.XML_ACCEPT,
-        [HTTP.USER_AGENT_HEADER]: HTTP.USER_AGENT,
-      },
-    },
-    {
-      retries: ARXIV.MAX_ATTEMPTS - 1,
-      minTimeoutMs: ARXIV.RETRY_DELAY_MS,
-      retryStatusCodes: ARXIV.RETRYABLE_STATUSES,
-      beforeAttempt: () => waitForArxivRequestSlot(options.signal),
-    },
-  );
-
-  if (response.ok) {
-    return parseArxivAtomFeed(
-      await readResponseText(response, undefined, { signal: options.signal }),
-    );
+    });
   }
 
-  throw await buildHttpStatusError(ARXIV.ERRORS.HTTP_FAILED_PREFIX, response, {
-    signal: options.signal,
-  });
+  return {
+    async searchArxiv(options) {
+      const phraseResults = await fetchSearch(options, ARXIV.SEARCH_MODES.PHRASE);
+      if (phraseResults.length > 0) {
+        return phraseResults;
+      }
+
+      return fetchSearch(options, ARXIV.SEARCH_MODES.ALL_TERMS);
+    },
+  };
 }
 
-export async function searchArxiv(options: ArxivSearchOptions): Promise<ArxivPaper[]> {
-  const phraseResults = await fetchArxivSearch(options, ARXIV.SEARCH_MODES.PHRASE);
-  if (phraseResults.length > 0) {
-    return phraseResults;
-  }
+const defaultArxivClient = createArxivClient();
 
-  return fetchArxivSearch(options, ARXIV.SEARCH_MODES.ALL_TERMS);
-}
+export const searchArxiv = defaultArxivClient.searchArxiv;

@@ -23,3 +23,8 @@ export type OpenAICompatibleModelClient = ModelClient & {
     options?: ModelCompleteOptions,
   ): Promise<OpenAICompatibleCompletion>;
 };
+
+export type ModelClientLogger = {
+  debug(payload: Record<string, unknown>, message?: string): void;
+  warn(payload: Record<string, unknown>, message?: string): void;
+};

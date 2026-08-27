@@ -26,21 +26,27 @@ const SearchSourceDomainResultSchema = z.strictObject({
 export const searchSourceDomainTool: ToolDefinition<
   typeof SearchSourceDomainArgsSchema,
   typeof SearchSourceDomainResultSchema
-> = {
-  name: TOOLS.SEARCH_SOURCE_DOMAIN.NAME,
-  description: TOOLS.SEARCH_SOURCE_DOMAIN.DESCRIPTION,
-  argsSchema: SearchSourceDomainArgsSchema,
-  resultSchema: SearchSourceDomainResultSchema,
-  async run(args, context) {
-    return {
-      sourceId: args.sourceId,
-      query: args.query,
-      results: await searchSourceDomain({
+> = createSearchSourceDomainTool();
+
+export function createSearchSourceDomainTool(
+  runSearch: typeof searchSourceDomain = searchSourceDomain,
+): ToolDefinition<typeof SearchSourceDomainArgsSchema, typeof SearchSourceDomainResultSchema> {
+  return {
+    name: TOOLS.SEARCH_SOURCE_DOMAIN.NAME,
+    description: TOOLS.SEARCH_SOURCE_DOMAIN.DESCRIPTION,
+    argsSchema: SearchSourceDomainArgsSchema,
+    resultSchema: SearchSourceDomainResultSchema,
+    async run(args, context) {
+      return {
         sourceId: args.sourceId,
         query: args.query,
-        maxResults: args.max_results,
-        signal: context.signal,
-      }),
-    };
-  },
-};
+        results: await runSearch({
+          sourceId: args.sourceId,
+          query: args.query,
+          maxResults: args.max_results,
+          signal: context.signal,
+        }),
+      };
+    },
+  };
+}

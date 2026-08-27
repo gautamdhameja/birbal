@@ -31,19 +31,25 @@ const SearchHackerNewsResultSchema = z.strictObject({
 export const searchHackerNewsTool: ToolDefinition<
   typeof SearchHackerNewsArgsSchema,
   typeof SearchHackerNewsResultSchema
-> = {
-  name: TOOLS.SEARCH_HACKER_NEWS.NAME,
-  description: TOOLS.SEARCH_HACKER_NEWS.DESCRIPTION,
-  argsSchema: SearchHackerNewsArgsSchema,
-  resultSchema: SearchHackerNewsResultSchema,
-  async run(args, context) {
-    return {
-      query: args.query,
-      results: await searchHackerNews({
+> = createSearchHackerNewsTool();
+
+export function createSearchHackerNewsTool(
+  runSearch: typeof searchHackerNews = searchHackerNews,
+): ToolDefinition<typeof SearchHackerNewsArgsSchema, typeof SearchHackerNewsResultSchema> {
+  return {
+    name: TOOLS.SEARCH_HACKER_NEWS.NAME,
+    description: TOOLS.SEARCH_HACKER_NEWS.DESCRIPTION,
+    argsSchema: SearchHackerNewsArgsSchema,
+    resultSchema: SearchHackerNewsResultSchema,
+    async run(args, context) {
+      return {
         query: args.query,
-        maxResults: args.max_results,
-        signal: context.signal,
-      }),
-    };
-  },
-};
+        results: await runSearch({
+          query: args.query,
+          maxResults: args.max_results,
+          signal: context.signal,
+        }),
+      };
+    },
+  };
+}

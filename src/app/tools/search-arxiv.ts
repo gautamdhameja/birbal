@@ -30,19 +30,25 @@ const SearchArxivResultSchema = z.strictObject({
 export const searchArxivTool: ToolDefinition<
   typeof SearchArxivArgsSchema,
   typeof SearchArxivResultSchema
-> = {
-  name: TOOLS.SEARCH_ARXIV.NAME,
-  description: TOOLS.SEARCH_ARXIV.DESCRIPTION,
-  argsSchema: SearchArxivArgsSchema,
-  resultSchema: SearchArxivResultSchema,
-  async run(args, context) {
-    return {
-      query: args.query,
-      results: await searchArxiv({
+> = createSearchArxivTool();
+
+export function createSearchArxivTool(
+  runSearch: typeof searchArxiv = searchArxiv,
+): ToolDefinition<typeof SearchArxivArgsSchema, typeof SearchArxivResultSchema> {
+  return {
+    name: TOOLS.SEARCH_ARXIV.NAME,
+    description: TOOLS.SEARCH_ARXIV.DESCRIPTION,
+    argsSchema: SearchArxivArgsSchema,
+    resultSchema: SearchArxivResultSchema,
+    async run(args, context) {
+      return {
         query: args.query,
-        maxResults: args.max_results,
-        signal: context.signal,
-      }),
-    };
-  },
-};
+        results: await runSearch({
+          query: args.query,
+          maxResults: args.max_results,
+          signal: context.signal,
+        }),
+      };
+    },
+  };
+}

@@ -5,8 +5,9 @@ import { HTTP } from "../../framework/network/constants.js";
 import { fetchWithRetry } from "../../framework/network/fetch.js";
 import { buildHttpStatusError, readResponseJson } from "../../framework/network/client.js";
 import { getHackerNewsConfig } from "./config.js";
+import type { HackerNewsConfig } from "./config.js";
 
-type HackerNewsSearchOptions = {
+export type HackerNewsSearchOptions = {
   query: string;
   maxResults: number;
   signal?: AbortSignal;
@@ -36,8 +37,21 @@ const HackerNewsSearchResponseSchema = z.object({
 
 type HackerNewsHit = z.infer<typeof HackerNewsHitSchema>;
 
-function buildHackerNewsSearchUrl({ query, maxResults }: HackerNewsSearchOptions): string {
-  const { HACKERNEWS_SEARCH_URL } = getHackerNewsConfig();
+export type HackerNewsTransport = typeof fetchWithRetry;
+
+export type HackerNewsClientDependencies = {
+  loadConfig?: () => HackerNewsConfig;
+  transport?: HackerNewsTransport;
+};
+
+export type HackerNewsClient = {
+  searchHackerNews(options: HackerNewsSearchOptions): Promise<HackerNewsStory[]>;
+};
+
+function buildHackerNewsSearchUrl(
+  { query, maxResults }: HackerNewsSearchOptions,
+  { HACKERNEWS_SEARCH_URL }: HackerNewsConfig,
+): string {
   const url = new URL(HACKERNEWS_SEARCH_URL);
 
   url.searchParams.set(HACKER_NEWS.QUERY_PARAMS.QUERY, query);
@@ -60,25 +74,36 @@ export function normalizeHackerNewsHit(hit: HackerNewsHit): HackerNewsStory {
   };
 }
 
-export async function searchHackerNews(
-  options: HackerNewsSearchOptions,
-): Promise<HackerNewsStory[]> {
-  const response = await fetchWithRetry(buildHackerNewsSearchUrl(options), {
-    signal: options.signal,
-    headers: {
-      accept: HTTP.JSON_ACCEPT,
-      [HTTP.USER_AGENT_HEADER]: HTTP.USER_AGENT,
+export function createHackerNewsClient(
+  dependencies: HackerNewsClientDependencies = {},
+): HackerNewsClient {
+  const loadConfig = dependencies.loadConfig ?? getHackerNewsConfig;
+  const transport = dependencies.transport ?? fetchWithRetry;
+
+  return {
+    async searchHackerNews(options) {
+      const response = await transport(buildHackerNewsSearchUrl(options, loadConfig()), {
+        signal: options.signal,
+        headers: {
+          accept: HTTP.JSON_ACCEPT,
+          [HTTP.USER_AGENT_HEADER]: HTTP.USER_AGENT,
+        },
+      });
+
+      if (!response.ok) {
+        throw await buildHttpStatusError(HACKER_NEWS.ERRORS.HTTP_FAILED_PREFIX, response, {
+          signal: options.signal,
+        });
+      }
+
+      const parsed = HackerNewsSearchResponseSchema.parse(
+        await readResponseJson(response, { signal: options.signal }),
+      );
+      return parsed.hits.map(normalizeHackerNewsHit);
     },
-  });
-
-  if (!response.ok) {
-    throw await buildHttpStatusError(HACKER_NEWS.ERRORS.HTTP_FAILED_PREFIX, response, {
-      signal: options.signal,
-    });
-  }
-
-  const parsed = HackerNewsSearchResponseSchema.parse(
-    await readResponseJson(response, { signal: options.signal }),
-  );
-  return parsed.hits.map(normalizeHackerNewsHit);
+  };
 }
+
+const defaultHackerNewsClient = createHackerNewsClient();
+
+export const searchHackerNews = defaultHackerNewsClient.searchHackerNews;

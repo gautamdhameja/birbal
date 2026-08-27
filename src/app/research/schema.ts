@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { SourceTypeSchema } from "../config/sourceRegistrySchema.js";
+import { SourceTypeSchema } from "../sources/schema.js";
 
 const ResearchPreferenceTextSchema = z.string().trim().min(1);
 

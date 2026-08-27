@@ -8,7 +8,6 @@ import type {
   ModelCompleteOptions as CompleteOptions,
 } from "../../../framework/llm/types.js";
 import { buildHttpStatusError, readResponseJson } from "../../../framework/network/client.js";
-import { logger } from "../../logging/logger.js";
 import {
   CompleteOptionsSchema,
   OpenAICompatibleChatCompletionRequestSchema,
@@ -16,7 +15,11 @@ import {
   OpenAICompatibleConfigSchema,
 } from "./schema.js";
 import type { OpenAICompatibleChatCompletionResponse, OpenAICompatibleConfig } from "./schema.js";
-import type { OpenAICompatibleModelClient, OpenAICompatibleTokenUsage } from "./types.js";
+import type {
+  ModelClientLogger,
+  OpenAICompatibleModelClient,
+  OpenAICompatibleTokenUsage,
+} from "./types.js";
 export type {
   OpenAICompatibleCompletion,
   OpenAICompatibleModelClient,
@@ -24,6 +27,18 @@ export type {
 } from "./types.js";
 
 type RawTokenUsage = NonNullable<OpenAICompatibleChatCompletionResponse["usage"]>;
+
+export type OpenAICompatibleClientDependencies = {
+  transport?: typeof fetchWithTimeout;
+  logger?: ModelClientLogger;
+  now?: () => Date;
+  createId?: () => string;
+};
+
+const NOOP_LOGGER: ModelClientLogger = {
+  debug() {},
+  warn() {},
+};
 
 const MODEL_LOG_EVENTS = {
   STARTED: "model.complete.started",
@@ -38,6 +53,7 @@ const MODEL_LOG_MESSAGES = {
 } as const;
 
 function logCompletionStarted(
+  logger: ModelClientLogger,
   modelCallId: string,
   config: OpenAICompatibleConfig,
   messages: ChatMessage[],
@@ -65,14 +81,16 @@ function logCompletionStarted(
 }
 
 function logCompletionFinished(
+  logger: ModelClientLogger,
   modelCallId: string,
   config: OpenAICompatibleConfig,
   options: CompleteOptions,
   startedAt: Date,
   output: string,
   usage?: OpenAICompatibleTokenUsage,
+  now: () => Date = () => new Date(),
 ): void {
-  const finishedAt = new Date();
+  const finishedAt = now();
   logger.debug(
     {
       event: MODEL_LOG_EVENTS.FINISHED,
@@ -111,13 +129,15 @@ function normalizeTokenUsage(
 }
 
 function logCompletionFailed(
+  logger: ModelClientLogger,
   modelCallId: string,
   config: OpenAICompatibleConfig,
   options: CompleteOptions,
   startedAt: Date,
   error: unknown,
+  now: () => Date = () => new Date(),
 ): void {
-  const finishedAt = new Date();
+  const finishedAt = now();
   logger.warn(
     {
       event: MODEL_LOG_EVENTS.FAILED,
@@ -161,7 +181,12 @@ function buildChatCompletionRequest(
 
 export function createOpenAICompatibleModelClient(
   loadConfig: () => OpenAICompatibleConfig,
+  dependencies: OpenAICompatibleClientDependencies = {},
 ): OpenAICompatibleModelClient {
+  const transport = dependencies.transport ?? fetchWithTimeout;
+  const logger = dependencies.logger ?? NOOP_LOGGER;
+  const now = dependencies.now ?? (() => new Date());
+  const createId = dependencies.createId ?? randomUUID;
   const client: OpenAICompatibleModelClient = {
     async complete(messages, options = {}) {
       return (await client.completeDetailed(messages, options)).content;
@@ -170,16 +195,16 @@ export function createOpenAICompatibleModelClient(
     async completeDetailed(messages, options = {}) {
       const config = OpenAICompatibleConfigSchema.parse(loadConfig());
       const parsedOptions = CompleteOptionsSchema.parse(options);
-      const modelCallId = randomUUID();
-      const startedAt = new Date();
-      logCompletionStarted(modelCallId, config, messages, parsedOptions, startedAt);
+      const modelCallId = createId();
+      const startedAt = now();
+      logCompletionStarted(logger, modelCallId, config, messages, parsedOptions, startedAt);
 
       const requestBody = buildChatCompletionRequest(config, messages, parsedOptions);
       const endpointUrl = chatCompletionsUrl(config);
 
       let response: Response;
       try {
-        response = await fetchWithTimeout(
+        response = await transport(
           endpointUrl,
           {
             method: HTTP.POST_METHOD,
@@ -189,7 +214,7 @@ export function createOpenAICompatibleModelClient(
           { timeoutMs: config.requestTimeoutMs },
         );
       } catch (error) {
-        logCompletionFailed(modelCallId, config, parsedOptions, startedAt, error);
+        logCompletionFailed(logger, modelCallId, config, parsedOptions, startedAt, error, now);
         const message = error instanceof Error ? error.message : String(error);
         throw new Error(
           `${MODEL_PROVIDERS.ERRORS.REQUEST_FAILED_PREFIX} ${endpointUrl}: ${message}`,
@@ -202,7 +227,7 @@ export function createOpenAICompatibleModelClient(
           response,
           { timeoutMs: config.requestTimeoutMs },
         );
-        logCompletionFailed(modelCallId, config, parsedOptions, startedAt, error);
+        logCompletionFailed(logger, modelCallId, config, parsedOptions, startedAt, error, now);
         throw error;
       }
 
@@ -210,7 +235,7 @@ export function createOpenAICompatibleModelClient(
       try {
         payload = await readResponseJson(response, { timeoutMs: config.requestTimeoutMs });
       } catch (error) {
-        logCompletionFailed(modelCallId, config, parsedOptions, startedAt, error);
+        logCompletionFailed(logger, modelCallId, config, parsedOptions, startedAt, error, now);
         const message = error instanceof Error ? error.message : String(error);
         throw new Error(`${MODEL_PROVIDERS.ERRORS.INVALID_JSON_PREFIX} ${message}`);
       }
@@ -220,20 +245,29 @@ export function createOpenAICompatibleModelClient(
         const error = new Error(
           `${MODEL_PROVIDERS.ERRORS.INVALID_SHAPE_PREFIX} ${parsedPayload.error.message}`,
         );
-        logCompletionFailed(modelCallId, config, parsedOptions, startedAt, error);
+        logCompletionFailed(logger, modelCallId, config, parsedOptions, startedAt, error, now);
         throw error;
       }
 
       const firstChoice = parsedPayload.data.choices[0];
       if (!firstChoice) {
         const error = new Error(MODEL_PROVIDERS.ERRORS.NO_CHOICES);
-        logCompletionFailed(modelCallId, config, parsedOptions, startedAt, error);
+        logCompletionFailed(logger, modelCallId, config, parsedOptions, startedAt, error, now);
         throw error;
       }
 
       const output = firstChoice.message.content ?? "";
       const usage = normalizeTokenUsage(parsedPayload.data.usage);
-      logCompletionFinished(modelCallId, config, parsedOptions, startedAt, output, usage);
+      logCompletionFinished(
+        logger,
+        modelCallId,
+        config,
+        parsedOptions,
+        startedAt,
+        output,
+        usage,
+        now,
+      );
 
       const reasoningContent = firstChoice.message.reasoning_content ?? undefined;
       const finishReason = firstChoice.finish_reason ?? undefined;

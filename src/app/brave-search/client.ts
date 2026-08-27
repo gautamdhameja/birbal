@@ -5,6 +5,7 @@ import { HTTP } from "../../framework/network/constants.js";
 import { fetchWithRetry } from "../../framework/network/fetch.js";
 import { buildHttpStatusError, readResponseJson } from "../../framework/network/client.js";
 import { getBraveSearchConfig } from "./config.js";
+import type { BraveSearchConfig } from "./config.js";
 
 export type SearchWebOptions = {
   query: string;
@@ -32,9 +33,15 @@ type BraveSearchQuotaState = {
   rateLimited: boolean;
 };
 
-const quotaState: BraveSearchQuotaState = {
-  calls: 0,
-  rateLimited: false,
+export type BraveSearchTransport = typeof fetchWithRetry;
+
+export type BraveSearchClientDependencies = {
+  loadConfig?: () => BraveSearchConfig;
+  transport?: BraveSearchTransport;
+};
+
+export type BraveSearchClient = {
+  searchWeb(options: SearchWebOptions): Promise<SearchWebResult[]>;
 };
 
 const BraveWebResultSchema = z.looseObject({
@@ -110,56 +117,65 @@ export function normalizeBraveWebResult(result: BraveWebResult): SearchWebResult
   };
 }
 
-function reserveBraveSearchCall(maxCalls: number): void {
-  if (quotaState.rateLimited) {
+function reserveBraveSearchCall(state: BraveSearchQuotaState, maxCalls: number): void {
+  if (state.rateLimited) {
     throw new Error(BRAVE_SEARCH.ERRORS.RATE_LIMIT_CIRCUIT_OPEN);
   }
 
-  if (quotaState.calls >= maxCalls) {
+  if (state.calls >= maxCalls) {
     throw new Error(BRAVE_SEARCH.ERRORS.QUOTA_EXCEEDED);
   }
 
-  quotaState.calls += 1;
+  state.calls += 1;
 }
 
-export function resetBraveSearchQuotaForTests(): void {
-  quotaState.calls = 0;
-  quotaState.rateLimited = false;
-}
+export function createBraveSearchClient(
+  dependencies: BraveSearchClientDependencies = {},
+): BraveSearchClient {
+  const loadConfig = dependencies.loadConfig ?? getBraveSearchConfig;
+  const transport = dependencies.transport ?? fetchWithRetry;
+  const quotaState: BraveSearchQuotaState = { calls: 0, rateLimited: false };
 
-export async function searchWeb(options: SearchWebOptions): Promise<SearchWebResult[]> {
-  const config = getBraveSearchConfig();
-  reserveBraveSearchCall(config.BRAVE_SEARCH_MAX_CALLS_PER_PROCESS);
-  const response = await fetchWithRetry(
-    buildBraveSearchUrl(config.BRAVE_SEARCH_URL, normalizeOptions(options)),
-    {
-      signal: options.signal,
-      headers: {
-        accept: HTTP.JSON_ACCEPT,
-        [BRAVE_SEARCH.HEADERS.SUBSCRIPTION_TOKEN]: config.BRAVE_SEARCH_API_KEY,
-        [HTTP.USER_AGENT_HEADER]: HTTP.USER_AGENT,
-      },
+  return {
+    async searchWeb(options) {
+      const config = loadConfig();
+      reserveBraveSearchCall(quotaState, config.BRAVE_SEARCH_MAX_CALLS_PER_PROCESS);
+      const response = await transport(
+        buildBraveSearchUrl(config.BRAVE_SEARCH_URL, normalizeOptions(options)),
+        {
+          signal: options.signal,
+          headers: {
+            accept: HTTP.JSON_ACCEPT,
+            [BRAVE_SEARCH.HEADERS.SUBSCRIPTION_TOKEN]: config.BRAVE_SEARCH_API_KEY,
+            [HTTP.USER_AGENT_HEADER]: HTTP.USER_AGENT,
+          },
+        },
+        {
+          retries: BRAVE_SEARCH.RETRIES,
+        },
+      );
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          quotaState.rateLimited = true;
+        }
+
+        throw await buildHttpStatusError(BRAVE_SEARCH.ERRORS.HTTP_FAILED_PREFIX, response, {
+          signal: options.signal,
+        });
+      }
+
+      const parsed = BraveSearchResponseSchema.parse(
+        await readResponseJson(response, { signal: options.signal }),
+      );
+      return (parsed.web?.results ?? []).map(normalizeBraveWebResult);
     },
-    {
-      retries: BRAVE_SEARCH.RETRIES,
-    },
-  );
-
-  if (!response.ok) {
-    if (response.status === 429) {
-      quotaState.rateLimited = true;
-    }
-
-    throw await buildHttpStatusError(BRAVE_SEARCH.ERRORS.HTTP_FAILED_PREFIX, response, {
-      signal: options.signal,
-    });
-  }
-
-  const parsed = BraveSearchResponseSchema.parse(
-    await readResponseJson(response, { signal: options.signal }),
-  );
-  return (parsed.web?.results ?? []).map(normalizeBraveWebResult);
+  };
 }
+
+const defaultBraveSearchClient = createBraveSearchClient();
+
+export const searchWeb = defaultBraveSearchClient.searchWeb;
 
 function normalizeOptions(options: SearchWebOptions): NormalizedSearchWebOptions {
   return {
