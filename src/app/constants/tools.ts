@@ -13,11 +13,11 @@ export const TOOLS = {
   },
   SEARCH_WEB: {
     NAME: "search_web",
-    DESCRIPTION: "Search the web with Brave Search by query.",
+    DESCRIPTION: "Search the web by query.",
   },
   SEARCH_SOURCE_DOMAIN: {
     NAME: "search_source_domain",
-    DESCRIPTION: "Search a configured source domain with Brave Search.",
+    DESCRIPTION: "Search a configured source domain.",
   },
   FETCH_URL_TEXT: {
     NAME: "fetch_url_text",

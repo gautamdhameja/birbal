@@ -2,7 +2,9 @@ import { z } from "zod";
 
 import { TOOLS } from "../constants/tools.js";
 import { URL_TEXT } from "../../framework/content/constants.js";
+import { FetchUrlTextResultSchema } from "../url-text/schema.js";
 import type { ToolDefinition } from "../../framework/tools/types.js";
+import type { FetchUrlTextOperation } from "./types.js";
 
 const FetchUrlTextArgsSchema = z.strictObject({
   url: z.url(),
@@ -13,21 +15,6 @@ const FetchUrlTextArgsSchema = z.strictObject({
     .max(URL_TEXT.MAX_CHARS_LIMIT)
     .default(URL_TEXT.DEFAULT_MAX_CHARS),
 });
-
-const FetchUrlTextResultSchema = z.strictObject({
-  url: z.string(),
-  title: z.string(),
-  plainText: z.string(),
-  canonicalUrl: z.string().optional(),
-  detectedPaywall: z.boolean(),
-  contentLength: z.number().int().min(0),
-});
-
-export type FetchUrlTextOperation = (options: {
-  url: string;
-  maxChars: number;
-  signal?: AbortSignal;
-}) => Promise<z.output<typeof FetchUrlTextResultSchema>>;
 
 export function createFetchUrlTextTool(
   runFetch: FetchUrlTextOperation,

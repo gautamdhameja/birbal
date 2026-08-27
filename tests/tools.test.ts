@@ -18,7 +18,7 @@ import { createSourceDomainSearch } from "../src/app/source-search/domain.js";
 import type { SearchSourceDomainOptions } from "../src/app/source-search/domain.js";
 import { formatLocalIsoString } from "../src/app/tools/get-time.js";
 import { createResearchTools, createToolRegistry } from "../src/app/tools/registry.js";
-import type { ResearchToolOperations } from "../src/app/tools/registry.js";
+import type { ResearchToolOperations } from "../src/app/tools/types.js";
 import { fetchUrlText } from "../src/app/url-text/client.js";
 import { extractUrlText } from "../src/framework/content/extractText.js";
 import { createToolExecutor } from "../src/framework/tools/executor.js";
@@ -91,17 +91,15 @@ describe("tool registry", () => {
     assert.match(renderedTools, /name: search_hackernews/);
     assert.match(renderedTools, /description: Search recent Hacker News stories by query\./);
     assert.match(renderedTools, /name: search_web/);
-    assert.match(renderedTools, /description: Search the web with Brave Search by query\./);
+    assert.match(renderedTools, /description: Search the web by query\./);
     assert.match(renderedTools, /name: search_source_domain/);
-    assert.match(
-      renderedTools,
-      /description: Search a configured source domain with Brave Search\./,
-    );
+    assert.match(renderedTools, /description: Search a configured source domain\./);
     assert.match(renderedTools, /name: fetch_url_text/);
     assert.match(
       renderedTools,
       /description: Fetch a URL and extract readable article or report text\./,
     );
+    assert.doesNotMatch(renderedTools, /Brave/);
   });
 
   it("creates isolated registries and executors whose mutations do not leak", async () => {
@@ -196,6 +194,63 @@ describe("tool registry", () => {
       detectedPaywall: false,
       contentLength: 21,
     });
+  });
+
+  it("preserves the web search result-limit contract at the provider-neutral tool boundary", async () => {
+    const webLimits: number[] = [];
+    const sourceDomainLimits: number[] = [];
+    const runInjectedTool = createToolExecutor(
+      createToolRegistry(
+        createResearchTools({
+          now: () => new Date("2026-08-27T10:00:00.000Z"),
+          searchArxiv: async () => [],
+          searchHackerNews: async () => [],
+          searchWeb: async ({ maxResults }) => {
+            assert.ok(maxResults !== undefined);
+            webLimits.push(maxResults);
+            return [];
+          },
+          searchSourceDomain: async ({ maxResults }) => {
+            assert.ok(maxResults !== undefined);
+            sourceDomainLimits.push(maxResults);
+            return [];
+          },
+          fetchUrlText: async ({ url }) => ({
+            url,
+            title: "",
+            plainText: "",
+            detectedPaywall: false,
+            contentLength: 0,
+          }),
+        }),
+      ),
+    );
+
+    assert.deepEqual(await runInjectedTool("search_web", { query: "agents" }), {
+      query: "agents",
+      results: [],
+    });
+    assert.deepEqual(await runInjectedTool("search_web", { query: "agents", max_results: 20 }), {
+      query: "agents",
+      results: [],
+    });
+    assert.deepEqual(
+      await runInjectedTool("search_source_domain", {
+        sourceId: "research",
+        query: "agents",
+      }),
+      { sourceId: "research", query: "agents", results: [] },
+    );
+    assert.deepEqual(
+      await runInjectedTool("search_source_domain", {
+        sourceId: "research",
+        query: "agents",
+        max_results: 20,
+      }),
+      { sourceId: "research", query: "agents", results: [] },
+    );
+    assert.deepEqual(webLimits, [10, 20]);
+    assert.deepEqual(sourceDomainLimits, [10, 20]);
   });
 
   it("parses arXiv Atom search results", () => {

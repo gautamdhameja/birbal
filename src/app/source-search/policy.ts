@@ -1,0 +1,4 @@
+export const WEB_SEARCH_POLICY = {
+  DEFAULT_MAX_RESULTS: 10,
+  MAX_RESULTS_LIMIT: 20,
+} as const;

@@ -13,9 +13,7 @@ export const BRAVE_SEARCH = {
     FRESHNESS: "freshness",
     RESULT_FILTER: "result_filter",
   },
-  DEFAULT_MAX_RESULTS: 10,
   DEFAULT_MAX_CALLS_PER_RUNTIME: 50,
-  MAX_RESULTS_LIMIT: 20,
   RETRIES: 0,
   ERRORS: {
     MISSING_API_KEY: "BRAVE_SEARCH_API_KEY is required to use search_web.",

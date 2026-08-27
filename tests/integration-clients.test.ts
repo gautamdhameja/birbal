@@ -62,7 +62,7 @@ describe("state-owning integration clients", () => {
     const firstDelays: number[] = [];
     const secondDelays: number[] = [];
     let firstNow = 1_000;
-    let secondNow = 10_000;
+    let secondNow = 1_000;
     const requestedUrls: string[] = [];
 
     function createTransport() {

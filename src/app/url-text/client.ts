@@ -1,21 +1,7 @@
 import { URL_TEXT } from "../../framework/content/constants.js";
 import { CONTENT_FETCH_STATUSES } from "../../framework/content/status.js";
 import { fetchUrlContent } from "../../framework/content/fetchUrl.js";
-import type { UrlContentFetchPolicy } from "../../framework/content/fetchUrl.js";
-import type { HostResolver } from "../../framework/network/url.js";
-import type { ExtractedUrlText } from "../../framework/content/extractText.js";
-
-export type FetchUrlTextOptions = {
-  url: string;
-  maxChars?: number;
-  signal?: AbortSignal;
-  hostResolver?: HostResolver;
-  transport?: UrlContentFetchPolicy["transport"];
-};
-
-export type FetchUrlTextResult = ExtractedUrlText & {
-  url: string;
-};
+import type { FetchUrlTextOptions, FetchUrlTextResult } from "./types.js";
 
 export async function fetchUrlText({
   url,

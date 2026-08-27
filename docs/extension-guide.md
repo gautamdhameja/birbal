@@ -4,9 +4,11 @@
 
 1. Create a focused tool module under `src/app/tools/`.
 2. Define strict Zod argument and result schemas.
-3. Implement `run(args, context)` and honor the abort signal.
-4. Register the tool in `src/app/tools/registry.ts`.
-5. Add schema, happy-path, and failure-path coverage to `tests/tools.test.ts`.
+3. Export an operation-injected tool factory and honor the abort signal in `run(args, context)`.
+4. Add the operation contract to `src/app/tools/types.ts` when it is shared across modules.
+5. Include the factory in `createResearchTools` in `src/app/tools/registry.ts`.
+6. Bind its concrete integration operation only in `src/app/runtime/default.ts`.
+7. Add schema, happy-path, and failure-path coverage to `tests/tools.test.ts`.
 
 ## Add a model provider
 

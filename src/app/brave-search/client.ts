@@ -4,6 +4,7 @@ import { BRAVE_SEARCH } from "../constants/brave-search.js";
 import { HTTP } from "../../framework/network/constants.js";
 import { fetchWithRetry } from "../../framework/network/fetch.js";
 import { buildHttpStatusError, readResponseJson } from "../../framework/network/client.js";
+import { WEB_SEARCH_POLICY } from "../source-search/policy.js";
 import { getBraveSearchConfig } from "./config.js";
 import type { WebSearchOptions, WebSearchResult } from "../source-search/types.js";
 import type { BraveSearchClient, BraveSearchClientDependencies } from "./types.js";
@@ -156,7 +157,7 @@ export function createBraveSearchClient(
 function normalizeOptions(options: WebSearchOptions): NormalizedSearchWebOptions {
   return {
     query: options.query,
-    maxResults: options.maxResults ?? BRAVE_SEARCH.DEFAULT_MAX_RESULTS,
+    maxResults: options.maxResults ?? WEB_SEARCH_POLICY.DEFAULT_MAX_RESULTS,
     freshness: options.freshness ?? "",
   };
 }

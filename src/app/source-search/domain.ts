@@ -7,6 +7,7 @@ import type {
   SourceDomainSearchDependencies,
   WebSearchResult,
 } from "./types.js";
+import { WEB_SEARCH_POLICY } from "./policy.js";
 export type { SearchSourceDomainOptions, SourceDomainSearch } from "./types.js";
 
 const SITE_QUERY_PREFIX = "site:";
@@ -71,7 +72,12 @@ export function createSourceDomainSearch(
   const runWebSearch = dependencies.searchWeb;
   const now = dependencies.now ?? (() => new Date());
 
-  return async ({ sourceId, query, maxResults = 10, signal }) => {
+  return async ({
+    sourceId,
+    query,
+    maxResults = WEB_SEARCH_POLICY.DEFAULT_MAX_RESULTS,
+    signal,
+  }) => {
     const source = findSource(sourceId, loadRegistry().sources);
     const seenUrls = new Set<string>();
     const candidates: ResearchResult[] = [];

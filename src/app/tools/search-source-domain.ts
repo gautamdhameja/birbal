@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { TOOLS } from "../constants/tools.js";
 import { ResearchResultSchema } from "../research/schema.js";
+import { WEB_SEARCH_POLICY } from "../source-search/policy.js";
 import type { SourceDomainSearch } from "../source-search/types.js";
 import type { ToolDefinition } from "../../framework/tools/types.js";
 
@@ -12,8 +13,8 @@ const SearchSourceDomainArgsSchema = z.strictObject({
     .number()
     .int()
     .min(1)
-    .max(TOOLS.MAX_RESULTS_LIMIT)
-    .default(TOOLS.DEFAULT_MAX_RESULTS),
+    .max(WEB_SEARCH_POLICY.MAX_RESULTS_LIMIT)
+    .default(WEB_SEARCH_POLICY.DEFAULT_MAX_RESULTS),
 });
 
 const SearchSourceDomainResultSchema = z.strictObject({

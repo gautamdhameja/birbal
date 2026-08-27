@@ -19,6 +19,7 @@ src/app/
   hackernews/  Hacker News client
   brave-search/ Brave Search client
   source-search/ configured-domain search
+  url-text/    URL-fetch contracts, result schema, and application client
   model-providers/ provider selection and adapters
 ```
 

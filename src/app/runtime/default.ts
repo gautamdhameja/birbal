@@ -11,7 +11,7 @@ import { fetchUrlText } from "../url-text/client.js";
 import { createToolExecutor } from "../../framework/tools/executor.js";
 import type { ToolRegistry } from "../../framework/tools/registry.js";
 import { LOGGING } from "../constants/runtime.js";
-import type { BirbalRuntime, BirbalRuntimeOptions } from "./types.js";
+import type { BirbalRuntime, BirbalRuntimeOptions, DefaultRuntimeDependencies } from "./types.js";
 
 export function createDefaultToolRegistry(): ToolRegistry {
   const braveSearchClient = createBraveSearchClient();
@@ -32,8 +32,13 @@ export function createDefaultToolRegistry(): ToolRegistry {
   );
 }
 
-export function createDefaultRuntime(options: BirbalRuntimeOptions = {}): BirbalRuntime {
-  const logger = createAppLogger(options.trace ? { level: LOGGING.DEBUG_LEVEL, pretty: true } : {});
+export function createDefaultRuntime(
+  options: BirbalRuntimeOptions = {},
+  dependencies: DefaultRuntimeDependencies = {},
+): BirbalRuntime {
+  const logger = (dependencies.createLogger ?? createAppLogger)(
+    options.trace ? { level: LOGGING.DEBUG_LEVEL, pretty: true } : {},
+  );
   const registry = createDefaultToolRegistry();
   const renderToolsForPrompt = () => registry.renderForPrompt();
   const runAgent = createBirbalAgent({
