@@ -8,6 +8,7 @@ const SOURCE_ROOT = resolve("src");
 const APP_ROOT = resolve(SOURCE_ROOT, "app");
 const FRAMEWORK_ROOT = resolve(SOURCE_ROOT, "framework");
 const APP_AGENT_ROOT = resolve(APP_ROOT, "agent");
+const ARCHITECTURE_LAB_ROOT = resolve(APP_ROOT, "architecture-lab");
 const MODEL_PROVIDER_ROOT = resolve(APP_ROOT, "model-providers");
 const APP_TOOLS_ROOT = resolve(APP_ROOT, "tools");
 const SOURCE_SEARCH_ROOT = resolve(APP_ROOT, "source-search");
@@ -171,6 +172,28 @@ describe("framework dependency boundaries", () => {
       "/tools/registry",
     ];
     const violations = typescriptFiles(APP_AGENT_ROOT).flatMap((file) =>
+      relativeModuleSpecifiers(readFileSync(file, "utf8"), file)
+        .filter((specifier) => forbidden.some((dependency) => specifier.includes(dependency)))
+        .map((specifier) => `${relative(SOURCE_ROOT, file)} -> ${specifier}`),
+    );
+
+    assert.deepEqual(violations, []);
+  });
+
+  it("keeps the Architecture Case Lab independent from executable host composition", () => {
+    const forbidden = [
+      "/cli",
+      "/terminal/",
+      "/runtime/default",
+      "/model-providers/default",
+      "/tools/registry",
+      "/arxiv/client",
+      "/brave-search/client",
+      "/hackernews/client",
+      "/source-search/domain",
+      "/url-text/client",
+    ];
+    const violations = typescriptFiles(ARCHITECTURE_LAB_ROOT).flatMap((file) =>
       relativeModuleSpecifiers(readFileSync(file, "utf8"), file)
         .filter((specifier) => forbidden.some((dependency) => specifier.includes(dependency)))
         .map((specifier) => `${relative(SOURCE_ROOT, file)} -> ${specifier}`),

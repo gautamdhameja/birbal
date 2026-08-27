@@ -52,4 +52,30 @@ describe("default runtime composition", () => {
       }
     }
   });
+
+  it("creates fresh lab sessions without sharing invocation state", async () => {
+    const runtime = createDefaultRuntime(undefined, {
+      createLogger: () => ({ debug() {}, warn() {} }),
+    });
+    const input = {
+      async read() {
+        return { type: "eof" as const };
+      },
+      getTerminalOutcome() {
+        return undefined;
+      },
+    };
+
+    const first = runtime.createLabSession({ input });
+    const second = runtime.createLabSession({ input });
+
+    assert.notEqual(first, second);
+    assert.equal(first.getState(), "idle");
+    assert.equal(second.getState(), "idle");
+
+    const oversizedCase = "x".repeat(501);
+    assert.equal((await first.run({ caseName: oversizedCase })).type, "failed");
+    assert.equal(first.getState(), "failed");
+    assert.equal(second.getState(), "idle");
+  });
 });

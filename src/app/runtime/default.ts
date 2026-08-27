@@ -1,5 +1,10 @@
 import { createBirbalAgent } from "../agent/run.js";
 import { createSystemPromptBuilder } from "../agent/prompts.js";
+import {
+  createArchitectureLabOperations,
+  createArchitectureLabResearchRunner,
+} from "../architecture-lab/operations.js";
+import { createArchitectureLabSession } from "../architecture-lab/session.js";
 import { createArxivClient } from "../arxiv/client.js";
 import { createBraveSearchClient } from "../brave-search/client.js";
 import { createHackerNewsClient } from "../hackernews/client.js";
@@ -41,16 +46,31 @@ export function createDefaultRuntime(
   );
   const registry = createDefaultToolRegistry();
   const renderToolsForPrompt = () => registry.renderForPrompt();
+  const modelClient = getDefaultModelClient({ logger });
+  const toolRunner = createToolExecutor(registry, { logger });
   const runAgent = createBirbalAgent({
-    modelClient: getDefaultModelClient({ logger }),
-    toolRunner: createToolExecutor(registry, { logger }),
+    modelClient,
+    toolRunner,
     buildSystemPrompt: createSystemPromptBuilder(),
     renderToolsForPrompt,
+    logger,
+  });
+  const labOperations = createArchitectureLabOperations({
+    research: createArchitectureLabResearchRunner({
+      modelClient,
+      toolRunner,
+      renderToolsForPrompt,
+      logger,
+    }),
+    completeFn: modelClient.complete,
     logger,
   });
 
   return {
     runAgent,
     renderToolsForPrompt,
+    createLabSession({ input, onOutput }) {
+      return createArchitectureLabSession({ operations: labOperations, input, onOutput });
+    },
   };
 }
