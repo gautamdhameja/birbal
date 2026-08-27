@@ -124,7 +124,7 @@ export async function runBirbalCli(
   let status: CliExitStatus = 0;
   const program = new Command()
     .name("birbal")
-    .description("Local research agent that returns source-linked reading lists")
+    .description("Local AI agent for source-linked research and architecture learning")
     .option("--trace", "enable debug tracing")
     .showHelpAfterError();
 

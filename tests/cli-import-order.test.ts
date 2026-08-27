@@ -709,6 +709,10 @@ describe("CLI module loading", () => {
     const topLevelHelp = runCli(["--help"]);
 
     assert.equal(topLevelHelp.status, 0, topLevelHelp.stderr);
+    assert.match(
+      topLevelHelp.stdout,
+      /Local AI agent for source-linked research and architecture learning/,
+    );
     assert.match(topLevelHelp.stdout, /agent/);
     assert.match(topLevelHelp.stdout, /lab/);
     assert.match(topLevelHelp.stdout, /research/);

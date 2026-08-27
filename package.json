@@ -1,9 +1,12 @@
 {
   "name": "birbal",
   "version": "1.0.0",
-  "description": "A local TypeScript research agent that returns source-linked reading lists.",
+  "description": "A local TypeScript AI agent for source-linked research and architecture learning.",
   "type": "module",
   "packageManager": "pnpm@10.15.0",
+  "engines": {
+    "node": ">=20.18.1"
+  },
   "bin": {
     "birbal": "./bin/birbal.js"
   },
@@ -26,7 +29,8 @@
     "local-llm",
     "tools",
     "research-agent",
-    "reading-list"
+    "reading-list",
+    "architecture-learning"
   ],
   "author": "Gautam Dhameja",
   "license": "MIT",
