@@ -4,6 +4,7 @@
 - [Quickstart](quickstart.md)
 - [CLI](cli.md)
 - [Research Agent](birbal-app.md)
+- [Architecture Case Lab](architecture-case-lab.md)
 - [Architecture](architecture.md)
 - [Agent Harness](agent-harness.md)
 - [Tools](tools.md)

@@ -1,6 +1,6 @@
 # Birbal
 
-Birbal is a local TypeScript research agent. Give it a topic and it uses explicit search and page-fetch tools to return a concise, source-linked reading list.
+Birbal is a local TypeScript research agent and architecture learning lab. Give the research agent a topic to get a concise, source-linked reading list, or use the interactive lab to practice designing an impactful AI system and receive a sourced review.
 
 The agent uses llama.cpp by default and can use hosted OpenAI through the same model interface. Runtime preferences and curated sources are JSON configuration; provider and network settings come from environment variables.
 
@@ -28,6 +28,21 @@ pnpm cli -- --trace "Research agent memory architectures"
 ```
 
 The answer is printed to stdout. Birbal does not persist results or publish files.
+
+## Architecture Case Lab
+
+Start with an automatically selected case or name one:
+
+```bash
+pnpm cli -- lab
+pnpm cli -- lab "AI customer-support triage"
+```
+
+The lab presents sourced problem context without a solution. Enter a multiline architecture draft, then enter `/submit` on its own line. Answer up to three focused challenges the same way, use `/finish` for an early review, or `/exit` to leave without a review.
+
+Progress, the case brief, challenges, and retry messages go to stderr. Only a completed review goes to stdout, so it can be redirected or piped separately. Lab state lasts for one invocation and is never saved.
+
+See [Architecture Case Lab](docs/architecture-case-lab.md) for controls, limits, evidence labels, and interruption behavior.
 
 ## Configuration
 
