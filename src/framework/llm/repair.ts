@@ -1,14 +1,10 @@
 import { z } from "zod";
 
-import type { DebugLogger } from "../logging/types.js";
+import { NOOP_DEBUG_WARN_LOGGER, type DebugWarnLogger } from "../logging/debug-warn.js";
 import { parseStrictJson } from "./json.js";
 import type { ChatMessage, ModelClient, ModelCompleteOptions } from "./types.js";
 
 type CompleteFn = ModelClient["complete"];
-
-type StructuredOutputRepairLogger = DebugLogger & {
-  warn(payload: Record<string, unknown>, message?: string): void;
-};
 
 export type ModelParseErrorDetails = {
   type: "model_parse_error";
@@ -38,7 +34,7 @@ export type CompleteStructuredWithRepairOptions<T> = {
   schema: z.ZodType<T>;
   completeOptions?: ModelCompleteOptions;
   completeFn: CompleteFn;
-  logger?: StructuredOutputRepairLogger;
+  logger?: DebugWarnLogger;
   repairInstructions?: string;
   schemaDescription?: string;
 };
@@ -54,11 +50,6 @@ type ParsedModelOutput<T> =
     };
 
 const MAX_LOGGED_VALIDATION_ERROR_CHARS = 1_000;
-
-const noopLogger: StructuredOutputRepairLogger = {
-  debug: () => undefined,
-  warn: () => undefined,
-};
 
 export class ModelParseError extends Error {
   readonly type = "model_parse_error";
@@ -210,7 +201,7 @@ export async function completeStructuredWithRepair<T>({
   schema,
   completeOptions = {},
   completeFn,
-  logger = noopLogger,
+  logger = NOOP_DEBUG_WARN_LOGGER,
   repairInstructions,
   schemaDescription,
 }: CompleteStructuredWithRepairOptions<T>): Promise<StructuredModelOutputResult<T>> {

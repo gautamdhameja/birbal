@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 
 import { MODEL_PROVIDERS } from "../../constants/model-providers.js";
+import {
+  NOOP_DEBUG_WARN_LOGGER,
+  type DebugWarnLogger,
+} from "../../../framework/logging/debug-warn.js";
 import { HTTP } from "../../../framework/network/constants.js";
 import { fetchWithTimeout } from "../../../framework/network/fetch.js";
 import type {
@@ -16,7 +20,6 @@ import {
 } from "./schema.js";
 import type { OpenAICompatibleChatCompletionResponse, OpenAICompatibleConfig } from "./schema.js";
 import type {
-  ModelClientLogger,
   OpenAICompatibleClientDependencies,
   OpenAICompatibleModelClient,
   OpenAICompatibleTokenUsage,
@@ -28,11 +31,6 @@ export type {
 } from "./types.js";
 
 type RawTokenUsage = NonNullable<OpenAICompatibleChatCompletionResponse["usage"]>;
-
-const NOOP_LOGGER: ModelClientLogger = {
-  debug() {},
-  warn() {},
-};
 
 const MODEL_LOG_EVENTS = {
   STARTED: "model.complete.started",
@@ -47,7 +45,7 @@ const MODEL_LOG_MESSAGES = {
 } as const;
 
 function logCompletionStarted(
-  logger: ModelClientLogger,
+  logger: DebugWarnLogger,
   modelCallId: string,
   config: OpenAICompatibleConfig,
   messages: ChatMessage[],
@@ -75,7 +73,7 @@ function logCompletionStarted(
 }
 
 function logCompletionFinished(
-  logger: ModelClientLogger,
+  logger: DebugWarnLogger,
   modelCallId: string,
   config: OpenAICompatibleConfig,
   options: CompleteOptions,
@@ -123,7 +121,7 @@ function normalizeTokenUsage(
 }
 
 function logCompletionFailed(
-  logger: ModelClientLogger,
+  logger: DebugWarnLogger,
   modelCallId: string,
   config: OpenAICompatibleConfig,
   options: CompleteOptions,
@@ -178,7 +176,7 @@ export function createOpenAICompatibleModelClient(
   dependencies: OpenAICompatibleClientDependencies = {},
 ): OpenAICompatibleModelClient {
   const transport = dependencies.transport ?? fetchWithTimeout;
-  const logger = dependencies.logger ?? NOOP_LOGGER;
+  const logger = dependencies.logger ?? NOOP_DEBUG_WARN_LOGGER;
   const now = dependencies.now ?? (() => new Date());
   const createId = dependencies.createId ?? randomUUID;
   const client: OpenAICompatibleModelClient = {

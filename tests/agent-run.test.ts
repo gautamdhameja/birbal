@@ -12,9 +12,9 @@ import { z } from "zod";
 import { buildSystemPrompt, renderSystemPrompt } from "../src/app/agent/prompts.js";
 import { createBirbalAgent } from "../src/app/agent/run.js";
 import { SOURCE_REGISTRY } from "../src/app/constants/source-registry.js";
-import { createAppToolExecutor } from "../src/app/tools/executor.js";
 import { createToolRegistry } from "../src/app/tools/registry.js";
 import type { ChatMessage, ToolDefinition } from "../src/framework/index.js";
+import { createToolExecutor } from "../src/framework/tools/executor.js";
 
 describe("runAgent", () => {
   it("loads the research reading-list contract and runtime preferences", () => {
@@ -105,7 +105,7 @@ describe("runAgent", () => {
       run: async ({ value }) => ({ value }),
     };
     const registry = createToolRegistry([testTool]);
-    const toolRunner = createAppToolExecutor(registry);
+    const toolRunner = createToolExecutor(registry);
     const seenMessages: ChatMessage[][] = [];
     const responses = [
       JSON.stringify({ type: "tool_call", tool: "test_echo", args: { value: "fresh" } }),

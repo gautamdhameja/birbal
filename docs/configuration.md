@@ -21,3 +21,6 @@ Environment files are loaded when the CLI runs, not when the CLI module is impor
 and `LOG_PRETTY` remain the defaults for each newly created runtime. The CLI's `--trace` flag applies
 debug and pretty logging only to that runtime; it does not rewrite either environment variable or
 affect a later invocation in the same process.
+
+`BRAVE_SEARCH_MAX_CALLS_PER_PROCESS` retains its historical name for configuration compatibility,
+but the limit applies independently to each newly created runtime's Brave Search client.

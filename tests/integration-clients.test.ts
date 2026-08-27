@@ -18,7 +18,7 @@ import type { FetchRetryOptions } from "../src/framework/network/fetch.js";
 const braveConfig = {
   BRAVE_SEARCH_API_KEY: "test-key",
   BRAVE_SEARCH_URL: "https://api.search.brave.com/res/v1/web/search",
-  BRAVE_SEARCH_MAX_CALLS_PER_PROCESS: 1,
+  maxCallsPerRuntime: 1,
 };
 
 describe("state-owning integration clients", () => {
@@ -53,7 +53,7 @@ describe("state-owning integration clients", () => {
       /circuit is open after a rate limit response/,
     );
     assert.deepEqual(await healthy.searchWeb({ query: "agents" }), []);
-    await assert.rejects(() => healthy.searchWeb({ query: "agents" }), /process quota exceeded/);
+    await assert.rejects(() => healthy.searchWeb({ query: "agents" }), /runtime quota exceeded/);
     assert.equal(rateLimitedCalls, 1);
     assert.equal(healthyCalls, 1);
   });

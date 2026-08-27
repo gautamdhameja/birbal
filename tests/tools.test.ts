@@ -17,11 +17,11 @@ import { createDefaultRuntime, createDefaultToolRegistry } from "../src/app/runt
 import { createSourceDomainSearch } from "../src/app/source-search/domain.js";
 import type { SearchSourceDomainOptions } from "../src/app/source-search/domain.js";
 import { formatLocalIsoString } from "../src/app/tools/get-time.js";
-import { createAppToolExecutor } from "../src/app/tools/executor.js";
 import { createResearchTools, createToolRegistry } from "../src/app/tools/registry.js";
 import type { ResearchToolOperations } from "../src/app/tools/registry.js";
 import { fetchUrlText } from "../src/app/url-text/client.js";
 import { extractUrlText } from "../src/framework/content/extractText.js";
+import { createToolExecutor } from "../src/framework/tools/executor.js";
 import type { ToolDefinition } from "../src/framework/tools/types.js";
 import { z } from "zod";
 
@@ -38,7 +38,7 @@ const publicHostResolver = async () => [{ address: "93.184.216.34", family: 4 as
 
 describe("tool registry", () => {
   const toolRegistry = createDefaultToolRegistry();
-  const runTool = createAppToolExecutor(toolRegistry);
+  const runTool = createToolExecutor(toolRegistry);
   let searchWeb = createBraveSearchClient().searchWeb;
 
   beforeEach(() => {
@@ -116,8 +116,8 @@ describe("tool registry", () => {
     };
 
     first.register(testTool);
-    const runFirst = createAppToolExecutor(first);
-    const runSecond = createAppToolExecutor(second);
+    const runFirst = createToolExecutor(first);
+    const runSecond = createToolExecutor(second);
 
     assert.ok(first.get("runtime_only"));
     assert.equal(second.get("runtime_only"), undefined);
@@ -171,10 +171,10 @@ describe("tool registry", () => {
       };
     }
 
-    const runFirst = createAppToolExecutor(
+    const runFirst = createToolExecutor(
       createToolRegistry(createResearchTools(operations("first"))),
     );
-    const runSecond = createAppToolExecutor(
+    const runSecond = createToolExecutor(
       createToolRegistry(createResearchTools(operations("second"))),
     );
 
@@ -404,7 +404,7 @@ describe("tool registry", () => {
     }
   });
 
-  it("enforces Brave Search process call quota", async () => {
+  it("enforces the Brave Search call quota for each runtime client", async () => {
     const originalFetch = globalThis.fetch;
     const originalApiKey = process.env.BRAVE_SEARCH_API_KEY;
     const originalMaxCalls = process.env.BRAVE_SEARCH_MAX_CALLS_PER_PROCESS;
@@ -423,7 +423,7 @@ describe("tool registry", () => {
       await searchWeb({ query: "LLM agents" });
       await assert.rejects(
         () => searchWeb({ query: "LLM agents" }),
-        /Brave Search process quota exceeded/,
+        /Brave Search runtime quota exceeded/,
       );
     } finally {
       globalThis.fetch = originalFetch;

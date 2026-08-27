@@ -6,11 +6,7 @@ import { fetchWithRetry } from "../../framework/network/fetch.js";
 import { buildHttpStatusError, readResponseJson } from "../../framework/network/client.js";
 import { getBraveSearchConfig } from "./config.js";
 import type { WebSearchOptions, WebSearchResult } from "../source-search/types.js";
-import type {
-  BraveSearchClient,
-  BraveSearchClientDependencies,
-  BraveSearchQuotaState,
-} from "./types.js";
+import type { BraveSearchClient, BraveSearchClientDependencies } from "./types.js";
 export type {
   WebSearchOptions as SearchWebOptions,
   WebSearchResult as SearchWebResult,
@@ -21,6 +17,11 @@ type NormalizedSearchWebOptions = {
   query: string;
   maxResults: number;
   freshness: string;
+};
+
+type BraveSearchQuotaState = {
+  calls: number;
+  rateLimited: boolean;
 };
 
 const BraveWebResultSchema = z.looseObject({
@@ -96,12 +97,12 @@ export function normalizeBraveWebResult(result: BraveWebResult): WebSearchResult
   };
 }
 
-function reserveBraveSearchCall(state: BraveSearchQuotaState, maxCalls: number): void {
+function reserveBraveSearchCall(state: BraveSearchQuotaState, maxCallsPerRuntime: number): void {
   if (state.rateLimited) {
     throw new Error(BRAVE_SEARCH.ERRORS.RATE_LIMIT_CIRCUIT_OPEN);
   }
 
-  if (state.calls >= maxCalls) {
+  if (state.calls >= maxCallsPerRuntime) {
     throw new Error(BRAVE_SEARCH.ERRORS.QUOTA_EXCEEDED);
   }
 
@@ -118,7 +119,7 @@ export function createBraveSearchClient(
   return {
     async searchWeb(options) {
       const config = loadConfig();
-      reserveBraveSearchCall(quotaState, config.BRAVE_SEARCH_MAX_CALLS_PER_PROCESS);
+      reserveBraveSearchCall(quotaState, config.maxCallsPerRuntime);
       const response = await transport(
         buildBraveSearchUrl(config.BRAVE_SEARCH_URL, normalizeOptions(options)),
         {

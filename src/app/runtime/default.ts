@@ -6,9 +6,9 @@ import { createHackerNewsClient } from "../hackernews/client.js";
 import { createAppLogger } from "../logging/logger.js";
 import { getDefaultModelClient } from "../model-providers/default.js";
 import { createSourceDomainSearch } from "../source-search/domain.js";
-import { createAppToolExecutor } from "../tools/executor.js";
 import { createResearchTools, createToolRegistry } from "../tools/registry.js";
 import { fetchUrlText } from "../url-text/client.js";
+import { createToolExecutor } from "../../framework/tools/executor.js";
 import type { ToolRegistry } from "../../framework/tools/registry.js";
 import { LOGGING } from "../constants/runtime.js";
 import type { BirbalRuntime, BirbalRuntimeOptions } from "./types.js";
@@ -38,7 +38,7 @@ export function createDefaultRuntime(options: BirbalRuntimeOptions = {}): Birbal
   const renderToolsForPrompt = () => registry.renderForPrompt();
   const runAgent = createBirbalAgent({
     modelClient: getDefaultModelClient({ logger }),
-    toolRunner: createAppToolExecutor(registry, { logger }),
+    toolRunner: createToolExecutor(registry, { logger }),
     buildSystemPrompt: createSystemPromptBuilder(),
     renderToolsForPrompt,
     logger,

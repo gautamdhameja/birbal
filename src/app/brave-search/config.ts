@@ -11,7 +11,7 @@ const BraveSearchConfigSchema = z.strictObject({
       (value) => isAllowedHttpUrl(value, BRAVE_SEARCH.ALLOWED_HOSTS),
       allowedHostErrorMessage(),
     ),
-  BRAVE_SEARCH_MAX_CALLS_PER_PROCESS: z.number().int().min(1),
+  maxCallsPerRuntime: z.number().int().min(1),
 });
 
 export type BraveSearchConfig = z.infer<typeof BraveSearchConfigSchema>;
@@ -25,12 +25,12 @@ export function getBraveSearchConfig(): BraveSearchConfig {
   const maxCallsRaw = process.env.BRAVE_SEARCH_MAX_CALLS_PER_PROCESS?.trim();
   const maxCalls =
     maxCallsRaw === undefined || maxCallsRaw === ""
-      ? BRAVE_SEARCH.DEFAULT_MAX_CALLS_PER_PROCESS
+      ? BRAVE_SEARCH.DEFAULT_MAX_CALLS_PER_RUNTIME
       : Number(maxCallsRaw);
 
   return BraveSearchConfigSchema.parse({
     BRAVE_SEARCH_API_KEY: apiKey,
     BRAVE_SEARCH_URL: searchUrl,
-    BRAVE_SEARCH_MAX_CALLS_PER_PROCESS: maxCalls,
+    maxCallsPerRuntime: maxCalls,
   });
 }
