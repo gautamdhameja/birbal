@@ -4,9 +4,16 @@ import { Command } from "commander";
 import dotenv from "dotenv";
 
 import { CLI, ENV_FILE_PATHS, LOGGING } from "./constants/runtime.js";
+import type { BirbalRuntimeLoader } from "./runtime/types.js";
 
 type TraceOptions = {
   trace?: boolean;
+};
+
+export type CliDependencies = {
+  loadRuntime?: BirbalRuntimeLoader;
+  writeOutput?: (message: string) => void;
+  writeError?: (message: string) => void;
 };
 
 dotenv.config({ path: ENV_FILE_PATHS, quiet: true });
@@ -25,25 +32,33 @@ export function configureTraceLogging(trace: boolean): void {
   process.env.LOG_PRETTY = process.env.LOG_PRETTY?.trim() || LOGGING.PRETTY_ENABLED_VALUE;
 }
 
+async function loadDefaultRuntime() {
+  const { createDefaultRuntime } = await import("./runtime/default.js");
+  return createDefaultRuntime();
+}
+
 async function runAgentCommand(
   taskParts: readonly string[],
   options: TraceOptions,
   program: Command,
+  dependencies: CliDependencies,
 ): Promise<void> {
   const trace = Boolean(options.trace ?? program.opts<TraceOptions>().trace);
   configureTraceLogging(trace);
 
-  const { runAgent } = await import("./agent/run.js");
+  const runtime = await (dependencies.loadRuntime ?? loadDefaultRuntime)();
   if (trace) {
-    const { toolRegistry } = await import("./tools/registry.js");
-    console.error(toolRegistry.renderForPrompt());
+    (dependencies.writeError ?? console.error)(runtime.renderToolsForPrompt());
   }
 
   const task = taskParts.join(" ").trim() || CLI.DEFAULT_TASK;
-  console.log(await runAgent(task));
+  (dependencies.writeOutput ?? console.log)(await runtime.runAgent(task));
 }
 
-export async function runBirbalCli(args: readonly string[] = process.argv.slice(2)): Promise<void> {
+export async function runBirbalCli(
+  args: readonly string[] = process.argv.slice(2),
+  dependencies: CliDependencies = {},
+): Promise<void> {
   const program = new Command()
     .name("birbal")
     .description("Local research agent that returns source-linked reading lists")
@@ -56,13 +71,13 @@ export async function runBirbalCli(args: readonly string[] = process.argv.slice(
     .argument("[task...]", "research task")
     .option("--trace", "enable debug tracing")
     .action(async (taskParts: string[], options: TraceOptions) => {
-      await runAgentCommand(taskParts, options, program);
+      await runAgentCommand(taskParts, options, program, dependencies);
     });
 
   program
     .argument("[task...]", "research task")
     .action(async (taskParts: string[], options: TraceOptions) => {
-      await runAgentCommand(taskParts, options, program);
+      await runAgentCommand(taskParts, options, program, dependencies);
     });
 
   await program.parseAsync(

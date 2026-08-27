@@ -15,10 +15,12 @@ import { SOURCE_REGISTRY } from "../src/app/constants/source-registry.js";
 import { normalizeHackerNewsHit } from "../src/app/hackernews/client.js";
 import { searchSourceDomain } from "../src/app/source-search/domain.js";
 import { formatLocalIsoString } from "../src/app/tools/get-time.js";
-import { toolRegistry } from "../src/app/tools/registry.js";
-import { runTool } from "../src/app/tools/executor.js";
+import { createAppToolExecutor } from "../src/app/tools/executor.js";
+import { createToolRegistry } from "../src/app/tools/registry.js";
 import { fetchUrlText } from "../src/app/url-text/client.js";
 import { extractUrlText } from "../src/framework/content/extractText.js";
+import type { ToolDefinition } from "../src/framework/tools/types.js";
+import { z } from "zod";
 
 function assertRecord(value: unknown): asserts value is Record<string, unknown> {
   assert.equal(typeof value, "object");
@@ -32,6 +34,9 @@ function assertString(value: unknown): asserts value is string {
 const publicHostResolver = async () => [{ address: "93.184.216.34", family: 4 as const }];
 
 describe("tool registry", () => {
+  const toolRegistry = createToolRegistry();
+  const runTool = createAppToolExecutor(toolRegistry);
+
   beforeEach(() => {
     resetBraveSearchQuotaForTests();
   });
@@ -83,6 +88,30 @@ describe("tool registry", () => {
       renderedTools,
       /description: Fetch a URL and extract readable article or report text\./,
     );
+  });
+
+  it("creates isolated registries and executors whose mutations do not leak", async () => {
+    const first = createToolRegistry();
+    const second = createToolRegistry();
+    const testTool: ToolDefinition = {
+      name: "runtime_only",
+      description: "Only registered in one runtime.",
+      argsSchema: z.strictObject({}),
+      resultSchema: z.strictObject({ ok: z.literal(true) }),
+      run: async () => ({ ok: true }),
+    };
+
+    first.register(testTool);
+    const runFirst = createAppToolExecutor(first);
+    const runSecond = createAppToolExecutor(second);
+
+    assert.ok(first.get("runtime_only"));
+    assert.equal(second.get("runtime_only"), undefined);
+    assert.equal(toolRegistry.get("runtime_only"), undefined);
+    assert.deepEqual(await runFirst("runtime_only", {}), { ok: true });
+    assert.deepEqual(await runSecond("runtime_only", {}), {
+      error: "Unknown tool: runtime_only",
+    });
   });
 
   it("parses arXiv Atom search results", () => {

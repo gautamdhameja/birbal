@@ -7,7 +7,7 @@ import { searchHackerNewsTool } from "./search-hackernews.js";
 import { searchSourceDomainTool } from "./search-source-domain.js";
 import { searchWebTool } from "./search-web.js";
 
-const tools = [
+const DEFAULT_TOOLS = [
   getTimeTool,
   searchArxivTool,
   searchHackerNewsTool,
@@ -16,5 +16,8 @@ const tools = [
   fetchUrlTextTool,
 ] satisfies ToolDefinition[];
 
-export const toolRegistry = new ToolRegistry();
-toolRegistry.registerMany(tools);
+export function createToolRegistry(tools: readonly ToolDefinition[] = DEFAULT_TOOLS): ToolRegistry {
+  const registry = new ToolRegistry();
+  registry.registerMany(tools);
+  return registry;
+}

@@ -9,20 +9,33 @@ const SYSTEM_AGENT_PROMPT_URL = new URL("../../../prompts/system-agent.txt", imp
 const NO_TOOLS_AVAILABLE = "No tools are currently available.";
 const AVAILABLE_TOOLS_HEADING = "Available tools:";
 
-type BuildSystemPromptDependencies = {
+export type SystemPromptInputs = {
+  template: string;
+  toolsText?: string;
+  research: ResearchConfig;
+  sourceRegistry: SourceRegistry;
+};
+
+export type SystemPromptBuilderDependencies = {
+  loadTemplate?: () => string;
   loadResearchConfig?: () => ResearchConfig;
   loadSourceRegistry?: () => SourceRegistry;
 };
 
-export function buildSystemPrompt(
+function loadBundledTemplate(): string {
+  return readFileSync(SYSTEM_AGENT_PROMPT_URL, "utf8");
+}
+
+export function renderSystemPrompt({
+  template,
   toolsText = "",
-  dependencies: BuildSystemPromptDependencies = {},
-): string {
-  const basePrompt = readFileSync(SYSTEM_AGENT_PROMPT_URL, "utf8").trim();
+  research,
+  sourceRegistry,
+}: SystemPromptInputs): string {
+  const basePrompt = template.trim();
   const toolsSection = toolsText.trim() || NO_TOOLS_AVAILABLE;
-  const research = (dependencies.loadResearchConfig ?? loadResearchConfig)();
-  const enabledSources = (dependencies.loadSourceRegistry ?? loadSourceRegistry)()
-    .sources.filter((source) => source.enabled)
+  const enabledSources = sourceRegistry.sources
+    .filter((source) => source.enabled)
     .map((source) => `${source.id} (${source.name})`)
     .join(", ");
   const researchContext = [
@@ -35,4 +48,27 @@ export function buildSystemPrompt(
   ].join("\n");
 
   return `${basePrompt}\n\n${researchContext}\n\n${AVAILABLE_TOOLS_HEADING}\n${toolsSection}`;
+}
+
+export function createSystemPromptBuilder(
+  dependencies: SystemPromptBuilderDependencies = {},
+): (toolsText?: string) => string {
+  const loadTemplate = dependencies.loadTemplate ?? loadBundledTemplate;
+  const loadResearch = dependencies.loadResearchConfig ?? loadResearchConfig;
+  const loadSources = dependencies.loadSourceRegistry ?? loadSourceRegistry;
+
+  return (toolsText = "") =>
+    renderSystemPrompt({
+      template: loadTemplate(),
+      toolsText,
+      research: loadResearch(),
+      sourceRegistry: loadSources(),
+    });
+}
+
+export function buildSystemPrompt(
+  toolsText = "",
+  dependencies: SystemPromptBuilderDependencies = {},
+): string {
+  return createSystemPromptBuilder(dependencies)(toolsText);
 }
