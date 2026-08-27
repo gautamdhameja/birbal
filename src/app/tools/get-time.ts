@@ -27,11 +27,8 @@ export function formatLocalIsoString(date: Date): string {
   ].join("");
 }
 
-export const getTimeTool: ToolDefinition<typeof GetTimeArgsSchema, typeof GetTimeResultSchema> =
-  createGetTimeTool();
-
 export function createGetTimeTool(
-  now: () => Date = () => new Date(),
+  now: () => Date,
 ): ToolDefinition<typeof GetTimeArgsSchema, typeof GetTimeResultSchema> {
   return {
     name: TOOLS.GET_TIME.NAME,

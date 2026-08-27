@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-import { searchArxiv } from "../arxiv/client.js";
 import { TOOLS } from "../constants/tools.js";
+import type { ArxivSearch } from "../arxiv/types.js";
 import type { ToolDefinition } from "../../framework/tools/types.js";
 
 const SearchArxivArgsSchema = z.strictObject({
@@ -27,13 +27,8 @@ const SearchArxivResultSchema = z.strictObject({
   ),
 });
 
-export const searchArxivTool: ToolDefinition<
-  typeof SearchArxivArgsSchema,
-  typeof SearchArxivResultSchema
-> = createSearchArxivTool();
-
 export function createSearchArxivTool(
-  runSearch: typeof searchArxiv = searchArxiv,
+  runSearch: ArxivSearch,
 ): ToolDefinition<typeof SearchArxivArgsSchema, typeof SearchArxivResultSchema> {
   return {
     name: TOOLS.SEARCH_ARXIV.NAME,

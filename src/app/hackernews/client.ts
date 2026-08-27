@@ -6,21 +6,13 @@ import { fetchWithRetry } from "../../framework/network/fetch.js";
 import { buildHttpStatusError, readResponseJson } from "../../framework/network/client.js";
 import { getHackerNewsConfig } from "./config.js";
 import type { HackerNewsConfig } from "./config.js";
-
-export type HackerNewsSearchOptions = {
-  query: string;
-  maxResults: number;
-  signal?: AbortSignal;
-};
-
-export type HackerNewsStory = {
-  title: string;
-  url: string;
-  hn_url: string;
-  points: number | null;
-  author: string;
-  created_at: string;
-};
+import type {
+  HackerNewsClient,
+  HackerNewsClientDependencies,
+  HackerNewsSearchOptions,
+  HackerNewsStory,
+} from "./types.js";
+export type { HackerNewsClient, HackerNewsSearchOptions, HackerNewsStory } from "./types.js";
 
 const HackerNewsHitSchema = z.object({
   author: z.string().catch(""),
@@ -36,17 +28,6 @@ const HackerNewsSearchResponseSchema = z.object({
 });
 
 type HackerNewsHit = z.infer<typeof HackerNewsHitSchema>;
-
-export type HackerNewsTransport = typeof fetchWithRetry;
-
-export type HackerNewsClientDependencies = {
-  loadConfig?: () => HackerNewsConfig;
-  transport?: HackerNewsTransport;
-};
-
-export type HackerNewsClient = {
-  searchHackerNews(options: HackerNewsSearchOptions): Promise<HackerNewsStory[]>;
-};
 
 function buildHackerNewsSearchUrl(
   { query, maxResults }: HackerNewsSearchOptions,
@@ -103,7 +84,3 @@ export function createHackerNewsClient(
     },
   };
 }
-
-const defaultHackerNewsClient = createHackerNewsClient();
-
-export const searchHackerNews = defaultHackerNewsClient.searchHackerNews;

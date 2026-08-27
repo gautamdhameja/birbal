@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { TOOLS } from "../constants/tools.js";
-import { searchHackerNews } from "../hackernews/client.js";
+import type { HackerNewsSearch } from "../hackernews/types.js";
 import type { ToolDefinition } from "../../framework/tools/types.js";
 
 const SearchHackerNewsArgsSchema = z.strictObject({
@@ -28,13 +28,8 @@ const SearchHackerNewsResultSchema = z.strictObject({
   ),
 });
 
-export const searchHackerNewsTool: ToolDefinition<
-  typeof SearchHackerNewsArgsSchema,
-  typeof SearchHackerNewsResultSchema
-> = createSearchHackerNewsTool();
-
 export function createSearchHackerNewsTool(
-  runSearch: typeof searchHackerNews = searchHackerNews,
+  runSearch: HackerNewsSearch,
 ): ToolDefinition<typeof SearchHackerNewsArgsSchema, typeof SearchHackerNewsResultSchema> {
   return {
     name: TOOLS.SEARCH_HACKER_NEWS.NAME,

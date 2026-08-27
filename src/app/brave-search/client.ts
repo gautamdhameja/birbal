@@ -5,43 +5,22 @@ import { HTTP } from "../../framework/network/constants.js";
 import { fetchWithRetry } from "../../framework/network/fetch.js";
 import { buildHttpStatusError, readResponseJson } from "../../framework/network/client.js";
 import { getBraveSearchConfig } from "./config.js";
-import type { BraveSearchConfig } from "./config.js";
-
-export type SearchWebOptions = {
-  query: string;
-  maxResults?: number;
-  freshness?: string;
-  signal?: AbortSignal;
-};
-
-export type SearchWebResult = {
-  title: string;
-  url: string;
-  description: string;
-  publishedAt?: string;
-  sourceName?: string;
-};
+import type { WebSearchOptions, WebSearchResult } from "../source-search/types.js";
+import type {
+  BraveSearchClient,
+  BraveSearchClientDependencies,
+  BraveSearchQuotaState,
+} from "./types.js";
+export type {
+  WebSearchOptions as SearchWebOptions,
+  WebSearchResult as SearchWebResult,
+} from "../source-search/types.js";
+export type { BraveSearchClient } from "./types.js";
 
 type NormalizedSearchWebOptions = {
   query: string;
   maxResults: number;
   freshness: string;
-};
-
-type BraveSearchQuotaState = {
-  calls: number;
-  rateLimited: boolean;
-};
-
-export type BraveSearchTransport = typeof fetchWithRetry;
-
-export type BraveSearchClientDependencies = {
-  loadConfig?: () => BraveSearchConfig;
-  transport?: BraveSearchTransport;
-};
-
-export type BraveSearchClient = {
-  searchWeb(options: SearchWebOptions): Promise<SearchWebResult[]>;
 };
 
 const BraveWebResultSchema = z.looseObject({
@@ -99,7 +78,7 @@ function firstNonEmpty(...values: Array<string | undefined>): string | undefined
   return values.find((value) => typeof value === "string" && value.trim().length > 0);
 }
 
-export function normalizeBraveWebResult(result: BraveWebResult): SearchWebResult {
+export function normalizeBraveWebResult(result: BraveWebResult): WebSearchResult {
   const sourceName = firstNonEmpty(
     result.profile?.name,
     result.profile?.long_name,
@@ -173,11 +152,7 @@ export function createBraveSearchClient(
   };
 }
 
-const defaultBraveSearchClient = createBraveSearchClient();
-
-export const searchWeb = defaultBraveSearchClient.searchWeb;
-
-function normalizeOptions(options: SearchWebOptions): NormalizedSearchWebOptions {
+function normalizeOptions(options: WebSearchOptions): NormalizedSearchWebOptions {
   return {
     query: options.query,
     maxResults: options.maxResults ?? BRAVE_SEARCH.DEFAULT_MAX_RESULTS,

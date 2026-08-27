@@ -1,8 +1,7 @@
 import { z } from "zod";
 
-import { BRAVE_SEARCH } from "../constants/brave-search.js";
 import { TOOLS } from "../constants/tools.js";
-import { searchWeb } from "../brave-search/client.js";
+import type { WebSearchPort } from "../source-search/types.js";
 import type { ToolDefinition } from "../../framework/tools/types.js";
 
 const SearchWebArgsSchema = z.strictObject({
@@ -11,8 +10,8 @@ const SearchWebArgsSchema = z.strictObject({
     .number()
     .int()
     .min(1)
-    .max(BRAVE_SEARCH.MAX_RESULTS_LIMIT)
-    .default(BRAVE_SEARCH.DEFAULT_MAX_RESULTS),
+    .max(TOOLS.MAX_RESULTS_LIMIT)
+    .default(TOOLS.DEFAULT_MAX_RESULTS),
   freshness: z.string().optional(),
 });
 
@@ -29,13 +28,8 @@ const SearchWebResultSchema = z.strictObject({
   ),
 });
 
-export const searchWebTool: ToolDefinition<
-  typeof SearchWebArgsSchema,
-  typeof SearchWebResultSchema
-> = createSearchWebTool();
-
 export function createSearchWebTool(
-  runSearch: typeof searchWeb = searchWeb,
+  runSearch: WebSearchPort,
 ): ToolDefinition<typeof SearchWebArgsSchema, typeof SearchWebResultSchema> {
   return {
     name: TOOLS.SEARCH_WEB.NAME,

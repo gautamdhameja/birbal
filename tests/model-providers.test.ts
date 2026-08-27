@@ -15,6 +15,8 @@ import {
 } from "../src/app/model-providers/openai-compatible/client.js";
 import { getLlamaConfig } from "../src/app/llama/config.js";
 import { getOpenAIConfig } from "../src/app/model-providers/openai/config.js";
+import * as llamaAdapterModule from "../src/app/llama/adapter.js";
+import * as openAIAdapterModule from "../src/app/model-providers/openai/adapter.js";
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -36,6 +38,11 @@ describe("model provider selection", () => {
 
     assert.equal(getConfiguredModelProviderId(), MODEL_PROVIDERS.PROVIDERS.OPENAI);
     assert.equal(typeof getDefaultModelClient().complete, "function");
+  });
+
+  it("exposes model factories without module-level default adapters", () => {
+    assert.equal("llamaCppModelAdapter" in llamaAdapterModule, false);
+    assert.equal("openAIModelAdapter" in openAIAdapterModule, false);
   });
 });
 

@@ -3,6 +3,7 @@ import type {
   ModelClient,
   ModelCompleteOptions,
 } from "../../../framework/llm/types.js";
+import type { fetchWithTimeout } from "../../../framework/network/fetch.js";
 
 export type OpenAICompatibleTokenUsage = {
   promptTokens?: number;
@@ -27,4 +28,11 @@ export type OpenAICompatibleModelClient = ModelClient & {
 export type ModelClientLogger = {
   debug(payload: Record<string, unknown>, message?: string): void;
   warn(payload: Record<string, unknown>, message?: string): void;
+};
+
+export type OpenAICompatibleClientDependencies = {
+  transport?: typeof fetchWithTimeout;
+  logger?: ModelClientLogger;
+  now?: () => Date;
+  createId?: () => string;
 };

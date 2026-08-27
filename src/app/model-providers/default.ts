@@ -4,7 +4,7 @@ import { MODEL_PROVIDERS } from "../constants/model-providers.js";
 import type { ModelClient } from "../../framework/llm/types.js";
 import { createLlamaCppModelAdapter } from "../llama/adapter.js";
 import { createOpenAIModelAdapter } from "./openai/adapter.js";
-import type { OpenAICompatibleClientDependencies } from "./openai-compatible/client.js";
+import type { OpenAICompatibleClientDependencies } from "./openai-compatible/types.js";
 
 const ModelProviderEnvSchema = z.strictObject({
   MODEL_PROVIDER: z

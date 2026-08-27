@@ -5,4 +5,10 @@ export type BirbalRuntime = {
   renderToolsForPrompt(): string;
 };
 
-export type BirbalRuntimeLoader = () => BirbalRuntime | Promise<BirbalRuntime>;
+export type BirbalRuntimeOptions = {
+  trace?: boolean;
+};
+
+export type BirbalRuntimeLoader = (
+  options?: BirbalRuntimeOptions,
+) => BirbalRuntime | Promise<BirbalRuntime>;

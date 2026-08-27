@@ -9,6 +9,10 @@ import { createBraveSearchClient } from "../src/app/brave-search/client.js";
 import { SOURCE_REGISTRY } from "../src/app/constants/source-registry.js";
 import { createHackerNewsClient } from "../src/app/hackernews/client.js";
 import { createSourceDomainSearch } from "../src/app/source-search/domain.js";
+import * as arxivClientModule from "../src/app/arxiv/client.js";
+import * as braveClientModule from "../src/app/brave-search/client.js";
+import * as hackerNewsClientModule from "../src/app/hackernews/client.js";
+import * as sourceSearchModule from "../src/app/source-search/domain.js";
 import type { FetchRetryOptions } from "../src/framework/network/fetch.js";
 
 const braveConfig = {
@@ -18,6 +22,13 @@ const braveConfig = {
 };
 
 describe("state-owning integration clients", () => {
+  it("exposes factories without module-level default client operations", () => {
+    assert.equal("searchArxiv" in arxivClientModule, false);
+    assert.equal("searchWeb" in braveClientModule, false);
+    assert.equal("searchHackerNews" in hackerNewsClientModule, false);
+    assert.equal("searchSourceDomain" in sourceSearchModule, false);
+  });
+
   it("keeps Brave quota and 429 circuit state isolated between client instances", async () => {
     let rateLimitedCalls = 0;
     let healthyCalls = 0;

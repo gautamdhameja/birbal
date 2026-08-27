@@ -7,35 +7,15 @@ import { fetchWithRetry } from "../../framework/network/fetch.js";
 import { buildHttpStatusError, readResponseText } from "../../framework/network/client.js";
 import { getArxivConfig } from "./config.js";
 import type { ArxivConfig } from "./config.js";
-
-export type ArxivSearchOptions = {
-  query: string;
-  maxResults: number;
-  signal?: AbortSignal;
-};
-
-export type ArxivPaper = {
-  title: string;
-  url: string;
-  summary: string;
-  authors: string[];
-  published: string;
-};
+import type {
+  ArxivClient,
+  ArxivClientDependencies,
+  ArxivPaper,
+  ArxivSearchOptions,
+} from "./types.js";
+export type { ArxivClient, ArxivPaper, ArxivSearchOptions } from "./types.js";
 
 type ParsedXmlRecord = Record<string, unknown>;
-
-export type ArxivSearchTransport = typeof fetchWithRetry;
-
-export type ArxivClientDependencies = {
-  loadConfig?: () => ArxivConfig;
-  transport?: ArxivSearchTransport;
-  now?: () => number;
-  delay?: (ms: number, signal?: AbortSignal) => Promise<void>;
-};
-
-export type ArxivClient = {
-  searchArxiv(options: ArxivSearchOptions): Promise<ArxivPaper[]>;
-};
 
 const parser = new XMLParser({
   attributeNamePrefix: "",
@@ -220,7 +200,3 @@ export function createArxivClient(dependencies: ArxivClientDependencies = {}): A
     },
   };
 }
-
-const defaultArxivClient = createArxivClient();
-
-export const searchArxiv = defaultArxivClient.searchArxiv;

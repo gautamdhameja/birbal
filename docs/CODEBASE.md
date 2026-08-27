@@ -1,12 +1,17 @@
 # Codebase Map
 
-Birbal is a stateless research agent built from a reusable TypeScript agent harness.
+Birbal is a research agent built from a reusable TypeScript agent harness. Each runtime owns its
+mutable integration state, including search quotas, arXiv request scheduling, its tool registry,
+and its logger; creating another runtime creates another isolated state graph.
 
 ## Entry points
 
 - `bin/birbal.js` launches the TypeScript CLI through the installed `tsx` runtime.
-- `src/app/cli.ts` exposes the default research task and explicit `agent` command.
-- `src/app/agent/run.ts` composes the model, tools, prompt, parser, and harness.
+- `src/app/cli.ts` loads environment configuration when invoked, then passes CLI options to a
+  runtime loader.
+- `src/app/runtime/default.ts` is the composition root for the default model, integrations, tools,
+  logger, and agent.
+- `src/app/agent/run.ts` binds already-constructed dependencies to the reusable harness.
 
 ## Research configuration
 
@@ -22,6 +27,10 @@ Birbal is a stateless research agent built from a reusable TypeScript agent harn
 - `src/app/source-search/`
 - `src/app/url-text/`
 - `src/app/model-providers/`
+
+Integration modules export factories rather than process-wide clients. Their I/O and state are
+bound once in `src/app/runtime/default.ts`; tool definitions depend only on injected operation
+contracts.
 
 ## Framework
 

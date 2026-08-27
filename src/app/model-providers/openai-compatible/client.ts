@@ -17,6 +17,7 @@ import {
 import type { OpenAICompatibleChatCompletionResponse, OpenAICompatibleConfig } from "./schema.js";
 import type {
   ModelClientLogger,
+  OpenAICompatibleClientDependencies,
   OpenAICompatibleModelClient,
   OpenAICompatibleTokenUsage,
 } from "./types.js";
@@ -27,13 +28,6 @@ export type {
 } from "./types.js";
 
 type RawTokenUsage = NonNullable<OpenAICompatibleChatCompletionResponse["usage"]>;
-
-export type OpenAICompatibleClientDependencies = {
-  transport?: typeof fetchWithTimeout;
-  logger?: ModelClientLogger;
-  now?: () => Date;
-  createId?: () => string;
-};
 
 const NOOP_LOGGER: ModelClientLogger = {
   debug() {},

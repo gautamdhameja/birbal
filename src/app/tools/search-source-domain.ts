@@ -1,9 +1,8 @@
 import { z } from "zod";
 
-import { BRAVE_SEARCH } from "../constants/brave-search.js";
 import { TOOLS } from "../constants/tools.js";
 import { ResearchResultSchema } from "../research/schema.js";
-import { searchSourceDomain } from "../source-search/domain.js";
+import type { SourceDomainSearch } from "../source-search/types.js";
 import type { ToolDefinition } from "../../framework/tools/types.js";
 
 const SearchSourceDomainArgsSchema = z.strictObject({
@@ -13,8 +12,8 @@ const SearchSourceDomainArgsSchema = z.strictObject({
     .number()
     .int()
     .min(1)
-    .max(BRAVE_SEARCH.MAX_RESULTS_LIMIT)
-    .default(BRAVE_SEARCH.DEFAULT_MAX_RESULTS),
+    .max(TOOLS.MAX_RESULTS_LIMIT)
+    .default(TOOLS.DEFAULT_MAX_RESULTS),
 });
 
 const SearchSourceDomainResultSchema = z.strictObject({
@@ -23,13 +22,8 @@ const SearchSourceDomainResultSchema = z.strictObject({
   results: z.array(ResearchResultSchema),
 });
 
-export const searchSourceDomainTool: ToolDefinition<
-  typeof SearchSourceDomainArgsSchema,
-  typeof SearchSourceDomainResultSchema
-> = createSearchSourceDomainTool();
-
 export function createSearchSourceDomainTool(
-  runSearch: typeof searchSourceDomain = searchSourceDomain,
+  runSearch: SourceDomainSearch,
 ): ToolDefinition<typeof SearchSourceDomainArgsSchema, typeof SearchSourceDomainResultSchema> {
   return {
     name: TOOLS.SEARCH_SOURCE_DOMAIN.NAME,

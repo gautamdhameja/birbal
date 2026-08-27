@@ -2,7 +2,6 @@ import { z } from "zod";
 
 import { TOOLS } from "../constants/tools.js";
 import { URL_TEXT } from "../../framework/content/constants.js";
-import { fetchUrlText } from "../url-text/client.js";
 import type { ToolDefinition } from "../../framework/tools/types.js";
 
 const FetchUrlTextArgsSchema = z.strictObject({
@@ -24,13 +23,14 @@ const FetchUrlTextResultSchema = z.strictObject({
   contentLength: z.number().int().min(0),
 });
 
-export const fetchUrlTextTool: ToolDefinition<
-  typeof FetchUrlTextArgsSchema,
-  typeof FetchUrlTextResultSchema
-> = createFetchUrlTextTool();
+export type FetchUrlTextOperation = (options: {
+  url: string;
+  maxChars: number;
+  signal?: AbortSignal;
+}) => Promise<z.output<typeof FetchUrlTextResultSchema>>;
 
 export function createFetchUrlTextTool(
-  runFetch: typeof fetchUrlText = fetchUrlText,
+  runFetch: FetchUrlTextOperation,
 ): ToolDefinition<typeof FetchUrlTextArgsSchema, typeof FetchUrlTextResultSchema> {
   return {
     name: TOOLS.FETCH_URL_TEXT.NAME,

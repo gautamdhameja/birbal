@@ -7,6 +7,10 @@ import ts from "typescript";
 const SOURCE_ROOT = resolve("src");
 const APP_ROOT = resolve(SOURCE_ROOT, "app");
 const FRAMEWORK_ROOT = resolve(SOURCE_ROOT, "framework");
+const APP_AGENT_ROOT = resolve(APP_ROOT, "agent");
+const MODEL_PROVIDER_ROOT = resolve(APP_ROOT, "model-providers");
+const APP_TOOLS_ROOT = resolve(APP_ROOT, "tools");
+const SOURCE_SEARCH_ROOT = resolve(APP_ROOT, "source-search");
 
 function typescriptFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -125,5 +129,64 @@ describe("framework dependency boundaries", () => {
 
   it("does not import application modules", () => {
     assert.deepEqual(relativeImportViolations(FRAMEWORK_ROOT, [FRAMEWORK_ROOT]), []);
+  });
+
+  it("keeps source-search independent from the Brave vendor adapter", () => {
+    const imports = typescriptFiles(SOURCE_SEARCH_ROOT).flatMap((file) =>
+      relativeModuleSpecifiers(readFileSync(file, "utf8"), file).map((specifier) => ({
+        file,
+        specifier,
+      })),
+    );
+
+    assert.deepEqual(
+      imports
+        .filter(({ specifier }) => specifier.includes("brave-search"))
+        .map(({ file, specifier }) => `${relative(SOURCE_ROOT, file)} -> ${specifier}`),
+      [],
+    );
+  });
+
+  it("keeps tool definitions independent from concrete integration clients", () => {
+    const concreteClients = [
+      "/arxiv/client",
+      "/brave-search/client",
+      "/hackernews/client",
+      "/source-search/domain",
+    ];
+    const violations = typescriptFiles(APP_TOOLS_ROOT).flatMap((file) =>
+      relativeModuleSpecifiers(readFileSync(file, "utf8"), file)
+        .filter((specifier) => concreteClients.some((client) => specifier.includes(client)))
+        .map((specifier) => `${relative(SOURCE_ROOT, file)} -> ${specifier}`),
+    );
+
+    assert.deepEqual(violations, []);
+  });
+
+  it("keeps agent internals independent from the concrete runtime graph", () => {
+    const forbidden = [
+      "/runtime/default",
+      "/logging/logger",
+      "/model-providers/default",
+      "/tools/registry",
+    ];
+    const violations = typescriptFiles(APP_AGENT_ROOT).flatMap((file) =>
+      relativeModuleSpecifiers(readFileSync(file, "utf8"), file)
+        .filter((specifier) => forbidden.some((dependency) => specifier.includes(dependency)))
+        .map((specifier) => `${relative(SOURCE_ROOT, file)} -> ${specifier}`),
+    );
+
+    assert.deepEqual(violations, []);
+  });
+
+  it("keeps provider internals independent from runtime and concrete logging modules", () => {
+    const forbidden = ["/runtime/default", "/logging/logger"];
+    const violations = typescriptFiles(MODEL_PROVIDER_ROOT).flatMap((file) =>
+      relativeModuleSpecifiers(readFileSync(file, "utf8"), file)
+        .filter((specifier) => forbidden.some((dependency) => specifier.includes(dependency)))
+        .map((specifier) => `${relative(SOURCE_ROOT, file)} -> ${specifier}`),
+    );
+
+    assert.deepEqual(violations, []);
   });
 });

@@ -16,3 +16,8 @@
 ## Environment
 
 `.env.local` takes precedence over `.env`. Environment variables configure the model provider, model URL and ID, API keys, search quota, HTTP limits, and logging. Set `RESEARCH_CONFIG_PATH` or `SOURCE_REGISTRY_PATH` to load configuration from another location; otherwise Birbal uses its bundled files.
+
+Environment files are loaded when the CLI runs, not when the CLI module is imported. `LOG_LEVEL`
+and `LOG_PRETTY` remain the defaults for each newly created runtime. The CLI's `--trace` flag applies
+debug and pretty logging only to that runtime; it does not rewrite either environment variable or
+affect a later invocation in the same process.

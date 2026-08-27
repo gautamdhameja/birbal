@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import pino from "pino";
 
 import { LOGGING } from "../constants/runtime.js";
+import type { AppLoggingOptions } from "./types.js";
 
 const require = createRequire(import.meta.url);
 
@@ -24,38 +25,19 @@ function createPrettyDestination(): pino.DestinationStream {
   });
 }
 
-export function createAppLogger(): pino.Logger {
-  const destination =
-    process.env.LOG_PRETTY === LOGGING.PRETTY_ENABLED_VALUE
-      ? createPrettyDestination()
-      : pino.destination({ fd: LOGGING.PRETTY_DESTINATION_FD, sync: true });
+export function createAppLogger(options: AppLoggingOptions = {}): pino.Logger {
+  const pretty = options.pretty ?? process.env.LOG_PRETTY === LOGGING.PRETTY_ENABLED_VALUE;
+  const destination = pretty
+    ? createPrettyDestination()
+    : pino.destination({ fd: LOGGING.PRETTY_DESTINATION_FD, sync: true });
 
   return pino(
     {
       base: undefined,
-      level: process.env.LOG_LEVEL?.trim() || LOGGING.DEFAULT_LEVEL,
+      level: options.level?.trim() || process.env.LOG_LEVEL?.trim() || LOGGING.DEFAULT_LEVEL,
       name: LOGGING.LOGGER_NAME,
       timestamp: pino.stdTimeFunctions.isoTime,
     },
     destination,
   );
 }
-
-let defaultLogger: pino.Logger | undefined;
-
-function getDefaultLogger(): pino.Logger {
-  defaultLogger ??= createAppLogger();
-  return defaultLogger;
-}
-
-export const logger = {
-  debug(payload: Record<string, unknown>, message?: string): void {
-    getDefaultLogger().debug(payload, message);
-  },
-  warn(payload: Record<string, unknown>, message?: string): void {
-    getDefaultLogger().warn(payload, message);
-  },
-  get level(): string {
-    return getDefaultLogger().level;
-  },
-};

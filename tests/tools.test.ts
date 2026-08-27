@@ -13,7 +13,7 @@ import type { SourceRegistry } from "../src/app/config/sourceRegistryTypes.js";
 import { HTTP } from "../src/framework/network/constants.js";
 import { SOURCE_REGISTRY } from "../src/app/constants/source-registry.js";
 import { normalizeHackerNewsHit } from "../src/app/hackernews/client.js";
-import { createDefaultToolRegistry } from "../src/app/runtime/default.js";
+import { createDefaultRuntime, createDefaultToolRegistry } from "../src/app/runtime/default.js";
 import { createSourceDomainSearch } from "../src/app/source-search/domain.js";
 import type { SearchSourceDomainOptions } from "../src/app/source-search/domain.js";
 import { formatLocalIsoString } from "../src/app/tools/get-time.js";
@@ -37,7 +37,7 @@ function assertString(value: unknown): asserts value is string {
 const publicHostResolver = async () => [{ address: "93.184.216.34", family: 4 as const }];
 
 describe("tool registry", () => {
-  const toolRegistry = createToolRegistry();
+  const toolRegistry = createDefaultToolRegistry();
   const runTool = createAppToolExecutor(toolRegistry);
   let searchWeb = createBraveSearchClient().searchWeb;
 
@@ -105,8 +105,8 @@ describe("tool registry", () => {
   });
 
   it("creates isolated registries and executors whose mutations do not leak", async () => {
-    const first = createToolRegistry();
-    const second = createToolRegistry();
+    const first = createToolRegistry([]);
+    const second = createToolRegistry([]);
     const testTool: ToolDefinition = {
       name: "runtime_only",
       description: "Only registered in one runtime.",
@@ -135,6 +135,15 @@ describe("tool registry", () => {
     assert.notEqual(first, second);
     assert.notEqual(first.get("search_web"), second.get("search_web"));
     assert.notEqual(first.get("search_arxiv"), second.get("search_arxiv"));
+  });
+
+  it("creates isolated default runtime graphs", () => {
+    const first = createDefaultRuntime();
+    const second = createDefaultRuntime();
+
+    assert.notEqual(first, second);
+    assert.notEqual(first.runAgent, second.runAgent);
+    assert.notEqual(first.renderToolsForPrompt, second.renderToolsForPrompt);
   });
 
   it("binds fresh research tool graphs to their injected I/O operations", async () => {

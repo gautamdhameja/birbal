@@ -1,31 +1,15 @@
 import { loadSourceRegistry } from "../config/sourceRegistry.js";
-import { searchWeb } from "../brave-search/client.js";
-import type { SearchWebResult } from "../brave-search/client.js";
 import type { ResearchResult } from "../research/types.js";
 import type { SourceDescriptor } from "../sources/types.js";
 import { normalizeUrl } from "../../framework/network/normalizeUrl.js";
+import type {
+  SourceDomainSearch,
+  SourceDomainSearchDependencies,
+  WebSearchResult,
+} from "./types.js";
+export type { SearchSourceDomainOptions, SourceDomainSearch } from "./types.js";
 
 const SITE_QUERY_PREFIX = "site:";
-
-export type SearchSourceDomainOptions = {
-  sourceId: string;
-  query: string;
-  maxResults?: number;
-  signal?: AbortSignal;
-};
-
-export type WebSearchPort = (options: {
-  query: string;
-  maxResults?: number;
-  freshness?: string;
-  signal?: AbortSignal;
-}) => Promise<SearchWebResult[]>;
-
-export type SourceDomainSearchDependencies = {
-  loadSourceRegistry?: () => { sources: SourceDescriptor[] };
-  searchWeb?: WebSearchPort;
-  now?: () => Date;
-};
 
 function buildDomainQuery(query: string, domain: string): string {
   return `${query} ${SITE_QUERY_PREFIX}${domain}`;
@@ -59,7 +43,7 @@ function isSourceDomainUrl(url: string, domains: readonly string[]): boolean {
 
 function toResearchResult(
   source: SourceDescriptor,
-  result: SearchWebResult,
+  result: WebSearchResult,
   discoveredAt: string,
 ): ResearchResult | undefined {
   const url = normalizeUrl(result.url);
@@ -81,10 +65,10 @@ function toResearchResult(
 }
 
 export function createSourceDomainSearch(
-  dependencies: SourceDomainSearchDependencies = {},
-): (options: SearchSourceDomainOptions) => Promise<ResearchResult[]> {
+  dependencies: SourceDomainSearchDependencies,
+): SourceDomainSearch {
   const loadRegistry = dependencies.loadSourceRegistry ?? loadSourceRegistry;
-  const runWebSearch = dependencies.searchWeb ?? searchWeb;
+  const runWebSearch = dependencies.searchWeb;
   const now = dependencies.now ?? (() => new Date());
 
   return async ({ sourceId, query, maxResults = 10, signal }) => {
@@ -117,7 +101,3 @@ export function createSourceDomainSearch(
     return candidates;
   };
 }
-
-const defaultSourceDomainSearch = createSourceDomainSearch();
-
-export const searchSourceDomain = defaultSourceDomainSearch;

@@ -1,6 +1,6 @@
 import type { ModelClient } from "../../../framework/llm/types.js";
 import { createOpenAICompatibleModelClient } from "../openai-compatible/client.js";
-import type { OpenAICompatibleClientDependencies } from "../openai-compatible/client.js";
+import type { OpenAICompatibleClientDependencies } from "../openai-compatible/types.js";
 import { getOpenAIConfig } from "./config.js";
 
 export function createOpenAIModelAdapter(
@@ -8,5 +8,3 @@ export function createOpenAIModelAdapter(
 ): ModelClient {
   return createOpenAICompatibleModelClient(getOpenAIConfig, dependencies);
 }
-
-export const openAIModelAdapter: ModelClient = createOpenAIModelAdapter();
