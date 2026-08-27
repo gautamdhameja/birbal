@@ -31,3 +31,10 @@ export const ARCHITECTURE_LAB = {
   ],
   LEAKAGE_CATEGORIES: ["reference_design", "vendor_implementation", "complete_solution"],
 } as const;
+
+export const ARCHITECTURE_LAB_SESSION_LIMITS = {
+  caseNameCharacters: 500,
+  turnCharacters: 8_000,
+  transcriptCharacters: 32_000,
+  challengeRounds: 3,
+} as const;

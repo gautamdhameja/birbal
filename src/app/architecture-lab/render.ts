@@ -4,6 +4,7 @@ import type {
   ArchitectureReview,
   CaseBrief,
 } from "./types.js";
+import { ARCHITECTURE_LAB_SESSION_LIMITS } from "./constants.js";
 
 export type ArchitectureLabProgressPhase =
   | "case_research"
@@ -136,7 +137,7 @@ export function renderArchitectureLabFailure(error: {
 }): string {
   switch (error.code) {
     case "case_name_too_long":
-      return "The case name exceeds the 500 character limit.";
+      return `The case name exceeds the ${ARCHITECTURE_LAB_SESSION_LIMITS.caseNameCharacters} character limit.`;
     case "input_failed":
       return "Terminal input failed. Start a fresh lab session to try again.";
     case "transcript_too_long":

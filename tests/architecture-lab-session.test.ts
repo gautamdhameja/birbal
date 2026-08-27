@@ -160,8 +160,15 @@ function runWith(
   operations = fakeOperations(),
   caseName: string | undefined = "AI support triage",
 ) {
+  return runWithInput(scriptedInput(events), operations, caseName);
+}
+
+function runWithInput(
+  input: ScriptedInput,
+  operations = fakeOperations(),
+  caseName: string | undefined = "AI support triage",
+) {
   const outputs: ArchitectureLabSessionOutput[] = [];
-  const input = scriptedInput(events);
   const session = createArchitectureLabSession({
     operations,
     input,
@@ -212,7 +219,7 @@ describe("Architecture Case Lab renderer", () => {
     ]) {
       assert.match(rendered, new RegExp(`^${heading}`, "m"));
     }
-    assert.doesNotMatch(rendered, /\u001B\[/);
+    assert.equal(rendered.includes(`${String.fromCharCode(27)}[`), false);
   });
 
   it("renders concise progress, challenge, and distinct retry messages", () => {
@@ -485,7 +492,7 @@ describe("Architecture Case Lab session", () => {
       { type: "interrupted" as const },
       { type: "input_error" as const },
     ]) {
-      let input!: ScriptedInput;
+      const input = scriptedInput([]);
       const operations = fakeOperations({
         async prepareCase() {
           await Promise.resolve();
@@ -493,8 +500,7 @@ describe("Architecture Case Lab session", () => {
           return { ok: true, value: structuredClone(brief) };
         },
       });
-      const run = runWith([], operations);
-      input = run.input;
+      const run = runWithInput(input, operations);
 
       const result = await run.result;
 
@@ -508,7 +514,7 @@ describe("Architecture Case Lab session", () => {
   });
 
   it("lets EOF discard setup and challenge results but not a completed final review", async () => {
-    let setupInput!: ScriptedInput;
+    const setupInput = scriptedInput([]);
     const setupOperations = fakeOperations({
       async prepareCase() {
         await Promise.resolve();
@@ -516,11 +522,13 @@ describe("Architecture Case Lab session", () => {
         return { ok: true, value: structuredClone(brief) };
       },
     });
-    const setup = runWith([], setupOperations);
-    setupInput = setup.input;
+    const setup = runWithInput(setupInput, setupOperations);
     assert.equal((await setup.result).type, "exited");
 
-    let challengeInput!: ScriptedInput;
+    const challengeInput = scriptedInput([
+      { type: "line", line: "proposal" },
+      { type: "line", line: "/submit" },
+    ]);
     const challengeOperations = fakeOperations({
       async generateChallenge() {
         await Promise.resolve();
@@ -528,17 +536,14 @@ describe("Architecture Case Lab session", () => {
         return { ok: true, value: structuredClone(challenges[0]!) };
       },
     });
-    const challenge = runWith(
-      [
-        { type: "line", line: "proposal" },
-        { type: "line", line: "/submit" },
-      ],
-      challengeOperations,
-    );
-    challengeInput = challenge.input;
+    const challenge = runWithInput(challengeInput, challengeOperations);
     assert.equal((await challenge.result).type, "exited");
 
-    let reviewInput!: ScriptedInput;
+    const reviewInput = scriptedInput([
+      { type: "line", line: "proposal" },
+      { type: "line", line: "/submit" },
+      { type: "line", line: "/finish" },
+    ]);
     const reviewOperations = fakeOperations({
       async generateReview() {
         await Promise.resolve();
@@ -546,15 +551,7 @@ describe("Architecture Case Lab session", () => {
         return { ok: true, value: structuredClone(review) };
       },
     });
-    const final = runWith(
-      [
-        { type: "line", line: "proposal" },
-        { type: "line", line: "/submit" },
-        { type: "line", line: "/finish" },
-      ],
-      reviewOperations,
-    );
-    reviewInput = final.input;
+    const final = runWithInput(reviewInput, reviewOperations);
     assert.equal((await final.result).type, "completed");
   });
 

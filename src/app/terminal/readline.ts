@@ -30,6 +30,7 @@ export type ReadlineInterfaceFactory = (options: ReadLineOptions) => ReadlineInt
 export type ReadlineTerminalInputOptions = {
   input: TtyReadableStream;
   interactionOutput: TtyWritableStream;
+  maxQueuedCharacters: number;
   createInterface?: ReadlineInterfaceFactory;
 };
 
@@ -44,9 +45,16 @@ function normalizeInputError(value: unknown): Error {
 export function createReadlineTerminalInput({
   input,
   interactionOutput,
+  maxQueuedCharacters,
   createInterface = createNodeReadlineInterface,
 }: ReadlineTerminalInputOptions): TerminalInputPort {
+  if (!Number.isSafeInteger(maxQueuedCharacters) || maxQueuedCharacters <= 0) {
+    throw new RangeError("Terminal input queue limit must be a positive safe integer.");
+  }
+
   const lines: string[] = [];
+  let lineHead = 0;
+  let queuedCharacters = 0;
   let pendingRead: PendingRead | undefined;
   let terminalOutcome: TerminalInputTerminalOutcome | undefined;
   let listenersAttached = true;
@@ -69,6 +77,31 @@ export function createReadlineTerminalInput({
     input.off("error", handleInputError);
   };
 
+  const clearLines = (): void => {
+    lines.length = 0;
+    lineHead = 0;
+    queuedCharacters = 0;
+  };
+
+  const dequeueLine = (): string | undefined => {
+    if (lineHead >= lines.length) {
+      return undefined;
+    }
+
+    const line = lines[lineHead]!;
+    lineHead += 1;
+    queuedCharacters -= line.length + 1;
+
+    if (lineHead === lines.length) {
+      clearLines();
+    } else if (lineHead >= 64 && lineHead * 2 >= lines.length) {
+      lines.splice(0, lineHead);
+      lineHead = 0;
+    }
+
+    return line;
+  };
+
   const settlePendingRead = (): void => {
     if (!pendingRead) {
       return;
@@ -81,7 +114,7 @@ export function createReadlineTerminalInput({
       return;
     }
 
-    const line = lines.shift();
+    const line = dequeueLine();
     if (line !== undefined) {
       const { resolve } = pendingRead;
       pendingRead = undefined;
@@ -105,7 +138,7 @@ export function createReadlineTerminalInput({
     }
     terminalOutcome = outcome;
     if (options.discardLines) {
-      lines.length = 0;
+      clearLines();
     }
     detachListeners();
     settlePendingRead();
@@ -124,7 +157,27 @@ export function createReadlineTerminalInput({
     if (terminalOutcome) {
       return;
     }
+
+    const nextQueuedCharacters = queuedCharacters + line.length + 1;
+    if (nextQueuedCharacters > maxQueuedCharacters) {
+      if (
+        latchTerminalOutcome(
+          {
+            type: "input_error",
+            error: new Error(
+              `Terminal input queue exceeded its ${maxQueuedCharacters} character limit.`,
+            ),
+          },
+          { discardLines: true },
+        )
+      ) {
+        closeReadlineInterface();
+      }
+      return;
+    }
+
     lines.push(line);
+    queuedCharacters = nextQueuedCharacters;
     settlePendingRead();
   }
 
@@ -168,7 +221,7 @@ export function createReadlineTerminalInput({
         return Promise.resolve(terminalOutcome);
       }
 
-      const line = lines.shift();
+      const line = dequeueLine();
       if (line !== undefined) {
         return Promise.resolve({ type: "line", line });
       }
@@ -192,7 +245,6 @@ export function createReadlineTerminalInput({
 
     close(): void {
       latchTerminalOutcome({ type: "eof" }, { discardLines: true });
-      detachListeners();
       closeReadlineInterface();
     },
   };

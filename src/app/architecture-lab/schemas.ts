@@ -41,7 +41,7 @@ export const CaseBriefSchema = z.strictObject({
   sources: z.array(CaseBriefSourceSchema).min(1).max(ARCHITECTURE_LAB.MAX_SOURCES),
 });
 
-const LeakageCategorySchema = z.enum(ARCHITECTURE_LAB.LEAKAGE_CATEGORIES);
+export const LeakageCategorySchema = z.enum(ARCHITECTURE_LAB.LEAKAGE_CATEGORIES);
 
 export const OpeningSafetyCheckSchema = z.discriminatedUnion("safe", [
   z.strictObject({
@@ -61,8 +61,10 @@ const FocusedQuestionSchema = NonEmptyTextSchema.refine(
   "Challenge must contain exactly one question.",
 );
 
+export const DesignDimensionSchema = z.enum(ARCHITECTURE_LAB.DESIGN_DIMENSIONS);
+
 export const ArchitectureChallengeSchema = z.strictObject({
-  dimension: z.enum(ARCHITECTURE_LAB.DESIGN_DIMENSIONS),
+  dimension: DesignDimensionSchema,
   question: FocusedQuestionSchema,
 });
 
@@ -78,7 +80,7 @@ export const ArchitectureEvidenceSchema = z.strictObject({
   evidenceQuality: EvidenceQualitySchema,
 });
 
-const SupportedFactSchema = z.strictObject({
+export const SupportedFactSchema = z.strictObject({
   claim: NonEmptyTextSchema,
   sourceIds: z.array(NonEmptyTextSchema).min(1).max(ARCHITECTURE_LAB.MAX_SOURCES),
 });

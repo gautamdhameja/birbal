@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 import { Command } from "commander";
 import dotenv from "dotenv";
 
+import { ARCHITECTURE_LAB_SESSION_LIMITS } from "./architecture-lab/constants.js";
 import { CLI, ENV_FILE_PATHS } from "./constants/runtime.js";
 import type { TerminalInputPort } from "./terminal/types.js";
 import type { BirbalRuntimeLoader, BirbalRuntimeOptions } from "./runtime/types.js";
@@ -10,6 +11,10 @@ import type { BirbalRuntimeLoader, BirbalRuntimeOptions } from "./runtime/types.
 type TraceOptions = {
   trace?: boolean;
 };
+
+const LAB_TERMINAL_QUEUE_MAX_CHARACTERS =
+  ARCHITECTURE_LAB_SESSION_LIMITS.transcriptCharacters +
+  ARCHITECTURE_LAB_SESSION_LIMITS.turnCharacters;
 
 export type CliExitStatus = 0 | 1 | 130;
 
@@ -44,6 +49,7 @@ async function loadDefaultTerminalInput(): Promise<TerminalInputPort> {
   return createReadlineTerminalInput({
     input: process.stdin,
     interactionOutput: process.stderr,
+    maxQueuedCharacters: LAB_TERMINAL_QUEUE_MAX_CHARACTERS,
   });
 }
 

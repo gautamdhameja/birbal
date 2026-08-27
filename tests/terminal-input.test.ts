@@ -24,7 +24,13 @@ function setTty(stream: PassThrough, isTty: boolean): void {
   });
 }
 
-function createFakeAdapter(options: { inputTty?: boolean; outputTty?: boolean } = {}) {
+function createFakeAdapter(
+  options: {
+    inputTty?: boolean;
+    outputTty?: boolean;
+    maxQueuedCharacters?: number;
+  } = {},
+) {
   const input = new PassThrough();
   const output = new PassThrough();
   const readlineInterface = new FakeReadlineInterface();
@@ -35,6 +41,7 @@ function createFakeAdapter(options: { inputTty?: boolean; outputTty?: boolean } 
   const adapter = createReadlineTerminalInput({
     input,
     interactionOutput: output,
+    maxQueuedCharacters: options.maxQueuedCharacters ?? 1_024,
     createInterface: (readlineOptions) => {
       receivedTerminalOptions.push(Boolean(readlineOptions.terminal));
       return readlineInterface;
@@ -65,7 +72,11 @@ describe("Node terminal input adapter", () => {
   it("delivers a final unterminated line before EOF", async () => {
     const input = new PassThrough();
     const output = new PassThrough();
-    const adapter = createReadlineTerminalInput({ input, interactionOutput: output });
+    const adapter = createReadlineTerminalInput({
+      input,
+      interactionOutput: output,
+      maxQueuedCharacters: 1_024,
+    });
 
     input.end("last line");
 
@@ -133,6 +144,7 @@ describe("Node terminal input adapter", () => {
       const adapter = createReadlineTerminalInput({
         input,
         interactionOutput: output,
+        maxQueuedCharacters: 1_024,
         createInterface: () => readlineInterface,
       });
 
@@ -152,6 +164,59 @@ describe("Node terminal input adapter", () => {
     readlineInterface.emit("line", "too late");
 
     assert.deepEqual(await adapter.read(), { type: "eof" });
+  });
+
+  it("accepts a queued line exactly at the character budget", async () => {
+    const { adapter, readlineInterface } = createFakeAdapter({ maxQueuedCharacters: 5 });
+
+    readlineInterface.emit("line", "four");
+
+    assert.deepEqual(await adapter.read(), { type: "line", line: "four" });
+    assert.equal(adapter.getTerminalOutcome(), undefined);
+    adapter.close();
+  });
+
+  it("turns queue-budget overflow into a terminal input error", async () => {
+    const { adapter, readlineInterface } = createFakeAdapter({ maxQueuedCharacters: 5 });
+
+    readlineInterface.emit("line", "queued");
+    readlineInterface.emit("close");
+
+    const outcome = await adapter.read();
+    assert.equal(outcome.type, "input_error");
+    if (outcome.type === "input_error") {
+      assert.match(outcome.error.message, /queue exceeded its 5 character limit/i);
+    }
+    assert.equal(adapter.getTerminalOutcome()?.type, "input_error");
+    assert.equal(readlineInterface.closeCalls, 1);
+  });
+
+  it("reclaims consumed queue budget and preserves FIFO after compaction", async () => {
+    const initialLines = Array.from({ length: 130 }, (_, index) => `line-${index}`);
+    const replacementLines = initialLines.slice(0, 70);
+    const initialBudget = initialLines.reduce((total, line) => total + line.length + 1, 0);
+    const { adapter, readlineInterface } = createFakeAdapter({
+      maxQueuedCharacters: initialBudget,
+    });
+
+    for (const line of initialLines) {
+      readlineInterface.emit("line", line);
+    }
+    for (const line of initialLines.slice(0, 70)) {
+      assert.deepEqual(await adapter.read(), { type: "line", line });
+    }
+
+    for (const line of replacementLines) {
+      readlineInterface.emit("line", line);
+    }
+    for (const line of [...initialLines.slice(70), ...replacementLines]) {
+      assert.deepEqual(await adapter.read(), { type: "line", line });
+    }
+
+    readlineInterface.emit("line", "after-reset");
+    assert.deepEqual(await adapter.read(), { type: "line", line: "after-reset" });
+    assert.equal(adapter.getTerminalOutcome(), undefined);
+    adapter.close();
   });
 
   for (const ttyCombination of [

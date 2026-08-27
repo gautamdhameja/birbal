@@ -8,34 +8,25 @@ import {
   type ArchitectureLabProgressPhase,
   type ArchitectureLabRetry,
 } from "./render.js";
+import { ARCHITECTURE_LAB_SESSION_LIMITS } from "./constants.js";
 import type {
   ArchitectureChallenge,
+  ArchitectureLabInput,
+  ArchitectureLabInputPort,
   ArchitectureLabOperationError,
   ArchitectureLabOperations,
+  ArchitectureLabResult,
   ArchitectureReview,
   CaseBrief,
   LabTranscriptTurn,
 } from "./types.js";
 
-export const ARCHITECTURE_LAB_SESSION_LIMITS = {
-  caseNameCharacters: 500,
-  turnCharacters: 8_000,
-  transcriptCharacters: 32_000,
-  challengeRounds: 3,
-} as const;
-
-export type ArchitectureLabInput =
-  | { type: "line"; line: string }
-  | { type: "eof" }
-  | { type: "interrupted" }
-  | { type: "input_error" };
-
-export type ArchitectureLabTerminalInput = Exclude<ArchitectureLabInput, { type: "line" }>;
-
-export type ArchitectureLabInputPort = {
-  read(): Promise<ArchitectureLabInput>;
-  getTerminalOutcome(): ArchitectureLabTerminalInput | undefined;
-};
+export { ARCHITECTURE_LAB_SESSION_LIMITS } from "./constants.js";
+export type {
+  ArchitectureLabInput,
+  ArchitectureLabInputPort,
+  ArchitectureLabTerminalInput,
+} from "./types.js";
 
 export type ArchitectureLabSessionState =
   | "idle"
@@ -109,7 +100,7 @@ export function createArchitectureLabSession({
   let state: ArchitectureLabSessionState = "idle";
   let runPromise: Promise<ArchitectureLabSessionResult> | undefined;
   let caseBrief: CaseBrief | undefined;
-  let transcript: LabTranscriptTurn[] = [];
+  const transcript: LabTranscriptTurn[] = [];
   let round = 0;
   let draftLines: string[] = [];
 
@@ -141,6 +132,17 @@ export function createArchitectureLabSession({
       error: { ...failureShape, message },
       output: message,
     });
+  }
+
+  async function callOperationSafely<T>(
+    call: () => Promise<ArchitectureLabResult<T>>,
+    fallbackError: ArchitectureLabOperationError,
+  ): Promise<ArchitectureLabResult<T>> {
+    try {
+      return await call();
+    } catch {
+      return { ok: false, error: fallbackError };
+    }
   }
 
   function terminalAfterOperation(options: {
@@ -257,62 +259,48 @@ export function createArchitectureLabSession({
   }
 
   async function callPrepareCase(caseName?: string) {
-    try {
-      return await operations.prepareCase({ ...(caseName ? { caseName } : {}) });
-    } catch {
-      return {
-        ok: false as const,
-        error: {
-          type: "architecture_lab_operation_error" as const,
-          phase: "case_research" as const,
-          code: "research_failed" as const,
-          message: "Lab research failed.",
-        },
-      };
-    }
+    return callOperationSafely(
+      () => operations.prepareCase({ ...(caseName ? { caseName } : {}) }),
+      {
+        type: "architecture_lab_operation_error",
+        phase: "case_research",
+        code: "research_failed",
+        message: "Lab research failed.",
+      },
+    );
   }
 
   async function callOpeningSafety(opening: string) {
-    try {
-      return await operations.checkOpeningSafety({ opening });
-    } catch {
-      return {
-        ok: false as const,
-        error: {
-          type: "architecture_lab_operation_error" as const,
-          phase: "opening_safety" as const,
-          code: "model_failed" as const,
-          message: "The opening_safety model call failed.",
-        },
-      };
-    }
+    return callOperationSafely(() => operations.checkOpeningSafety({ opening }), {
+      type: "architecture_lab_operation_error",
+      phase: "opening_safety",
+      code: "model_failed",
+      message: "The opening_safety model call failed.",
+    });
   }
 
   async function generateChallenge(): Promise<ArchitectureLabSessionResult | undefined> {
-    if (!caseBrief) {
+    const activeBrief = caseBrief;
+    if (!activeBrief) {
       throw new Error("Architecture Lab invariant violated: challenge without a case brief.");
     }
     state = "generating_challenge";
     progress("challenge");
     const nextRound = round + 1;
-    let result;
-    try {
-      result = await operations.generateChallenge({
-        brief: structuredClone(caseBrief),
-        transcript: structuredClone(transcript),
-        round: nextRound,
-      });
-    } catch {
-      result = {
-        ok: false as const,
-        error: {
-          type: "architecture_lab_operation_error" as const,
-          phase: "challenge" as const,
-          code: "model_failed" as const,
-          message: "The challenge model call failed.",
-        },
-      };
-    }
+    const result = await callOperationSafely(
+      () =>
+        operations.generateChallenge({
+          brief: structuredClone(activeBrief),
+          transcript: structuredClone(transcript),
+          round: nextRound,
+        }),
+      {
+        type: "architecture_lab_operation_error",
+        phase: "challenge",
+        code: "model_failed",
+        message: "The challenge model call failed.",
+      },
+    );
     const terminal = terminalAfterOperation({ eofWins: true });
     if (terminal) {
       return terminal;
@@ -343,29 +331,26 @@ export function createArchitectureLabSession({
   }
 
   async function generateReview(): Promise<ArchitectureLabSessionResult> {
-    if (!caseBrief) {
+    const activeBrief = caseBrief;
+    if (!activeBrief) {
       throw new Error("Architecture Lab invariant violated: review without a case brief.");
     }
     state = "generating_review";
     progress("architecture_evidence");
     progress("review");
-    let result;
-    try {
-      result = await operations.generateReview({
-        brief: structuredClone(caseBrief),
-        transcript: structuredClone(transcript),
-      });
-    } catch {
-      result = {
-        ok: false as const,
-        error: {
-          type: "architecture_lab_operation_error" as const,
-          phase: "review" as const,
-          code: "model_failed" as const,
-          message: "The review model call failed.",
-        },
-      };
-    }
+    const result = await callOperationSafely(
+      () =>
+        operations.generateReview({
+          brief: structuredClone(activeBrief),
+          transcript: structuredClone(transcript),
+        }),
+      {
+        type: "architecture_lab_operation_error",
+        phase: "review",
+        code: "model_failed",
+        message: "The review model call failed.",
+      },
+    );
     const terminal = terminalAfterOperation({ eofWins: false });
     if (terminal) {
       return terminal;

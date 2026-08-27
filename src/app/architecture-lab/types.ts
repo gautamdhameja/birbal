@@ -1,111 +1,56 @@
 import type { ModelClient } from "../../framework/llm/types.js";
 import type { DebugWarnLogger } from "../../framework/logging/debug-warn.js";
+import type { z } from "zod";
+
+import type { ARCHITECTURE_LAB } from "./constants.js";
+import type {
+  ArchitectureChallengeSchema,
+  ArchitectureEvidenceClaimSchema,
+  ArchitectureEvidenceSchema,
+  ArchitectureReviewSchema,
+  CaseBriefSchema,
+  CaseBriefSourceSchema,
+  CitedClaimSchema,
+  DesignDimensionSchema,
+  EvidenceQualitySchema,
+  EvidenceSourceSchema,
+  LabTranscriptTurnSchema,
+  LeakageCategorySchema,
+  OpeningSafetyCheckSchema,
+  SourceDossierSchema,
+  SupportedFactSchema,
+} from "./schemas.js";
 
 export type CaseSelection = "learner" | "automatic";
-export type EvidenceQuality = "sufficient" | "limited";
-export type ArchitectureLabPhase =
-  | "case_research"
-  | "case_brief"
-  | "opening_safety"
-  | "challenge"
-  | "architecture_evidence"
-  | "review";
+export type EvidenceQuality = z.infer<typeof EvidenceQualitySchema>;
+type ArchitectureLabTraceLabels = typeof ARCHITECTURE_LAB.TRACE_LABELS;
+export type ArchitectureLabPhase = Lowercase<keyof ArchitectureLabTraceLabels>;
+export type EvidenceSource = z.infer<typeof EvidenceSourceSchema>;
+export type CitedClaim = z.infer<typeof CitedClaimSchema>;
+export type SourceDossier = z.infer<typeof SourceDossierSchema>;
+export type CaseBriefSource = z.infer<typeof CaseBriefSourceSchema>;
+export type CaseBrief = z.infer<typeof CaseBriefSchema>;
+export type LeakageCategory = z.infer<typeof LeakageCategorySchema>;
+export type OpeningSafetyCheck = z.infer<typeof OpeningSafetyCheckSchema>;
+export type DesignDimension = z.infer<typeof DesignDimensionSchema>;
+export type ArchitectureChallenge = z.infer<typeof ArchitectureChallengeSchema>;
+export type LabTranscriptTurn = z.infer<typeof LabTranscriptTurnSchema>;
+export type ArchitectureEvidenceClaim = z.infer<typeof ArchitectureEvidenceClaimSchema>;
+export type ArchitectureEvidence = z.infer<typeof ArchitectureEvidenceSchema>;
+export type SupportedFact = z.infer<typeof SupportedFactSchema>;
+export type ArchitectureReview = z.infer<typeof ArchitectureReviewSchema>;
 
-export type EvidenceSource = {
-  id: string;
-  title: string;
-  url: string;
-  publishedAt: string;
-  excerpt: string;
-};
+export type ArchitectureLabInput =
+  | { type: "line"; line: string }
+  | { type: "eof" }
+  | { type: "interrupted" }
+  | { type: "input_error" };
 
-export type CitedClaim = {
-  claim: string;
-  sourceIds: string[];
-};
+export type ArchitectureLabTerminalInput = Exclude<ArchitectureLabInput, { type: "line" }>;
 
-export type SourceDossier = {
-  caseName: string;
-  problem: string;
-  actors: string[];
-  constraints: string[];
-  desiredOutcome: CitedClaim;
-  sources: EvidenceSource[];
-};
-
-export type CaseBriefSource = Omit<EvidenceSource, "excerpt">;
-
-export type CaseBrief = {
-  title: string;
-  problem: string;
-  actors: string[];
-  constraints: string[];
-  desiredOutcome: CitedClaim;
-  evidenceQuality: EvidenceQuality;
-  sources: CaseBriefSource[];
-};
-
-export type LeakageCategory = "reference_design" | "vendor_implementation" | "complete_solution";
-
-export type OpeningSafetyCheck =
-  | {
-      safe: true;
-      leakage: [];
-      reason: string;
-    }
-  | {
-      safe: false;
-      leakage: LeakageCategory[];
-      reason: string;
-    };
-
-export type DesignDimension =
-  | "control_flow"
-  | "tool_boundaries"
-  | "state"
-  | "safety"
-  | "evaluation"
-  | "reliability"
-  | "human_oversight";
-
-export type ArchitectureChallenge = {
-  dimension: DesignDimension;
-  question: string;
-};
-
-export type LabTranscriptTurn = {
-  role: "learner" | "birbal";
-  phase: "proposal" | "challenge" | "answer";
-  content: string;
-};
-
-export type ArchitectureEvidenceClaim = {
-  id: string;
-  claim: string;
-  sourceIds: string[];
-};
-
-export type ArchitectureEvidence = {
-  claims: ArchitectureEvidenceClaim[];
-  sources: EvidenceSource[];
-  evidenceQuality: EvidenceQuality;
-};
-
-export type SupportedFact = {
-  claim: string;
-  sourceIds: string[];
-};
-
-export type ArchitectureReview = {
-  strengths: string[];
-  unresolvedRisks: string[];
-  missingComponents: string[];
-  alternatives: string[];
-  supportedFacts: SupportedFact[];
-  inferences: string[];
-  judgments: string[];
-  nextChallenge: string;
-  evidenceQuality: EvidenceQuality;
+export type ArchitectureLabInputPort = {
+  read(): Promise<ArchitectureLabInput>;
+  getTerminalOutcome(): ArchitectureLabTerminalInput | undefined;
 };
 
 export type CaseResearchRequest = {

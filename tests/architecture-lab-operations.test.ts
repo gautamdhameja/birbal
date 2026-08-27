@@ -59,7 +59,7 @@ const limitedDossier: SourceDossier = {
   sources: [recentDossier.sources[0]!],
 };
 
-const extractedBrief = {
+const extractedBrief: CaseBrief = {
   title: "Design support triage without exposing a solution",
   problem: recentDossier.problem,
   actors: recentDossier.actors,
@@ -355,7 +355,7 @@ describe("Architecture Case Lab operations", () => {
     });
 
     const result = await operations.generateChallenge({
-      brief: extractedBrief as CaseBrief,
+      brief: extractedBrief,
       transcript,
       round: 1,
     });
@@ -411,14 +411,14 @@ describe("Architecture Case Lab operations", () => {
     });
 
     await operations.generateChallenge({
-      brief: extractedBrief as CaseBrief,
+      brief: extractedBrief,
       transcript,
       round: 1,
     });
     assert.deepEqual(researchPhases, []);
 
     const review = await operations.generateReview({
-      brief: extractedBrief as CaseBrief,
+      brief: extractedBrief,
       transcript,
     });
 
@@ -455,7 +455,7 @@ describe("Architecture Case Lab operations", () => {
     });
 
     const result = await operations.generateReview({
-      brief: extractedBrief as CaseBrief,
+      brief: extractedBrief,
       transcript,
     });
 
@@ -486,7 +486,7 @@ describe("Architecture Case Lab operations", () => {
     });
 
     const result = await operations.generateReview({
-      brief: { ...extractedBrief, evidenceQuality: "limited" } as CaseBrief,
+      brief: { ...extractedBrief, evidenceQuality: "limited" },
       transcript,
     });
 
@@ -524,7 +524,7 @@ describe("Architecture Case Lab operations", () => {
       selection: "learner",
     });
     const challengeMessages = buildChallengeMessages({
-      brief: extractedBrief as CaseBrief,
+      brief: extractedBrief,
       transcript,
       round: 2,
     });
