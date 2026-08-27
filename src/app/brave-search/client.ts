@@ -19,7 +19,6 @@ export type SearchWebResult = {
   description: string;
   publishedAt?: string;
   sourceName?: string;
-  raw: unknown;
 };
 
 type NormalizedSearchWebOptions = {
@@ -108,7 +107,6 @@ export function normalizeBraveWebResult(result: BraveWebResult): SearchWebResult
     description: result.description,
     ...(publishedAt ? { publishedAt } : {}),
     ...(sourceName ? { sourceName } : {}),
-    raw: result,
   };
 }
 

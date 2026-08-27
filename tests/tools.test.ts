@@ -188,7 +188,6 @@ describe("tool registry", () => {
       description: "Search the web.",
       publishedAt: "2026-05-21T12:00:00Z",
       sourceName: "Brave",
-      raw,
     });
   });
 
@@ -239,15 +238,6 @@ describe("tool registry", () => {
             description: "A field report.",
             publishedAt: "2026-05-20T00:00:00Z",
             sourceName: "example.com",
-            raw: {
-              title: "Enterprise AI agents",
-              url: "https://example.com/agents",
-              description: "A field report.",
-              age: "2026-05-20T00:00:00Z",
-              meta_url: {
-                hostname: "example.com",
-              },
-            },
           },
         ],
       );
@@ -447,12 +437,6 @@ describe("tool registry", () => {
             summary: "Practical notes on agent evals.",
             publishedAt: "2026-05-20T00:00:00Z",
             discoveredAt: "<dynamic>",
-            raw: {
-              title: "Agent evaluation field notes",
-              url: "https://example.com/agents#comments",
-              description: "Practical notes on agent evals.",
-              age: "2026-05-20T00:00:00Z",
-            },
           },
         ],
       );
@@ -461,6 +445,64 @@ describe("tool registry", () => {
         "agent evaluation site:example.com",
         "agent evaluation site:docs.example.com",
       ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalApiKey === undefined) {
+        delete process.env.BRAVE_SEARCH_API_KEY;
+      } else {
+        process.env.BRAVE_SEARCH_API_KEY = originalApiKey;
+      }
+    }
+  });
+
+  it("stops searching source domains after reaching the result limit", async () => {
+    const originalFetch = globalThis.fetch;
+    const originalApiKey = process.env.BRAVE_SEARCH_API_KEY;
+    let calls = 0;
+
+    process.env.BRAVE_SEARCH_API_KEY = "test-key";
+    globalThis.fetch = (() => {
+      calls += 1;
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            web: {
+              results: [
+                {
+                  title: "Agent evaluation field notes",
+                  url: "https://example.com/agents",
+                  description: "Practical notes on agent evals.",
+                },
+              ],
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+    }) as typeof fetch;
+
+    try {
+      const results = await searchSourceDomain(
+        { sourceId: "enterprise-ai", query: "agent evaluation", maxResults: 1 },
+        {
+          sourceRegistry: {
+            sources: [
+              {
+                id: "enterprise-ai",
+                name: "Enterprise AI",
+                domains: ["example.com", "docs.example.com"],
+                priority: 1,
+                sourceType: SOURCE_REGISTRY.SOURCE_TYPES.COMMUNITY,
+                searchQueries: ["agent evaluation"],
+                enabled: true,
+              },
+            ],
+          },
+        },
+      );
+
+      assert.equal(results.length, 1);
+      assert.equal(calls, 1);
     } finally {
       globalThis.fetch = originalFetch;
       if (originalApiKey === undefined) {

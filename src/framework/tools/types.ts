@@ -1,5 +1,7 @@
 import type { z } from "zod";
 
+import type { DebugLogger } from "../logging/types.js";
+
 export type ToolRunContext = {
   signal?: AbortSignal;
 };
@@ -25,6 +27,4 @@ export type ToolRunTraceContext = {
   step?: number;
 };
 
-export type ToolLogger = {
-  debug(payload: Record<string, unknown>, message?: string): void;
-};
+export type ToolLogger = DebugLogger;

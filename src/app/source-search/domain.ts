@@ -2,12 +2,10 @@ import type { SourceRegistryItem } from "../config/sourceRegistry.js";
 import { loadSourceRegistry } from "../config/sourceRegistry.js";
 import { searchWeb } from "../brave-search/client.js";
 import type { SearchWebResult } from "../brave-search/client.js";
-import type { ResearchResult } from "../research/types.js";
-import { mapLimit } from "../../framework/async/mapLimit.js";
+import type { ResearchResult } from "../research/schema.js";
 import { normalizeUrl } from "../../framework/network/normalizeUrl.js";
 
 const SITE_QUERY_PREFIX = "site:";
-const DOMAIN_SEARCH_CONCURRENCY = 3;
 
 export type SearchSourceDomainOptions = {
   sourceId: string;
@@ -69,24 +67,7 @@ function toResearchResult(
     summary: result.description,
     publishedAt: result.publishedAt ?? "",
     discoveredAt: new Date().toISOString(),
-    raw: result.raw,
   };
-}
-
-function dedupeResearchResults(results: ResearchResult[]): ResearchResult[] {
-  const seen = new Set<string>();
-  const deduped: ResearchResult[] = [];
-
-  for (const result of results) {
-    if (seen.has(result.url)) {
-      continue;
-    }
-
-    seen.add(result.url);
-    deduped.push(result);
-  }
-
-  return deduped;
 }
 
 export async function searchSourceDomain(
@@ -95,27 +76,30 @@ export async function searchSourceDomain(
 ): Promise<ResearchResult[]> {
   const sourceRegistry = dependencies.sourceRegistry ?? loadSourceRegistry();
   const source = findSource(sourceId, sourceRegistry.sources);
-  const candidateGroups = await mapLimit(
-    source.domains,
-    DOMAIN_SEARCH_CONCURRENCY,
-    async (domain) => {
-      const results = await searchWeb({
-        query: buildDomainQuery(query, domain),
-        maxResults,
-        signal,
-      });
+  const seenUrls = new Set<string>();
+  const candidates: ResearchResult[] = [];
 
-      const candidates: ResearchResult[] = [];
-      for (const result of results) {
-        const candidate = toResearchResult(source, result);
-        if (candidate) {
-          candidates.push(candidate);
-        }
+  for (const domain of source.domains) {
+    const results = await searchWeb({
+      query: buildDomainQuery(query, domain),
+      maxResults,
+      signal,
+    });
+
+    for (const result of results) {
+      const candidate = toResearchResult(source, result);
+      if (!candidate || seenUrls.has(candidate.url)) {
+        continue;
       }
 
-      return candidates;
-    },
-  );
+      seenUrls.add(candidate.url);
+      candidates.push(candidate);
 
-  return dedupeResearchResults(candidateGroups.flat()).slice(0, maxResults);
+      if (candidates.length === maxResults) {
+        return candidates;
+      }
+    }
+  }
+
+  return candidates;
 }

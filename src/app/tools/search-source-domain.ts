@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { BRAVE_SEARCH } from "../constants/brave-search.js";
 import { TOOLS } from "../constants/tools.js";
+import { ResearchResultSchema } from "../research/schema.js";
 import { searchSourceDomain } from "../source-search/domain.js";
 import type { ToolDefinition } from "../../framework/tools/types.js";
 
@@ -19,20 +20,7 @@ const SearchSourceDomainArgsSchema = z.strictObject({
 const SearchSourceDomainResultSchema = z.strictObject({
   sourceId: z.string(),
   query: z.string(),
-  results: z.array(
-    z.strictObject({
-      id: z.string(),
-      sourceId: z.string(),
-      sourceName: z.string(),
-      sourceType: z.string(),
-      title: z.string(),
-      url: z.string(),
-      summary: z.string(),
-      publishedAt: z.string(),
-      discoveredAt: z.string(),
-      raw: z.unknown(),
-    }),
-  ),
+  results: z.array(ResearchResultSchema),
 });
 
 export const searchSourceDomainTool: ToolDefinition<

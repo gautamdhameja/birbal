@@ -1,4 +1,5 @@
 import type { ChatMessage, ModelClient, ModelCompleteOptions } from "../llm/types.js";
+import type { DebugLogger } from "../logging/types.js";
 import type { ToolRunTraceContext } from "../tools/types.js";
 
 export type AgentFinalResponse = {
@@ -14,9 +15,7 @@ export type AgentToolCallResponse = {
 
 export type AgentResponse = AgentFinalResponse | AgentToolCallResponse;
 
-export type AgentLogger = {
-  debug(payload: Record<string, unknown>, message?: string): void;
-};
+export type AgentLogger = DebugLogger;
 
 export type ToolRunner = (
   name: string,

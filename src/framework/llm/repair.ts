@@ -1,12 +1,12 @@
 import { z } from "zod";
 
+import type { DebugLogger } from "../logging/types.js";
 import { parseStrictJson } from "./json.js";
 import type { ChatMessage, ModelClient, ModelCompleteOptions } from "./types.js";
 
 type CompleteFn = ModelClient["complete"];
 
-type StructuredOutputRepairLogger = {
-  debug(payload: Record<string, unknown>, message?: string): void;
+type StructuredOutputRepairLogger = DebugLogger & {
   warn(payload: Record<string, unknown>, message?: string): void;
 };
 

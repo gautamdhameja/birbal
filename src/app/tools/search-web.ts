@@ -25,7 +25,6 @@ const SearchWebResultSchema = z.strictObject({
       description: z.string(),
       publishedAt: z.string().optional(),
       sourceName: z.string().optional(),
-      raw: z.unknown(),
     }),
   ),
 });

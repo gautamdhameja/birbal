@@ -5,17 +5,14 @@ import { z } from "zod";
 import { loadJsonConfig } from "../../framework/config/loadJsonConfig.js";
 import { SOURCE_REGISTRY } from "../constants/source-registry.js";
 
+export const SourceTypeSchema = z.enum(SOURCE_REGISTRY.SOURCE_TYPES);
+
 const SourceRegistryItemSchema = z.strictObject({
   id: z.string().trim().min(1),
   name: z.string().trim().min(1),
   domains: z.array(z.string().trim().min(1)).min(1),
   priority: z.number().int().min(1),
-  sourceType: z.enum([
-    SOURCE_REGISTRY.SOURCE_TYPES.COMMUNITY,
-    SOURCE_REGISTRY.SOURCE_TYPES.ACADEMIC,
-    SOURCE_REGISTRY.SOURCE_TYPES.VENDOR,
-    SOURCE_REGISTRY.SOURCE_TYPES.PRESS,
-  ]),
+  sourceType: SourceTypeSchema,
   searchQueries: z.array(z.string().trim().min(1)).min(1),
   enabled: z.boolean(),
 });
