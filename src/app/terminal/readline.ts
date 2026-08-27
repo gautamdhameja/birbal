@@ -20,17 +20,25 @@ type TtyWritableStream = NodeJS.WritableStream & {
 export type ReadlineInterfaceLike = {
   on(event: "line", listener: (line: string) => void): unknown;
   on(event: "close" | "SIGINT", listener: () => void): unknown;
+  on(event: "error", listener: (error: unknown) => void): unknown;
   off(event: "line", listener: (line: string) => void): unknown;
   off(event: "close" | "SIGINT", listener: () => void): unknown;
+  off(event: "error", listener: (error: unknown) => void): unknown;
   close(): void;
 };
 
 export type ReadlineInterfaceFactory = (options: ReadLineOptions) => ReadlineInterfaceLike;
 
+export type InterruptSignalSource = {
+  on(event: "SIGINT", listener: () => void): unknown;
+  off(event: "SIGINT", listener: () => void): unknown;
+};
+
 export type ReadlineTerminalInputOptions = {
   input: TtyReadableStream;
   interactionOutput: TtyWritableStream;
   maxQueuedCharacters: number;
+  interruptSignalSource?: InterruptSignalSource;
   createInterface?: ReadlineInterfaceFactory;
 };
 
@@ -46,6 +54,7 @@ export function createReadlineTerminalInput({
   input,
   interactionOutput,
   maxQueuedCharacters,
+  interruptSignalSource = process,
   createInterface = createNodeReadlineInterface,
 }: ReadlineTerminalInputOptions): TerminalInputPort {
   if (!Number.isSafeInteger(maxQueuedCharacters) || maxQueuedCharacters <= 0) {
@@ -74,7 +83,8 @@ export function createReadlineTerminalInput({
     readlineInterface.off("line", handleLine);
     readlineInterface.off("close", handleClose);
     readlineInterface.off("SIGINT", handleInterrupt);
-    input.off("error", handleInputError);
+    readlineInterface.off("error", handleInputError);
+    interruptSignalSource.off("SIGINT", handleInterrupt);
   };
 
   const clearLines = (): void => {
@@ -213,7 +223,8 @@ export function createReadlineTerminalInput({
   readlineInterface.on("line", handleLine);
   readlineInterface.on("close", handleClose);
   readlineInterface.on("SIGINT", handleInterrupt);
-  input.on("error", handleInputError);
+  readlineInterface.on("error", handleInputError);
+  interruptSignalSource.on("SIGINT", handleInterrupt);
 
   return {
     read(): Promise<TerminalInputOutcome> {

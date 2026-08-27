@@ -29,11 +29,13 @@ function createFakeAdapter(
     inputTty?: boolean;
     outputTty?: boolean;
     maxQueuedCharacters?: number;
+    interruptSignalSource?: EventEmitter;
   } = {},
 ) {
   const input = new PassThrough();
   const output = new PassThrough();
   const readlineInterface = new FakeReadlineInterface();
+  const interruptSignalSource = options.interruptSignalSource ?? new EventEmitter();
   const receivedTerminalOptions: boolean[] = [];
   setTty(input, options.inputTty ?? false);
   setTty(output, options.outputTty ?? false);
@@ -42,6 +44,7 @@ function createFakeAdapter(
     input,
     interactionOutput: output,
     maxQueuedCharacters: options.maxQueuedCharacters ?? 1_024,
+    interruptSignalSource,
     createInterface: (readlineOptions) => {
       receivedTerminalOptions.push(Boolean(readlineOptions.terminal));
       return readlineInterface;
@@ -53,6 +56,7 @@ function createFakeAdapter(
     input,
     output,
     readlineInterface,
+    interruptSignalSource,
     receivedTerminalOptions,
   };
 }
@@ -107,15 +111,37 @@ describe("Node terminal input adapter", () => {
   });
 
   it("reports input errors distinctly from EOF", async () => {
-    const { adapter, input, readlineInterface } = createFakeAdapter();
+    const { adapter, readlineInterface } = createFakeAdapter();
     const failure = new Error("input broke");
     const pending = adapter.read();
 
-    input.emit("error", failure);
+    readlineInterface.emit("error", failure);
     readlineInterface.emit("close");
 
     assert.deepEqual(await pending, { type: "input_error", error: failure });
     assert.deepEqual(adapter.getTerminalOutcome(), { type: "input_error", error: failure });
+  });
+
+  it("handles errors forwarded by the real Node readline interface", async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const interruptSignalSource = new EventEmitter();
+    const adapter = createReadlineTerminalInput({
+      input,
+      interactionOutput: output,
+      maxQueuedCharacters: 1_024,
+      interruptSignalSource,
+    });
+    const failure = new Error("input broke");
+    const pending = adapter.read();
+
+    input.emit("error", failure);
+
+    assert.deepEqual(await pending, { type: "input_error", error: failure });
+    assert.deepEqual(adapter.getTerminalOutcome(), { type: "input_error", error: failure });
+    assert.equal(input.listenerCount("error"), 0);
+    assert.equal(interruptSignalSource.listenerCount("SIGINT"), 0);
+    adapter.close();
   });
 
   it("closes idempotently and settles a pending read", async () => {
@@ -132,7 +158,9 @@ describe("Node terminal input adapter", () => {
   it("restores listener counts across repeated adapters", () => {
     const input = new PassThrough();
     const output = new PassThrough();
+    const interruptSignalSource = new EventEmitter();
     const baselineInputErrors = input.listenerCount("error");
+    const baselineInterrupts = interruptSignalSource.listenerCount("SIGINT");
 
     for (let iteration = 0; iteration < 3; iteration += 1) {
       const readlineInterface = new FakeReadlineInterface();
@@ -140,11 +168,13 @@ describe("Node terminal input adapter", () => {
         line: readlineInterface.listenerCount("line"),
         close: readlineInterface.listenerCount("close"),
         sigint: readlineInterface.listenerCount("SIGINT"),
+        error: readlineInterface.listenerCount("error"),
       };
       const adapter = createReadlineTerminalInput({
         input,
         interactionOutput: output,
         maxQueuedCharacters: 1_024,
+        interruptSignalSource,
         createInterface: () => readlineInterface,
       });
 
@@ -153,7 +183,9 @@ describe("Node terminal input adapter", () => {
       assert.equal(readlineInterface.listenerCount("line"), baseline.line);
       assert.equal(readlineInterface.listenerCount("close"), baseline.close);
       assert.equal(readlineInterface.listenerCount("SIGINT"), baseline.sigint);
+      assert.equal(readlineInterface.listenerCount("error"), baseline.error);
       assert.equal(input.listenerCount("error"), baselineInputErrors);
+      assert.equal(interruptSignalSource.listenerCount("SIGINT"), baselineInterrupts);
     }
   });
 
@@ -229,6 +261,25 @@ describe("Node terminal input adapter", () => {
 
       assert.deepEqual(receivedTerminalOptions, [false]);
       adapter.close();
+    });
+  }
+
+  for (const ttyCombination of [
+    { inputTty: false, outputTty: false },
+    { inputTty: false, outputTty: true },
+    { inputTty: true, outputTty: false },
+  ]) {
+    it(`latches SIGINT for inputTTY=${ttyCombination.inputTty} outputTTY=${ttyCombination.outputTty}`, async () => {
+      const { adapter, interruptSignalSource, readlineInterface } =
+        createFakeAdapter(ttyCombination);
+      const pending = adapter.read();
+
+      interruptSignalSource.emit("SIGINT");
+
+      assert.deepEqual(await pending, { type: "interrupted" });
+      assert.deepEqual(adapter.getTerminalOutcome(), { type: "interrupted" });
+      assert.equal(interruptSignalSource.listenerCount("SIGINT"), 0);
+      assert.equal(readlineInterface.closeCalls, 1);
     });
   }
 

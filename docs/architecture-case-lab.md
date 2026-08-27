@@ -32,13 +32,14 @@ Automatic selection requires at least two HTTP(S) sources on distinct hostnames,
    - `Unresolved risks`
    - `Missing components`
    - `Supported facts`
+   - `Sources`
    - `Architectural inference`
    - `Evaluative judgment`
    - `Evidence status`
    - `Alternatives`
    - `Next learning challenge`
 
-Supported facts cite validated source IDs. Inference and evaluative judgment are deliberately separate, and the review does not assign a mastery score.
+Supported facts cite validated source IDs, and the source bibliography resolves every cited ID to its title, publication date, and URL without exposing private research excerpts. Inference and evaluative judgment are deliberately separate, and the review does not assign a mastery score.
 
 ## Controls
 

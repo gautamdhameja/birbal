@@ -5,10 +5,11 @@ import type { AgentLogger, ToolRunner } from "../../framework/agent/types.js";
 import { parseStrictJson } from "../../framework/llm/json.js";
 import { completeStructuredWithRepair } from "../../framework/llm/repair.js";
 import type { ModelClient } from "../../framework/llm/types.js";
-import { MODEL_PROVIDERS } from "../constants/model-providers.js";
+import { STRUCTURED_MODEL_COMPLETION_OPTIONS } from "../constants/model-completion.js";
 import { ARCHITECTURE_LAB } from "./constants.js";
 import {
   assessSourceDossier,
+  resolveReviewSources,
   validateArchitectureEvidence,
   validateCaseBriefEvidence,
   validateReviewEvidence,
@@ -23,6 +24,7 @@ import {
   buildReviewMessages,
   type ArchitectureLabSystemPromptDependencies,
 } from "./prompts.js";
+import { createResearchProvenanceLedger } from "./provenance.js";
 import {
   ArchitectureChallengeSchema,
   ArchitectureEvidenceSchema,
@@ -44,6 +46,7 @@ import type {
   ArchitectureReview,
   CaseBrief,
   CaseSelection,
+  GatherArchitectureEvidenceRequest,
   GenerateChallengeRequest,
   GenerateReviewRequest,
   OpeningSafetyCheck,
@@ -53,14 +56,6 @@ import type {
 } from "./types.js";
 import type { DebugWarnLogger } from "../../framework/logging/debug-warn.js";
 import type { z } from "zod";
-
-const STRUCTURED_COMPLETE_OPTIONS = {
-  temperature: 0,
-  maxOutputTokens: FRAMEWORK_AGENT.MODEL_MAX_TOKENS,
-  response_format: {
-    type: MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT,
-  },
-} as const;
 
 type ResearchRunnerDependencies = {
   modelClient: ModelClient;
@@ -109,7 +104,7 @@ async function completePhase<T>({
       schema,
       completeFn,
       completeOptions: {
-        ...STRUCTURED_COMPLETE_OPTIONS,
+        ...STRUCTURED_MODEL_COMPLETION_OPTIONS,
         traceLabel,
       },
       logger,
@@ -159,6 +154,7 @@ export function createArchitectureLabResearchRunner({
   prompt,
 }: ResearchRunnerDependencies): ArchitectureLabResearchOperation {
   return async (request) => {
+    const provenance = createResearchProvenanceLedger();
     const traceLabel =
       request.phase === "case_setup"
         ? ARCHITECTURE_LAB.TRACE_LABELS.CASE_RESEARCH
@@ -173,10 +169,13 @@ export function createArchitectureLabResearchRunner({
           maxResponseChars: FRAMEWORK_AGENT.MAX_RESPONSE_CHARS,
         }),
       logger,
+      hooks: {
+        afterToolCall: ({ result }) => provenance.recordToolResult(result),
+      },
       defaultMaxSteps: ARCHITECTURE_LAB.RESEARCH_MAX_STEPS,
       maxParseRepairAttempts: 1,
       modelOptions: {
-        ...STRUCTURED_COMPLETE_OPTIONS,
+        ...STRUCTURED_MODEL_COMPLETION_OPTIONS,
         traceLabel,
       },
     });
@@ -185,10 +184,23 @@ export function createArchitectureLabResearchRunner({
         ? buildCaseResearchRequest(request)
         : buildArchitectureEvidenceResearchRequest(request);
     try {
-      return parseResearchAnswer(
+      const parsed = parseResearchAnswer(
         await runResearch(task, { maxSteps: ARCHITECTURE_LAB.RESEARCH_MAX_STEPS }),
         request,
       );
+      if (!parsed.ok) {
+        return parsed;
+      }
+      const missingSourceIds = provenance.missingSourceIds(parsed.value.sources);
+      if (missingSourceIds.length > 0) {
+        const phase = request.phase === "case_setup" ? "case_research" : "architecture_evidence";
+        return failure(
+          phase,
+          "invalid_evidence",
+          `Lab research cited sources not returned by research tools: ${missingSourceIds.join(", ")}.`,
+        );
+      }
+      return parsed;
     } catch {
       const phase = request.phase === "case_setup" ? "case_research" : "architecture_evidence";
       return failure(phase, "research_failed", "Lab research failed.");
@@ -314,7 +326,7 @@ export function createArchitectureLabOperations({
   }
 
   async function gatherArchitectureEvidence(
-    request: GenerateReviewRequest,
+    request: GatherArchitectureEvidenceRequest,
   ): Promise<ArchitectureLabResult<ArchitectureEvidence>> {
     const researchResult = await callResearch(research, {
       phase: "architecture_evidence",
@@ -342,14 +354,10 @@ export function createArchitectureLabOperations({
   async function generateReview(
     request: GenerateReviewRequest,
   ): Promise<ArchitectureLabResult<ArchitectureReview>> {
-    const evidenceResult = await gatherArchitectureEvidence(request);
-    if (!evidenceResult.ok) {
-      return evidenceResult;
-    }
     const reviewResult = await completePhase({
       phase: "review",
       traceLabel: ARCHITECTURE_LAB.TRACE_LABELS.REVIEW,
-      messages: buildReviewMessages({ ...request, evidence: evidenceResult.value }),
+      messages: buildReviewMessages(request),
       schema: ArchitectureReviewSchema,
       completeFn,
       logger,
@@ -357,17 +365,17 @@ export function createArchitectureLabOperations({
     if (!reviewResult.ok) {
       return reviewResult;
     }
-    const assessment = validateReviewEvidence(
-      reviewResult.value,
-      request.brief,
-      evidenceResult.value,
-    );
+    const assessment = validateReviewEvidence(reviewResult.value, request.brief, request.evidence);
     if (!assessment.ok) {
       return failure("review", "invalid_evidence", assessment.message);
     }
     return {
       ok: true,
-      value: { ...reviewResult.value, evidenceQuality: assessment.quality },
+      value: {
+        ...reviewResult.value,
+        evidenceQuality: assessment.quality,
+        sources: resolveReviewSources(reviewResult.value, request.brief, request.evidence),
+      },
     };
   }
 

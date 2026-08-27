@@ -11,12 +11,19 @@ import {
   createArchitectureLabOperations,
   createArchitectureLabResearchRunner,
 } from "../src/app/architecture-lab/operations.js";
+import { renderArchitectureReview } from "../src/app/architecture-lab/render.js";
+import { ArchitectureReviewSchema } from "../src/app/architecture-lab/schemas.js";
+import {
+  assessSourceDossier,
+  validateCaseBriefEvidence,
+} from "../src/app/architecture-lab/evidence.js";
 import {
   buildArchitectureLabSystemPrompt,
   buildCaseBriefMessages,
   buildChallengeMessages,
 } from "../src/app/architecture-lab/prompts.js";
 import type {
+  ArchitectureEvidence,
   ArchitectureLabResearchOperation,
   ArchitectureLabResearchResult,
   CaseBrief,
@@ -78,6 +85,26 @@ const transcript: LabTranscriptTurn[] = [
   },
 ];
 
+const architectureEvidence: ArchitectureEvidence = {
+  claims: [
+    {
+      id: "claim-control",
+      claim: "Comparable systems use explicit escalation controls.",
+      sourceIds: ["architecture-source"],
+    },
+  ],
+  sources: [
+    {
+      id: "architecture-source",
+      title: "Architecture operations report",
+      url: "https://architecture.example.com/report",
+      publishedAt: "2026-02-02",
+      excerpt: "Escalation controls isolate uncertain requests.",
+    },
+  ],
+  evidenceQuality: "sufficient",
+};
+
 type SeenCompletion = {
   messages: ChatMessage[];
   options?: ModelCompleteOptions;
@@ -89,28 +116,7 @@ function successfulResearch(dossier = recentDossier): ArchitectureLabResearchOpe
       return { ok: true, value: dossier };
     }
 
-    return {
-      ok: true,
-      value: {
-        claims: [
-          {
-            id: "claim-control",
-            claim: "Comparable systems use explicit escalation controls.",
-            sourceIds: ["architecture-source"],
-          },
-        ],
-        sources: [
-          {
-            id: "architecture-source",
-            title: "Architecture operations report",
-            url: "https://architecture.example.com/report",
-            publishedAt: "2026-02-02",
-            excerpt: "Escalation controls isolate uncertain requests.",
-          },
-        ],
-        evidenceQuality: "sufficient",
-      },
-    };
+    return { ok: true, value: structuredClone(architectureEvidence) };
   };
 }
 
@@ -174,6 +180,40 @@ describe("Architecture Case Lab operations", () => {
       assert.equal(result.error.code, "insufficient_evidence");
       assert.match(result.error.message, /distinct hostnames|recent/i);
     }
+  });
+
+  it("rejects impossible publication dates while accepting a real leap day", () => {
+    const impossibleDossier: SourceDossier = {
+      ...limitedDossier,
+      sources: [{ ...limitedDossier.sources[0]!, publishedAt: "2026-02-29" }],
+    };
+    const impossibleBrief: CaseBrief = {
+      ...extractedBrief,
+      sources: [
+        {
+          ...extractedBrief.sources[0]!,
+          publishedAt: "2026-02-29",
+        },
+      ],
+    };
+
+    assert.deepEqual(assessSourceDossier(impossibleDossier, "learner", NOW), {
+      ok: false,
+      message: "Evidence source support-study must have a valid YYYY-MM-DD publication date.",
+    });
+    assert.deepEqual(
+      validateCaseBriefEvidence(impossibleBrief, impossibleDossier, "learner", NOW),
+      {
+        ok: false,
+        message: "Evidence source support-study must have a valid YYYY-MM-DD publication date.",
+      },
+    );
+
+    const leapDayDossier: SourceDossier = {
+      ...limitedDossier,
+      sources: [{ ...limitedDossier.sources[0]!, publishedAt: "2024-02-29" }],
+    };
+    assert.equal(assessSourceDossier(leapDayDossier, "learner", NOW).ok, true);
   });
 
   it("accepts an automatically selected case when the deterministic evidence gate passes", async () => {
@@ -417,12 +457,35 @@ describe("Architecture Case Lab operations", () => {
     });
     assert.deepEqual(researchPhases, []);
 
-    const review = await operations.generateReview({
+    const evidence = await operations.gatherArchitectureEvidence({
       brief: extractedBrief,
       transcript,
     });
+    assert.equal(evidence.ok, true);
+    assert.ok(evidence.ok);
+    const review = await operations.generateReview({
+      brief: extractedBrief,
+      transcript,
+      evidence: evidence.value,
+    });
 
     assert.equal(review.ok, true);
+    if (review.ok) {
+      assert.deepEqual(review.value.sources, [
+        {
+          id: "architecture-source",
+          title: "Architecture operations report",
+          url: "https://architecture.example.com/report",
+          publishedAt: "2026-02-02",
+        },
+      ]);
+      const rendered = renderArchitectureReview(review.value);
+      assert.match(
+        rendered,
+        /\[architecture-source\].*https:\/\/architecture\.example\.com\/report/,
+      );
+      assert.doesNotMatch(rendered, /Escalation controls isolate uncertain requests/);
+    }
     assert.deepEqual(researchPhases, ["architecture_evidence"]);
     assert.deepEqual(transcript, [
       {
@@ -457,6 +520,7 @@ describe("Architecture Case Lab operations", () => {
     const result = await operations.generateReview({
       brief: extractedBrief,
       transcript,
+      evidence: structuredClone(architectureEvidence),
     });
 
     assert.equal(result.ok, false);
@@ -488,6 +552,7 @@ describe("Architecture Case Lab operations", () => {
     const result = await operations.generateReview({
       brief: { ...extractedBrief, evidenceQuality: "limited" },
       transcript,
+      evidence: structuredClone(architectureEvidence),
     });
 
     assert.equal(result.ok, true);
@@ -538,14 +603,30 @@ describe("Architecture Case Lab operations", () => {
 
   it("composes typed lab research through the generic harness without changing reading-list code", async () => {
     const calls: ChatMessage[][] = [];
+    const responses = [
+      JSON.stringify({
+        type: "tool_call",
+        tool: "search_web",
+        args: { query: "AI support triage" },
+      }),
+      JSON.stringify({ type: "final", answer: JSON.stringify(recentDossier) }),
+    ];
     const runResearch = createArchitectureLabResearchRunner({
       modelClient: {
         complete: async (messages) => {
           calls.push(structuredClone(messages));
-          return JSON.stringify({ type: "final", answer: JSON.stringify(recentDossier) });
+          return responses.shift()!;
         },
       },
-      toolRunner: async () => ({}),
+      toolRunner: async () => ({
+        query: "AI support triage",
+        results: recentDossier.sources.map((source) => ({
+          title: source.title,
+          url: source.url,
+          description: source.excerpt,
+          publishedAt: source.publishedAt,
+        })),
+      }),
       renderToolsForPrompt: () => "name: search_web",
     });
 
@@ -562,6 +643,106 @@ describe("Architecture Case Lab operations", () => {
     );
     assert.match(calls[0]?.[0]?.content ?? "", /name: search_web/);
     assert.match(calls[0]?.[1]?.content ?? "", /AI support triage/);
+  });
+
+  it("rejects source URLs that were not returned by a research tool", async () => {
+    const runResearch = createArchitectureLabResearchRunner({
+      modelClient: {
+        complete: async () =>
+          JSON.stringify({ type: "final", answer: JSON.stringify(recentDossier) }),
+      },
+      toolRunner: async () => {
+        throw new Error("a zero-tool final must not invoke tools");
+      },
+      renderToolsForPrompt: () => "name: search_web",
+    });
+
+    const result = await runResearch({ phase: "case_setup", selection: "automatic" });
+
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.error.phase, "case_research");
+      assert.equal(result.error.code, "invalid_evidence");
+      assert.match(result.error.message, /not returned by research tools/i);
+    }
+  });
+
+  it("accepts a canonical URL returned by the fetch tool", async () => {
+    const canonicalUrl = "https://research.example.org/canonical-support-study";
+    const canonicalDossier: SourceDossier = {
+      ...limitedDossier,
+      sources: [{ ...limitedDossier.sources[0]!, url: canonicalUrl }],
+    };
+    const responses = [
+      JSON.stringify({
+        type: "tool_call",
+        tool: "fetch_url_text",
+        args: { url: "https://research.example.org/support-study" },
+      }),
+      JSON.stringify({ type: "final", answer: JSON.stringify(canonicalDossier) }),
+    ];
+    const runResearch = createArchitectureLabResearchRunner({
+      modelClient: {
+        complete: async () => responses.shift()!,
+      },
+      toolRunner: async () => ({
+        url: "https://research.example.org/support-study",
+        canonicalUrl,
+        title: "Support automation study",
+        plainText: "Response delay fell in a controlled support workflow.",
+        detectedPaywall: false,
+        contentLength: 61,
+      }),
+      renderToolsForPrompt: () => "name: fetch_url_text",
+    });
+
+    const result = await runResearch({
+      phase: "case_setup",
+      selection: "learner",
+      caseName: "AI support triage",
+    });
+
+    assert.equal(result.ok, true);
+  });
+
+  it("rejects mastery ratings but permits ordinary numeric facts", () => {
+    const baseReview = {
+      strengths: ["The proposal includes explicit escalation."],
+      unresolvedRisks: [],
+      missingComponents: [],
+      alternatives: [],
+      supportedFacts: [],
+      inferences: [],
+      judgments: ["The boundary is clearly described."],
+      nextChallenge: "Specify recovery semantics.",
+      evidenceQuality: "sufficient",
+    };
+
+    for (const judgment of [
+      "Score: 8 out of 10.",
+      "rating: 80",
+      "I rate this architecture 8 out of 10.",
+      "The proposal scored 8/10.",
+    ]) {
+      assert.equal(
+        ArchitectureReviewSchema.safeParse({ ...baseReview, judgments: [judgment] }).success,
+        false,
+        judgment,
+      );
+    }
+
+    assert.equal(
+      ArchitectureReviewSchema.safeParse({
+        ...baseReview,
+        supportedFacts: [
+          {
+            claim: "A 2026 report observed 99.9% availability across 80 deployments.",
+            sourceIds: ["support-study"],
+          },
+        ],
+      }).success,
+      true,
+    );
   });
 
   it("loads the bundled lab prompt outside the repository working directory", () => {

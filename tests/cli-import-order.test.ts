@@ -76,6 +76,7 @@ const labReview: ArchitectureReview = {
   judgments: ["The oversight boundary is the strongest choice."],
   nextChallenge: "Specify recovery semantics for an interrupted request.",
   evidenceQuality: "sufficient",
+  sources: labBrief.sources,
 };
 
 function fakeLabOperations(

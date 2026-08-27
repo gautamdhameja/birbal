@@ -24,6 +24,7 @@ import type {
   ArchitectureLabOperations,
   ArchitectureReview,
   CaseBrief,
+  GatherArchitectureEvidenceRequest,
   GenerateChallengeRequest,
   GenerateReviewRequest,
   SourceDossier,
@@ -64,6 +65,7 @@ const review: ArchitectureReview = {
   judgments: ["The oversight boundary is the strongest choice."],
   nextChallenge: "Specify recovery semantics for an interrupted request.",
   evidenceQuality: "sufficient",
+  sources: brief.sources,
 };
 
 const challenges: ArchitectureChallenge[] = [
@@ -100,6 +102,7 @@ type FakeOperations = ArchitectureLabOperations & {
     prepare: Array<{ caseName?: string }>;
     safety: string[];
     challenge: GenerateChallengeRequest[];
+    evidence: GatherArchitectureEvidenceRequest[];
     review: GenerateReviewRequest[];
   };
 };
@@ -109,6 +112,7 @@ function fakeOperations(overrides: Partial<ArchitectureLabOperations> = {}): Fak
     prepare: [],
     safety: [],
     challenge: [],
+    evidence: [],
     review: [],
   };
   let challengeIndex = 0;
@@ -129,7 +133,8 @@ function fakeOperations(overrides: Partial<ArchitectureLabOperations> = {}): Fak
         value: structuredClone(challenges[challengeIndex++] ?? challenges.at(-1)!),
       };
     },
-    async gatherArchitectureEvidence() {
+    async gatherArchitectureEvidence(request) {
+      calls.evidence.push(structuredClone(request));
       return {
         ok: true,
         value: {
@@ -227,7 +232,10 @@ describe("Architecture Case Lab renderer", () => {
     assert.match(renderArchitectureChallenge(challenges[0]!, 1), /Round 1.*Human oversight/s);
     assert.match(renderRetry({ reason: "blank", limit: 8_000 }), /nonblank.*\/submit/i);
     assert.match(renderRetry({ reason: "turn_too_long", limit: 8_000 }), /8,000/);
-    assert.match(renderRetry({ reason: "transcript_too_long", limit: 32_000 }), /32,000/);
+    assert.match(
+      renderRetry({ reason: "transcript_too_long", limit: 32_000 }),
+      /not submitted.*32,000.*draft was cleared.*shorter.*\/finish/i,
+    );
     assert.match(renderRetry({ reason: "proposal_required" }), /proposal.*\/submit/i);
     assert.match(renderRetry({ reason: "draft_pending" }), /current draft.*\/submit/i);
   });
@@ -335,6 +343,7 @@ describe("Architecture Case Lab session", () => {
 
     assert.equal(result.type, "completed");
     assert.equal(run.operations.calls.challenge.length, 1);
+    assert.equal(run.operations.calls.evidence.length, 1);
     assert.equal(run.operations.calls.review.length, 1);
     assert.deepEqual(run.operations.calls.review[0]?.transcript, [
       {
@@ -346,6 +355,7 @@ describe("Architecture Case Lab session", () => {
         role: "birbal",
         phase: "challenge",
         content: "When does a request reach a human?",
+        dimension: "human_oversight",
       },
     ]);
     assert.deepEqual(
@@ -441,17 +451,75 @@ describe("Architecture Case Lab session", () => {
         { type: "line", line: "/submit" },
         { type: "line", line: "aa" },
         { type: "line", line: "/submit" },
-        { type: "line", line: "/exit" },
+        { type: "line", line: "/finish" },
       ],
       overOperations,
     );
 
-    assert.equal((await rejected.result).type, "exited");
+    assert.equal((await rejected.result).type, "completed");
     assert.equal(overOperations.calls.challenge.length, 1);
+    assert.equal(overOperations.calls.review.length, 1);
     assert.ok(
       rejected.outputs.some(
-        (output) => output.type === "retry" && output.reason === "transcript_too_long",
+        (output) =>
+          output.type === "retry" &&
+          output.reason === "transcript_too_long" &&
+          /draft was cleared.*\/finish/i.test(output.content),
       ),
+    );
+  });
+
+  it("settles post-attempt evidence before announcing and generating the review", async () => {
+    let releaseEvidence = () => {};
+    let markEvidenceStarted = () => {};
+    const evidenceStarted = new Promise<void>((resolve) => {
+      markEvidenceStarted = resolve;
+    });
+    const evidencePending = new Promise<void>((resolve) => {
+      releaseEvidence = resolve;
+    });
+    const operations = fakeOperations({
+      async gatherArchitectureEvidence(request) {
+        operations.calls.evidence.push(structuredClone(request));
+        markEvidenceStarted();
+        await evidencePending;
+        return {
+          ok: true,
+          value: {
+            claims: [],
+            sources: [],
+            evidenceQuality: "limited",
+          },
+        };
+      },
+      async generateReview(request) {
+        operations.calls.review.push(structuredClone(request));
+        return { ok: true, value: structuredClone(review) };
+      },
+    });
+    const run = runWith(
+      [
+        { type: "line", line: "proposal" },
+        { type: "line", line: "/submit" },
+        { type: "line", line: "/finish" },
+      ],
+      operations,
+    );
+
+    await evidenceStarted;
+    assert.deepEqual(
+      run.outputs.filter((output) => output.type === "progress").map((output) => output.phase),
+      ["case_research", "challenge", "architecture_evidence"],
+    );
+    assert.equal(operations.calls.review.length, 0);
+
+    releaseEvidence();
+    assert.equal((await run.result).type, "completed");
+    assert.equal(operations.calls.evidence.length, 1);
+    assert.equal(operations.calls.review.length, 1);
+    assert.deepEqual(
+      run.outputs.filter((output) => output.type === "progress").map((output) => output.phase),
+      ["case_research", "challenge", "architecture_evidence", "review"],
     );
   });
 
@@ -485,6 +553,45 @@ describe("Architecture Case Lab session", () => {
       { type: "interrupted" },
     ]);
     assert.equal((await afterChallenge.result).type, "interrupted");
+  });
+
+  it("lets interruption and input failure win during evidence research while EOF completes", async () => {
+    const expectedResultTypes = {
+      interrupted: "interrupted",
+      input_error: "failed",
+      eof: "completed",
+    } as const;
+    for (const terminalEvent of [
+      { type: "interrupted" as const },
+      { type: "input_error" as const },
+      { type: "eof" as const },
+    ]) {
+      const evidenceInput = scriptedInput([
+        { type: "line", line: "proposal" },
+        { type: "line", line: "/submit" },
+        { type: "line", line: "/finish" },
+      ]);
+      const operations = fakeOperations({
+        async gatherArchitectureEvidence(request) {
+          operations.calls.evidence.push(structuredClone(request));
+          evidenceInput.latch(terminalEvent);
+          return {
+            ok: true,
+            value: {
+              claims: [],
+              sources: [],
+              evidenceQuality: "limited",
+            },
+          };
+        },
+      });
+      const run = runWithInput(evidenceInput, operations);
+
+      const result = await run.result;
+
+      assert.equal(result.type, expectedResultTypes[terminalEvent.type]);
+      assert.equal(operations.calls.review.length, terminalEvent.type === "eof" ? 1 : 0);
+    }
   });
 
   it("lets interruption and input failure discard an in-flight result", async () => {

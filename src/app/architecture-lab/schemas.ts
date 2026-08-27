@@ -85,7 +85,15 @@ export const SupportedFactSchema = z.strictObject({
   sourceIds: z.array(NonEmptyTextSchema).min(1).max(ARCHITECTURE_LAB.MAX_SOURCES),
 });
 
-const MASTERY_SCORE_PATTERN = /\b(?:mastery\s+score|score(?:d)?\s+\d+|\d+\s*\/\s*(?:5|10|100))\b/i;
+const MASTERY_SCORE_PATTERN = new RegExp(
+  [
+    String.raw`\bmastery\s+score\b`,
+    String.raw`\b(?:score(?:d)?|rating)\s*[:=-]?\s*\d+(?:\s*(?:\/|out\s+of)\s*(?:5|10|100))?\b`,
+    String.raw`\brate(?:d)?\s+(?:this\s+architecture\s+)?\d+\s*(?:\/|out\s+of)\s*(?:5|10|100)\b`,
+    String.raw`\b\d+\s*(?:\/|out\s+of)\s*(?:5|10|100)\b`,
+  ].join("|"),
+  "i",
+);
 
 export const ArchitectureReviewSchema = z
   .strictObject({
@@ -103,8 +111,21 @@ export const ArchitectureReviewSchema = z
     message: "Review must not include a mastery score.",
   });
 
-export const LabTranscriptTurnSchema = z.strictObject({
-  role: z.enum(["learner", "birbal"]),
-  phase: z.enum(["proposal", "challenge", "answer"]),
-  content: NonEmptyTextSchema,
-});
+export const LabTranscriptTurnSchema = z.discriminatedUnion("phase", [
+  z.strictObject({
+    role: z.literal("learner"),
+    phase: z.literal("proposal"),
+    content: NonEmptyTextSchema,
+  }),
+  z.strictObject({
+    role: z.literal("birbal"),
+    phase: z.literal("challenge"),
+    dimension: DesignDimensionSchema,
+    content: NonEmptyTextSchema,
+  }),
+  z.strictObject({
+    role: z.literal("learner"),
+    phase: z.literal("answer"),
+    content: NonEmptyTextSchema,
+  }),
+]);

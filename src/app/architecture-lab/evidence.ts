@@ -1,8 +1,9 @@
 import { ARCHITECTURE_LAB } from "./constants.js";
 import type {
   ArchitectureEvidence,
-  ArchitectureReview,
+  ArchitectureReviewDraft,
   CaseBrief,
+  CaseBriefSource,
   CaseSelection,
   EvidenceSource,
   SourceDossier,
@@ -28,8 +29,17 @@ function publicationDate(value: string): Date | undefined {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return undefined;
   }
+  const [year, month, day] = value.split("-").map(Number) as [number, number, number];
   const date = new Date(`${value}T00:00:00.000Z`);
-  return Number.isNaN(date.valueOf()) ? undefined : date;
+  if (
+    Number.isNaN(date.valueOf()) ||
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() + 1 !== month ||
+    date.getUTCDate() !== day
+  ) {
+    return undefined;
+  }
+  return date;
 }
 
 function recentCutoff(now: Date): Date {
@@ -169,7 +179,7 @@ export function validateArchitectureEvidence(evidence: ArchitectureEvidence): Ev
 }
 
 export function validateReviewEvidence(
-  review: ArchitectureReview,
+  review: ArchitectureReviewDraft,
   brief: CaseBrief,
   evidence: ArchitectureEvidence,
 ): EvidenceAssessment {
@@ -203,4 +213,26 @@ export function validateReviewEvidence(
         ? "limited"
         : "sufficient",
   };
+}
+
+export function resolveReviewSources(
+  review: ArchitectureReviewDraft,
+  brief: CaseBrief,
+  evidence: ArchitectureEvidence,
+): CaseBriefSource[] {
+  const sourcesById = new Map<string, CaseBriefSource>();
+  for (const source of brief.sources) {
+    sourcesById.set(source.id, source);
+  }
+  for (const { excerpt: _excerpt, ...source } of evidence.sources) {
+    if (!sourcesById.has(source.id)) {
+      sourcesById.set(source.id, source);
+    }
+  }
+
+  const citedSourceIds = new Set(review.supportedFacts.flatMap((fact) => fact.sourceIds));
+  return [...citedSourceIds].flatMap((sourceId) => {
+    const source = sourcesById.get(sourceId);
+    return source ? [source] : [];
+  });
 }

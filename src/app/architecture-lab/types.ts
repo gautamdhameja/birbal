@@ -38,7 +38,10 @@ export type LabTranscriptTurn = z.infer<typeof LabTranscriptTurnSchema>;
 export type ArchitectureEvidenceClaim = z.infer<typeof ArchitectureEvidenceClaimSchema>;
 export type ArchitectureEvidence = z.infer<typeof ArchitectureEvidenceSchema>;
 export type SupportedFact = z.infer<typeof SupportedFactSchema>;
-export type ArchitectureReview = z.infer<typeof ArchitectureReviewSchema>;
+export type ArchitectureReviewDraft = z.infer<typeof ArchitectureReviewSchema>;
+export type ArchitectureReview = ArchitectureReviewDraft & {
+  sources: CaseBriefSource[];
+};
 
 export type ArchitectureLabInput =
   | { type: "line"; line: string }
@@ -112,9 +115,13 @@ export type GenerateChallengeRequest = {
   round: number;
 };
 
-export type GenerateReviewRequest = {
+export type GatherArchitectureEvidenceRequest = {
   brief: CaseBrief;
   transcript: LabTranscriptTurn[];
+};
+
+export type GenerateReviewRequest = GatherArchitectureEvidenceRequest & {
+  evidence: ArchitectureEvidence;
 };
 
 export type PrepareCaseResult = ArchitectureLabResult<CaseBrief>;
@@ -127,7 +134,9 @@ export type ArchitectureLabOperations = {
   prepareCase(request: PrepareCaseRequest): Promise<PrepareCaseResult>;
   checkOpeningSafety(request: OpeningSafetyRequest): Promise<OpeningSafetyResult>;
   generateChallenge(request: GenerateChallengeRequest): Promise<ChallengeResult>;
-  gatherArchitectureEvidence(request: GenerateReviewRequest): Promise<ArchitectureEvidenceResult>;
+  gatherArchitectureEvidence(
+    request: GatherArchitectureEvidenceRequest,
+  ): Promise<ArchitectureEvidenceResult>;
   generateReview(request: GenerateReviewRequest): Promise<ReviewResult>;
 };
 

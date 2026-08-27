@@ -208,6 +208,7 @@ export function createArchitectureLabSession({
       transcriptLength(transcript) + content.length >
       ARCHITECTURE_LAB_SESSION_LIMITS.transcriptCharacters
     ) {
+      draftLines = [];
       retry({
         reason: "transcript_too_long",
         limit: ARCHITECTURE_LAB_SESSION_LIMITS.transcriptCharacters,
@@ -319,6 +320,7 @@ export function createArchitectureLabSession({
     transcript.push({
       role: "birbal",
       phase: "challenge",
+      dimension: challenge.dimension,
       content: challenge.question,
     });
     emit({
@@ -337,12 +339,37 @@ export function createArchitectureLabSession({
     }
     state = "generating_review";
     progress("architecture_evidence");
+    const reviewContext = {
+      brief: structuredClone(activeBrief),
+      transcript: structuredClone(transcript),
+    };
+    const evidenceResult = await callOperationSafely(
+      () =>
+        operations.gatherArchitectureEvidence({
+          brief: structuredClone(reviewContext.brief),
+          transcript: structuredClone(reviewContext.transcript),
+        }),
+      {
+        type: "architecture_lab_operation_error",
+        phase: "architecture_evidence",
+        code: "research_failed",
+        message: "Architecture evidence research failed.",
+      },
+    );
+    const afterEvidence = terminalAfterOperation({ eofWins: false });
+    if (afterEvidence) {
+      return afterEvidence;
+    }
+    if (!evidenceResult.ok) {
+      return failed("operation_failed", evidenceResult.error);
+    }
+
     progress("review");
-    const result = await callOperationSafely(
+    const reviewResult = await callOperationSafely(
       () =>
         operations.generateReview({
-          brief: structuredClone(activeBrief),
-          transcript: structuredClone(transcript),
+          ...reviewContext,
+          evidence: structuredClone(evidenceResult.value),
         }),
       {
         type: "architecture_lab_operation_error",
@@ -351,14 +378,14 @@ export function createArchitectureLabSession({
         message: "The review model call failed.",
       },
     );
-    const terminal = terminalAfterOperation({ eofWins: false });
-    if (terminal) {
-      return terminal;
+    const afterReview = terminalAfterOperation({ eofWins: false });
+    if (afterReview) {
+      return afterReview;
     }
-    if (!result.ok) {
-      return failed("operation_failed", result.error);
+    if (!reviewResult.ok) {
+      return failed("operation_failed", reviewResult.error);
     }
-    const completedReview = structuredClone(result.value);
+    const completedReview = structuredClone(reviewResult.value);
     return finish({
       type: "completed",
       review: completedReview,
@@ -416,7 +443,7 @@ export function createArchitectureLabSession({
       return firstChallengeTerminal;
     }
 
-    while (round <= ARCHITECTURE_LAB_SESSION_LIMITS.challengeRounds) {
+    while (true) {
       const answer = await awaitCommittedTurn("awaiting_answer");
       if (answer.type === "finish") {
         return generateReview();
@@ -426,7 +453,7 @@ export function createArchitectureLabSession({
       }
       transcript.push({ role: "learner", phase: "answer", content: answer.content });
 
-      if (round === ARCHITECTURE_LAB_SESSION_LIMITS.challengeRounds) {
+      if (round >= ARCHITECTURE_LAB_SESSION_LIMITS.challengeRounds) {
         return generateReview();
       }
       const challengeTerminal = await generateChallenge();
@@ -434,8 +461,6 @@ export function createArchitectureLabSession({
         return challengeTerminal;
       }
     }
-
-    return generateReview();
   }
 
   return {
