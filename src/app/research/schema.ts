@@ -1,6 +1,15 @@
 import { z } from "zod";
 
-import { SourceTypeSchema } from "../config/sourceRegistry.js";
+import { SourceTypeSchema } from "../config/sourceRegistrySchema.js";
+
+const ResearchPreferenceTextSchema = z.string().trim().min(1);
+
+export const ResearchConfigSchema = z.strictObject({
+  interests: z.array(ResearchPreferenceTextSchema).min(1),
+  avoid: z.array(ResearchPreferenceTextSchema),
+  preferredDifficulty: z.enum(["beginner", "intermediate", "advanced"]),
+  maxReadingListItems: z.number().int().min(1).max(20),
+});
 
 export const ResearchResultSchema = z.strictObject({
   id: z.string(),
@@ -13,5 +22,3 @@ export const ResearchResultSchema = z.strictObject({
   publishedAt: z.string(),
   discoveredAt: z.string(),
 });
-
-export type ResearchResult = z.infer<typeof ResearchResultSchema>;

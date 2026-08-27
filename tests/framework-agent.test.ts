@@ -141,6 +141,7 @@ describe("framework agent harness", () => {
     assert.equal(seenMessages.length, 3);
     assert.match(seenMessages[1]?.at(-1)?.content ?? "", /previous response was invalid/);
     assert.match(seenMessages[1]?.at(-1)?.content ?? "", /exactly one valid JSON object/);
+    assert.doesNotMatch(seenMessages[1]?.at(-1)?.content ?? "", /clarify/i);
   });
 
   it("uses the configured user role for protocol repair messages", async () => {

@@ -47,6 +47,28 @@ describe("CLI module loading", () => {
     assert.equal(result.stdout, "debug");
   });
 
+  it("forces debug logging when trace is enabled", () => {
+    const script = [
+      'process.env.LOG_LEVEL = "info";',
+      'const { configureTraceLogging } = await import("./src/app/cli.ts");',
+      "configureTraceLogging(true);",
+      'process.stdout.write(process.env.LOG_LEVEL ?? "");',
+    ].join("\n");
+
+    const result = spawnSync(
+      process.execPath,
+      ["--import", "tsx", "--input-type=module", "--eval", script],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        env: process.env,
+      },
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, "debug");
+  });
+
   it("exposes only the research agent workflow", () => {
     const topLevelHelp = runCli(["--help"]);
 

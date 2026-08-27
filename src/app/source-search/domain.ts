@@ -1,8 +1,8 @@
-import type { SourceRegistryItem } from "../config/sourceRegistry.js";
 import { loadSourceRegistry } from "../config/sourceRegistry.js";
+import type { SourceRegistryItem } from "../config/sourceRegistryTypes.js";
 import { searchWeb } from "../brave-search/client.js";
 import type { SearchWebResult } from "../brave-search/client.js";
-import type { ResearchResult } from "../research/schema.js";
+import type { ResearchResult } from "../research/types.js";
 import { normalizeUrl } from "../../framework/network/normalizeUrl.js";
 
 const SITE_QUERY_PREFIX = "site:";
@@ -25,7 +25,9 @@ function buildDomainQuery(query: string, domain: string): string {
 }
 
 function findSource(sourceId: string, sources: SourceRegistryItem[]): SourceRegistryItem {
-  const source = sources.find((sourceConfig) => sourceConfig.id === sourceId);
+  const source = sources.find(
+    (sourceConfig) => sourceConfig.id === sourceId && sourceConfig.enabled,
+  );
   if (!source) {
     throw new Error(`Unknown source: ${sourceId}`);
   }

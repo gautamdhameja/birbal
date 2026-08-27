@@ -7,7 +7,6 @@ src/framework/
   llm/         model contracts and structured-output repair
   content/     readable-text extraction
   network/     safe HTTP, URL validation, retries, and timeouts
-  async/       bounded async mapping
   config/      shared JSON config loading
 
 src/app/

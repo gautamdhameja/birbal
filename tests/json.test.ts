@@ -48,4 +48,11 @@ describe("parseAgentResponse", () => {
       /must be valid JSON/,
     );
   });
+
+  it("rejects the removed clarify response", () => {
+    assert.throws(
+      () => parseAgentResponse('{"type":"clarify","question":"Continue?"}'),
+      /Invalid discriminator value/,
+    );
+  });
 });

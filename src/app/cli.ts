@@ -16,12 +16,12 @@ function isMainModule(): boolean {
   return entryPoint ? import.meta.url === pathToFileURL(entryPoint).href : false;
 }
 
-function configureTraceLogging(trace: boolean): void {
+export function configureTraceLogging(trace: boolean): void {
   if (!trace) {
     return;
   }
 
-  process.env.LOG_LEVEL = process.env.LOG_LEVEL?.trim() || LOGGING.DEBUG_LEVEL;
+  process.env.LOG_LEVEL = LOGGING.DEBUG_LEVEL;
   process.env.LOG_PRETTY = process.env.LOG_PRETTY?.trim() || LOGGING.PRETTY_ENABLED_VALUE;
 }
 

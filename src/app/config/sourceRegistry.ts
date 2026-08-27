@@ -1,31 +1,16 @@
-import { join } from "node:path";
-
-import { z } from "zod";
+import { fileURLToPath } from "node:url";
 
 import { loadJsonConfig } from "../../framework/config/loadJsonConfig.js";
 import { SOURCE_REGISTRY } from "../constants/source-registry.js";
+import { SourceRegistrySchema } from "./sourceRegistrySchema.js";
+import type { SourceRegistry } from "./sourceRegistryTypes.js";
 
-export const SourceTypeSchema = z.enum(SOURCE_REGISTRY.SOURCE_TYPES);
-
-const SourceRegistryItemSchema = z.strictObject({
-  id: z.string().trim().min(1),
-  name: z.string().trim().min(1),
-  domains: z.array(z.string().trim().min(1)).min(1),
-  priority: z.number().int().min(1),
-  sourceType: SourceTypeSchema,
-  searchQueries: z.array(z.string().trim().min(1)).min(1),
-  enabled: z.boolean(),
-});
-
-const SourceRegistrySchema = z.strictObject({
-  sources: z.array(SourceRegistryItemSchema).min(1),
-});
-
-export type SourceRegistryItem = z.infer<typeof SourceRegistryItemSchema>;
-export type SourceRegistry = z.infer<typeof SourceRegistrySchema>;
+const BUNDLED_SOURCE_REGISTRY_PATH = fileURLToPath(
+  new URL("../../../config/source-registry.json", import.meta.url),
+);
 
 function getDefaultSourceRegistryPath(): string {
-  return join(process.cwd(), SOURCE_REGISTRY.DIRECTORY, SOURCE_REGISTRY.FILE_NAME);
+  return process.env.SOURCE_REGISTRY_PATH?.trim() || BUNDLED_SOURCE_REGISTRY_PATH;
 }
 
 export function loadSourceRegistry(

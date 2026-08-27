@@ -11,20 +11,20 @@ pnpm install
 cp .env.example .env.local
 ```
 
-For local inference, run a llama.cpp-compatible chat-completions server. For hosted OpenAI, set `MODEL_PROVIDER=openai`, `OPENAI_API_KEY`, and `OPENAI_MODEL`.
+For local inference, run a llama.cpp-compatible chat-completions server. For hosted OpenAI, set `MODEL_PROVIDER=openai`, `MODEL_API_KEY`, and `MODEL_NAME`.
 
 ## Research
 
 ```bash
 pnpm dev -- "Research recent approaches to evaluating LLM agents"
-birbal "Compare current local inference engines"
-birbal agent "Find primary sources on retrieval evaluation"
+pnpm cli -- "Compare current local inference engines"
+pnpm cli -- agent "Find primary sources on retrieval evaluation"
 ```
 
 Use `--trace` to print tool definitions and structured handoff logs:
 
 ```bash
-birbal --trace "Research agent memory architectures"
+pnpm cli -- --trace "Research agent memory architectures"
 ```
 
 The answer is printed to stdout. Birbal does not persist results or publish files.
@@ -32,8 +32,10 @@ The answer is printed to stdout. Birbal does not persist results or publish file
 ## Configuration
 
 - `config/research.json` controls interests, avoided topics, preferred difficulty, and the maximum reading-list size.
-- `config/source-registry.json` defines curated source IDs, domains, and suggested queries.
+- `config/source-registry.json` defines curated source IDs and domains.
 - `.env.local` and `.env` configure the model provider, Brave Search, logging, and network limits.
+
+Set `RESEARCH_CONFIG_PATH` or `SOURCE_REGISTRY_PATH` to use configuration files outside the package.
 
 ## Tools
 

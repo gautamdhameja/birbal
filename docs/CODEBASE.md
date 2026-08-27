@@ -31,7 +31,6 @@ Birbal is a stateless research agent built from a reusable TypeScript agent harn
 - `src/framework/network/` owns safe HTTP behavior.
 - `src/framework/content/` owns readable-text extraction.
 - `src/framework/config/` owns reusable JSON config loading.
-- `src/framework/async/` owns bounded asynchronous mapping.
 
 ## Tests
 

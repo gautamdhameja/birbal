@@ -1,6 +1,4 @@
 export const SOURCE_REGISTRY = {
-  DIRECTORY: "config",
-  FILE_NAME: "source-registry.json",
   SOURCE_TYPES: {
     COMMUNITY: "community",
     ACADEMIC: "academic",

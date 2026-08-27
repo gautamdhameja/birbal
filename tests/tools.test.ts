@@ -413,9 +413,7 @@ describe("tool registry", () => {
                 id: "enterprise-ai",
                 name: "Enterprise AI",
                 domains: ["example.com", "docs.example.com"],
-                priority: 1,
                 sourceType: SOURCE_REGISTRY.SOURCE_TYPES.COMMUNITY,
-                searchQueries: ["agent evaluation"],
                 enabled: true,
               },
             ],
@@ -491,9 +489,7 @@ describe("tool registry", () => {
                 id: "enterprise-ai",
                 name: "Enterprise AI",
                 domains: ["example.com", "docs.example.com"],
-                priority: 1,
                 sourceType: SOURCE_REGISTRY.SOURCE_TYPES.COMMUNITY,
-                searchQueries: ["agent evaluation"],
                 enabled: true,
               },
             ],
@@ -510,6 +506,41 @@ describe("tool registry", () => {
       } else {
         process.env.BRAVE_SEARCH_API_KEY = originalApiKey;
       }
+    }
+  });
+
+  it("does not search disabled configured sources", async () => {
+    const originalFetch = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = (() => {
+      calls += 1;
+      return Promise.resolve(new Response("{}"));
+    }) as typeof fetch;
+
+    try {
+      await assert.rejects(
+        () =>
+          searchSourceDomain(
+            { sourceId: "disabled", query: "agent evaluation" },
+            {
+              sourceRegistry: {
+                sources: [
+                  {
+                    id: "disabled",
+                    name: "Disabled source",
+                    domains: ["example.com"],
+                    sourceType: SOURCE_REGISTRY.SOURCE_TYPES.COMMUNITY,
+                    enabled: false,
+                  },
+                ],
+              },
+            },
+          ),
+        /Unknown source: disabled/,
+      );
+      assert.equal(calls, 0);
+    } finally {
+      globalThis.fetch = originalFetch;
     }
   });
 
