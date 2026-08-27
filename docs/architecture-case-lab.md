@@ -41,6 +41,8 @@ Automatic selection requires at least two HTTP(S) sources on distinct hostnames,
 
 Supported facts cite validated source IDs, and the source bibliography resolves every cited ID to its title, publication date, and URL without exposing private research excerpts. Inference and evaluative judgment are deliberately separate, and the review does not assign a mastery score.
 
+Wait until the case brief or next challenge is visible before you type. The terminal may buffer lines entered while Birbal is working, but the controller intentionally discards those lines when it displays the new prompt. This checkpoint prevents pasted or typed-ahead input from becoming a response to a question you have not seen.
+
 ## Controls
 
 Commands are recognized only when they occupy a whole input line, ignoring surrounding whitespace and letter case.
@@ -80,7 +82,7 @@ The CLI returns status 0 for a completed review, `/exit`, or EOF; 130 for Ctrl-C
 - The controller permits at most three challenge rounds.
 - Each case-setup and post-attempt research run permits at most eight harness steps. Model and tool calls retain the configured output, timeout, response-size, and network-safety bounds.
 
-Every call to the runtime's lab factory creates a fresh controller and transcript. Lab state is held only for that invocation: there is no saving, resuming, exporting, learner profile, or progress history.
+Every call to the runtime's lab factory creates a fresh controller and transcript. Lab state is held only for that invocation: there is no built-in saving, resuming, exporting, learner profile, or progress history. The CLI still writes a completed review to stdout, so the caller can capture it with shell redirection as shown above.
 
 Birbal cannot cancel an in-flight model or research call at the caller level. Ctrl-C is latched during active work; after the call settles, the result is discarded before another prompt or output is emitted. Start a new invocation after an interruption or failure.
 

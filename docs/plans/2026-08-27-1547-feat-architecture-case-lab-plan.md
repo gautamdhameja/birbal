@@ -158,7 +158,7 @@ flowchart TB
 
 - Persistent learner profiles, misconception histories, spaced review, and progress tracking.
 - Reference-architecture comparison as a separate optional learning mode.
-- Saving, exporting, or resuming completed lab sessions.
+- Built-in saving, exporting, or resuming of completed lab sessions. Caller-controlled stdout capture remains available.
 
 **Outside this product's identity**
 
@@ -195,7 +195,7 @@ flowchart TB
 - KTD3. **Gate the learner-first opening and preserve evidence categories.** The case-brief schema has fields for problem, actors, constraints, outcome, evidence quality, and sources but no architecture-specific field. A separate pre-display leakage check receives only the rendered opening and rejects reference designs, vendor implementations, and complete solution steps; an unsafe or uncheckable opening fails before display. Phase-specific prompting and adversarial rendered-opening tests remain defense in depth. The review schema separates supported facts, inference, and judgment and references validated source IDs instead of accepting new unverified citations. Governs R3, R8-R12.
 - KTD4. **Let the controller own transitions, commands, and budgets.** (session-settled: user-directed — chosen over an open-ended conversation and single critique: a fixed controller makes depth and cost predictable.) Prompts choose cases, design dimensions, and qualitative feedback but cannot choose the next state. Setup research and post-attempt architecture research may each use eight harness steps. Case-brief extraction, the pre-display leakage check, up to three challenge completions, and final-review generation each permit the existing single repair attempt, for at most twenty-eight model passes on the normal worst-case path. Governs R6-R8, R13, R14.
 - KTD5. **Keep evidence acceptance deterministic.** Automatic selection requires two HTTP(S) source URLs on distinct hostnames, one source dated within the previous 24 months against an injected clock, and an outcome claim linked to a dossier source. URL validity, dossier membership, hostname independence, recency, and source references are deterministic. A learner-supplied case may proceed with one credible source if the brief and review mark evidence as limited. Governs R1-R3, R10, R11.
-- KTD6. **Use an event-backed terminal input adapter with one interruption ownership chain.** The adapter queues line events and latches EOF, SIGINT, and input errors as host-neutral outcomes. The CLI forwards interruption to the controller, the controller checks the latch after each uncancellable operation and discards that result, operations own typed research and model failures, and the CLI alone maps terminal outcomes to streams, status, and cleanup. Interactive material goes to stderr and only a completed final review goes to stdout. Governs R4, R5, R14, R15.
+- KTD6. **Use an event-backed terminal input adapter with one interruption ownership chain.** The adapter queues line events and latches EOF, SIGINT, and input errors as host-neutral outcomes. After displaying a case brief or challenge, the controller discards lines buffered before that newly visible turn and accepts subsequent lines in order. The CLI forwards interruption to the controller, the controller checks the latch after each uncancellable operation and discards that result, operations own typed research and model failures, and the CLI alone maps terminal outcomes to streams, status, and cleanup. Interactive material goes to stderr and only a completed final review goes to stdout. Governs R4, R5, R14, R15.
 - KTD7. **Keep every stateful boundary fresh and operation-injected.** The runtime is the only concrete composition root. It shares model and research capabilities through narrow functions, while every lab factory call creates a new controller and transcript. The lab domain cannot import terminal APIs, the default runtime, provider selectors, tool registries, or concrete integration clients. Governs R4, R13-R15.
 - KTD8. **Treat learner text and retrieved text as untrusted data.** Prompts delimit case evidence and transcript content. Structured schemas reject phase mismatches, the controller ignores model attempts to alter phase or output destination, and final-review citations must resolve to the validated case brief. Governs R3, R6-R11, R13.
 
@@ -249,7 +249,7 @@ stateDiagram-v2
   failed --> [*]
 ```
 
-Learner text is accumulated until an exact `/submit` line commits the turn. Blank submissions, oversized drafts, and an early `/finish` before a proposal return the controller to the same waiting state without a model call. `/exit` and EOF are graceful exits. SIGINT becomes an interrupted terminal outcome after any active model call settles, and its result is discarded.
+Learner text entered after a visible case or challenge prompt is accumulated until an exact `/submit` line commits the turn. At each newly visible learner turn, the controller discards lines buffered before the prompt appeared so pasted input cannot answer an unseen question. Blank submissions, oversized drafts, and an early `/finish` before a proposal return the controller to the same waiting state without a model call. `/exit` and EOF are graceful exits. SIGINT becomes an interrupted terminal outcome after any active model call settles, and its result is discarded.
 
 During setup or challenge generation, latched EOF discards the operation result and exits cleanly; during final-review generation, the completed review wins because no more learner input is required. An input error always wins over an operation result and produces failure. SIGINT wins in every active phase. An operation failure is reported unless EOF already selected a graceful exit during setup or challenge generation.
 
@@ -311,8 +311,8 @@ docs/
 
 ### Assumptions
 
-- Node 24 remains the supported local runtime for the event and signal semantics in KTD6.
-- Learner text may span lines and is accumulated until an exact trimmed, case-insensitive `/submit` line commits the turn. Exact `/finish` and `/exit` tokens are commands only when they are the entire line; `/finish` requires an empty draft so text is never discarded implicitly.
+- Node.js 20.18.1 is the minimum supported local runtime. The event and signal semantics in KTD6 are available in that version and later releases.
+- Learner text may span lines and is accumulated until an exact trimmed, case-insensitive `/submit` line commits the turn. Exact `/finish` and `/exit` tokens are commands only when they are the entire line; `/finish` requires an empty draft so it cannot discard an active draft.
 - A case argument is limited to 500 characters, each learner turn is limited to 8,000 characters, and the cumulative structured transcript is limited to 32,000 characters. Oversized input is rejected without advancing the session.
 - The generic harness and existing research tools can produce a typed source dossier through a lab-specific prompt. When they cannot, the lab fails before presenting an unsupported case.
 - Deterministic evidence checks cover URL validity, URL presence in the dossier, hostname independence, publication recency, and outcome-source references.
@@ -350,9 +350,9 @@ Build the typed lab operations before the stateful controller so the controller 
 ### Technical Research
 
 - Existing composition and boundary patterns: `src/app/runtime/default.ts`, `src/app/runtime/types.ts`, `src/app/agent/run.ts`, `src/app/agent/prompts.ts`, `src/framework/llm/repair.ts`, and `tests/framework-boundaries.test.ts`.
-- Node 24 documents that readline starts consuming input when the interface is created, that EOF closes the interface, and that a final unterminated line is emitted before close: [Readline lifecycle](https://nodejs.org/download/release/v24.17.0/docs/api/readline.html#event-close) and [line events](https://nodejs.org/download/release/v24.17.0/docs/api/readline.html#event-line).
-- Node 24 documents distinct readline SIGINT behavior and the need to close an interface explicitly when a handler owns the signal: [Readline SIGINT](https://nodejs.org/download/release/v24.17.0/docs/api/readline.html#event-sigint).
-- Node recommends `process.exitCode` over `process.exit()` when pending output must not be truncated: [Process exit guidance](https://nodejs.org/download/release/v24.17.0/docs/api/process.html#processexitcode).
+- The Node.js API documents that readline starts consuming input when the interface is created, that EOF closes the interface, and that a final unterminated line is emitted before close: [Readline lifecycle](https://nodejs.org/download/release/v20.18.1/docs/api/readline.html#event-close) and [line events](https://nodejs.org/download/release/v20.18.1/docs/api/readline.html#event-line).
+- The Node.js API documents distinct readline SIGINT behavior and the need to close an interface explicitly when a handler owns the signal: [Readline SIGINT](https://nodejs.org/download/release/v20.18.1/docs/api/readline.html#event-sigint).
+- Node recommends `process.exitCode` over `process.exit()` when pending output must not be truncated: [Process exit guidance](https://nodejs.org/download/release/v20.18.1/docs/api/process.html#processexitcode).
 - Commander 14 supports async action handlers through the existing `parseAsync()` path: [Commander action handlers](https://github.com/tj/commander.js/blob/v14.0.3/Readme.md#action-handler).
 
 ---
@@ -407,7 +407,7 @@ Build the typed lab operations before the stateful controller so the controller 
   - Covers F2 / AE2. An omitted case reaches the same state only after the automatic evidence gate passes.
   - Covers F3. `/finish` after a submitted proposal creates a review; `/finish` before a proposal or with a nonempty draft reprompts without a model call.
   - Covers AE3. Three answered challenges produce a review and a fourth challenge operation is impossible.
-  - Multiline text remains one draft until `/submit`; a pasted proposal ending in `/submit` cannot become answers to unseen challenges.
+  - Multiline text entered after a visible prompt remains one draft until `/submit`; lines buffered before the case or challenge becomes visible are discarded and cannot become answers to unseen turns.
   - A blank submission or oversized draft returns a distinct corrective message with the applicable bound without changing state or round count.
   - Early `/finish` explains that a submitted proposal is required before review generation.
   - `/exit` and EOF end the session without a review or another model call.
@@ -433,11 +433,12 @@ Build the typed lab operations before the stateful controller so the controller 
   1. Create the readline interface only for the `lab` command and attach line, close, SIGINT, and input-error listeners immediately.
   2. Maintain a FIFO line queue, at most one pending read, and one terminal-outcome latch.
   3. Drain queued lines before EOF, but let interruption and input errors preempt queued input.
-  4. Make cleanup idempotent, remove listeners, and ignore late events after termination.
-  5. Enable terminal editing only when both stdin and the interaction output stream are TTYs.
+  4. Expose a checkpoint operation that discards only lines buffered before a newly visible learner turn.
+  5. Make cleanup idempotent, remove listeners, and ignore late events after termination.
+  6. Enable terminal editing only when both stdin and the interaction output stream are TTYs.
 - **Patterns to follow:** Injected I/O boundaries in `src/app/cli.ts` and deterministic stream replacement in the existing network tests.
 - **Test scenarios:**
-  - Lines received while application work is active remain ordered and are returned once, allowing the controller to assemble them until `/submit`.
+  - Lines buffered before a newly visible turn are discarded at its checkpoint; lines entered afterward remain ordered and are returned once, allowing the controller to assemble them until `/submit`.
   - A final unterminated line is returned before EOF.
   - EOF resolves a pending read and never becomes an empty learner turn.
   - SIGINT preempts queued lines and is not overwritten by the following close event.

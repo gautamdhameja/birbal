@@ -37,8 +37,10 @@ Write a proposal or challenge answer across as many lines as needed, then enter 
 - `/finish` produces the best available review after a proposal has been submitted. A pending draft must be submitted first.
 - `/exit` leaves immediately without producing a review.
 
+Wait until the case brief or next challenge is visible before you type. Lines entered while Birbal is preparing that prompt are buffered by the terminal, then intentionally discarded when the new prompt appears. This prevents pasted or typed-ahead input from answering a question you have not seen.
+
 Birbal automatically produces a review after the third answered challenge. Research progress, case context, challenges, validation messages, trace output, and failures go to stderr. Only a completed `Architecture Review` goes to stdout. An ordinary exit or EOF returns status 0, Ctrl-C returns 130, and an input or lab failure returns 1.
 
-Each invocation creates a fresh session. Nothing can be saved or resumed. A model or research request already in progress cannot be cancelled at the caller level: Ctrl-C is latched, the active request is allowed to settle, its result is discarded, and the CLI then returns 130.
+Each invocation creates a fresh session with no built-in save or resume capability. You can still redirect a completed review from stdout. A model or research request already in progress cannot be cancelled at the caller level: Ctrl-C is latched, the active request is allowed to settle, its result is discarded, and the CLI then returns 130.
 
 See [Architecture Case Lab](architecture-case-lab.md) for the complete workflow and limits.

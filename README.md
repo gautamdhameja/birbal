@@ -7,7 +7,7 @@ The project demonstrates the main components of an agent harness: model adapters
 ## Choose a workflow
 
 - **Research a topic:** Birbal investigates a question and returns a concise reading list with source links, reasons to read, and key takeaways.
-- **Practice architecture design:** Birbal researches a case, hides the reference architecture until you submit a proposal, challenges your design, and returns a sourced qualitative review.
+- **Practice architecture design:** Birbal researches a case, withholds solution details before you submit a proposal, challenges your design, and returns a sourced qualitative review.
 
 Birbal does not save sessions, publish files, or maintain a learner profile.
 
@@ -122,6 +122,8 @@ Complete the lab as follows:
 3. Enter `/submit` on its own line.
 4. Answer each architecture challenge, then enter `/submit` again.
 5. Review the final assessment after the third answered challenge.
+
+Wait until the case brief or next challenge is visible before you type. The lab intentionally discards lines entered while it is preparing that prompt so pasted input cannot answer a question you have not seen.
 
 The lab recognizes these whole-line commands:
 
