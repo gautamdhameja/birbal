@@ -5,7 +5,7 @@
   "type": "module",
   "packageManager": "pnpm@10.15.0",
   "engines": {
-    "node": ">=20.18.1"
+    "node": ">=22.13.0"
   },
   "bin": {
     "birbal": "./bin/birbal.js"

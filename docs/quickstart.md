@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Node.js 20.18.1 or newer
+- Node.js 22.13.0 or newer
 - pnpm 10
 - a llama.cpp-compatible server, or an OpenAI API key
 - a Brave Search API key for web and configured-domain search

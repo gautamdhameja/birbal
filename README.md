@@ -15,7 +15,7 @@ Birbal does not save sessions, publish files, or maintain a learner profile.
 
 Before you run Birbal, install or configure the following software and services:
 
-- Node.js 20.18.1 or later.
+- Node.js 22.13.0 or later.
 - pnpm 10.
 - A llama.cpp-compatible chat-completions server or an OpenAI API key.
 - A Brave Search API key for general web and configured-domain searches.

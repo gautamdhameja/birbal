@@ -311,7 +311,7 @@ docs/
 
 ### Assumptions
 
-- Node.js 20.18.1 is the minimum supported local runtime. The event and signal semantics in KTD6 are available in that version and later releases.
+- Node.js 22.13.0 is the minimum supported local runtime. The event and signal semantics in KTD6 are available in that version and later releases.
 - Learner text may span lines and is accumulated until an exact trimmed, case-insensitive `/submit` line commits the turn. Exact `/finish` and `/exit` tokens are commands only when they are the entire line; `/finish` requires an empty draft so it cannot discard an active draft.
 - A case argument is limited to 500 characters, each learner turn is limited to 8,000 characters, and the cumulative structured transcript is limited to 32,000 characters. Oversized input is rejected without advancing the session.
 - The generic harness and existing research tools can produce a typed source dossier through a lab-specific prompt. When they cannot, the lab fails before presenting an unsupported case.
@@ -350,9 +350,9 @@ Build the typed lab operations before the stateful controller so the controller 
 ### Technical Research
 
 - Existing composition and boundary patterns: `src/app/runtime/default.ts`, `src/app/runtime/types.ts`, `src/app/agent/run.ts`, `src/app/agent/prompts.ts`, `src/framework/llm/repair.ts`, and `tests/framework-boundaries.test.ts`.
-- The Node.js API documents that readline starts consuming input when the interface is created, that EOF closes the interface, and that a final unterminated line is emitted before close: [Readline lifecycle](https://nodejs.org/download/release/v20.18.1/docs/api/readline.html#event-close) and [line events](https://nodejs.org/download/release/v20.18.1/docs/api/readline.html#event-line).
-- The Node.js API documents distinct readline SIGINT behavior and the need to close an interface explicitly when a handler owns the signal: [Readline SIGINT](https://nodejs.org/download/release/v20.18.1/docs/api/readline.html#event-sigint).
-- Node recommends `process.exitCode` over `process.exit()` when pending output must not be truncated: [Process exit guidance](https://nodejs.org/download/release/v20.18.1/docs/api/process.html#processexitcode).
+- The Node.js API documents that readline starts consuming input when the interface is created, that EOF closes the interface, and that a final unterminated line is emitted before close: [Readline lifecycle](https://nodejs.org/download/release/v22.13.0/docs/api/readline.html#event-close) and [line events](https://nodejs.org/download/release/v22.13.0/docs/api/readline.html#event-line).
+- The Node.js API documents distinct readline SIGINT behavior and the need to close an interface explicitly when a handler owns the signal: [Readline SIGINT](https://nodejs.org/download/release/v22.13.0/docs/api/readline.html#event-sigint).
+- Node recommends `process.exitCode` over `process.exit()` when pending output must not be truncated: [Process exit guidance](https://nodejs.org/download/release/v22.13.0/docs/api/process.html#processexitcode).
 - Commander 14 supports async action handlers through the existing `parseAsync()` path: [Commander action handlers](https://github.com/tj/commander.js/blob/v14.0.3/Readme.md#action-handler).
 
 ---
