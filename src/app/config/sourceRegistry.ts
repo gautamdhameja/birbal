@@ -1,8 +1,8 @@
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { z } from "zod";
 
+import { loadJsonConfig } from "../../framework/config/loadJsonConfig.js";
 import { SOURCE_REGISTRY } from "../constants/source-registry.js";
 import { SOURCES } from "../constants/sources.js";
 
@@ -43,27 +43,11 @@ function getDefaultSourceRegistryPath(): string {
   return join(process.cwd(), SOURCE_REGISTRY.DIRECTORY, SOURCE_REGISTRY.FILE_NAME);
 }
 
-function parseSourceRegistryJson(rawConfig: string): unknown {
-  try {
-    return JSON.parse(rawConfig);
-  } catch (error) {
-    throw new Error(
-      `${SOURCE_REGISTRY.ERRORS.INVALID_JSON} ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
-  }
-}
-
 export function loadSourceRegistry(
   sourceRegistryPath = getDefaultSourceRegistryPath(),
 ): SourceRegistry {
-  const parsed = SourceRegistrySchema.safeParse(
-    parseSourceRegistryJson(readFileSync(sourceRegistryPath, "utf8")),
-  );
-  if (!parsed.success) {
-    throw new Error(`${SOURCE_REGISTRY.ERRORS.INVALID_CONFIG} ${parsed.error.message}`);
-  }
-
-  return parsed.data;
+  return loadJsonConfig(sourceRegistryPath, SourceRegistrySchema, {
+    invalidJson: SOURCE_REGISTRY.ERRORS.INVALID_JSON,
+    invalidConfig: SOURCE_REGISTRY.ERRORS.INVALID_CONFIG,
+  });
 }

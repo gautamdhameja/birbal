@@ -36,9 +36,9 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function buildProtocolRepairMessage(error: string): ChatMessage {
+function buildProtocolRepairMessage(error: string, role: ChatMessage["role"]): ChatMessage {
   return {
-    role: FRAMEWORK_AGENT.ROLES.USER,
+    role,
     content: [
       `Your previous response was invalid: ${error}`,
       "Return exactly one valid JSON object and no surrounding text.",
@@ -169,7 +169,7 @@ export function createAgentHarness<TParsedResponse extends AgentResponse = Agent
             role: roles.assistant,
             content: raw,
           });
-          history.push(buildProtocolRepairMessage(message));
+          history.push(buildProtocolRepairMessage(message, roles.user));
 
           config.logger?.debug(
             {

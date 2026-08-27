@@ -1,12 +1,6 @@
-import {
-  closeSync,
-  constants as fsConstants,
-  lstatSync,
-  mkdirSync,
-  openSync,
-  realpathSync,
-  writeFileSync,
-} from "node:fs";
+import { constants as fsConstants, lstatSync, mkdirSync, realpathSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { open, rename, unlink } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 import { formatDateOnlyInTimeZone, formatTimeOnlyInTimeZone } from "./date.js";
@@ -67,22 +61,33 @@ function assertOutputPathResolvesInsideWorkspace(outputPath: string): void {
 export const filesystemArtifactWriter: ArtifactWriter = {
   async write(output, context) {
     const path = renderOutputPath(context);
-    const fileHandle = { fd: -1 };
+    const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
 
     mkdirSync(dirname(path), { recursive: true });
     assertOutputPathResolvesInsideWorkspace(path);
-    fileHandle.fd = openSync(
-      path,
-      fsConstants.O_WRONLY |
-        fsConstants.O_CREAT |
-        fsConstants.O_TRUNC |
-        (fsConstants.O_NOFOLLOW ?? 0),
-      0o600,
-    );
     try {
-      writeFileSync(fileHandle.fd, String(output));
-    } finally {
-      closeSync(fileHandle.fd);
+      const fileHandle = await open(
+        temporaryPath,
+        fsConstants.O_WRONLY |
+          fsConstants.O_CREAT |
+          fsConstants.O_EXCL |
+          (fsConstants.O_NOFOLLOW ?? 0),
+        0o600,
+      );
+      try {
+        await fileHandle.writeFile(String(output));
+        await fileHandle.sync();
+      } finally {
+        await fileHandle.close();
+      }
+      await rename(temporaryPath, path);
+    } catch (error) {
+      try {
+        await unlink(temporaryPath);
+      } catch {
+        // The temporary file may already have been moved or removed.
+      }
+      throw error;
     }
 
     return {

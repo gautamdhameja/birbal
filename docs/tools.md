@@ -29,9 +29,9 @@ const getTimeTool: ToolDefinition = {
 
 - `register(tool)`
 - `registerMany(tools)`
-- `listTools()`
-- `renderToolsForPrompt()`
-- `getTool(name)`
+- `list()`
+- `renderForPrompt()`
+- `get(name)`
 
 Tool rendering includes name, description, and JSON argument shape. This gives the model enough information to emit a valid `tool_call`.
 

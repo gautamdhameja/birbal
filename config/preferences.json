@@ -12,7 +12,7 @@
   "preferredDifficulty": "advanced",
   "enableAcademicFallback": false,
   "minFinalScoreForDigest": 3.4,
-  "maxItemsPerSource": 2,
+  "maxItemsPerSource": 5,
   "dailyMix": {
     "arxiv": 0,
     "hackernews": 1

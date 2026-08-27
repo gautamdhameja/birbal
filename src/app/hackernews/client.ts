@@ -72,9 +72,13 @@ export async function searchHackerNews(
   });
 
   if (!response.ok) {
-    throw await buildHttpStatusError(HACKER_NEWS.ERRORS.HTTP_FAILED_PREFIX, response);
+    throw await buildHttpStatusError(HACKER_NEWS.ERRORS.HTTP_FAILED_PREFIX, response, {
+      signal: options.signal,
+    });
   }
 
-  const parsed = HackerNewsSearchResponseSchema.parse(await readResponseJson(response));
+  const parsed = HackerNewsSearchResponseSchema.parse(
+    await readResponseJson(response, { signal: options.signal }),
+  );
   return parsed.hits.map(normalizeHackerNewsHit);
 }

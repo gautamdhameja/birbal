@@ -2,7 +2,11 @@ import { load } from "cheerio";
 
 import { URL_TEXT } from "../../../framework/content/constants.js";
 import { extractUrlText } from "../../../framework/content/extractText.js";
-import { buildHttpStatusError, readResponseText } from "../../../framework/network/client.js";
+import {
+  buildHttpStatusError,
+  discardResponseBody,
+  readResponseText,
+} from "../../../framework/network/client.js";
 import { HTTP } from "../../../framework/network/constants.js";
 import { fetchPublicHttpWithRetry } from "../../../framework/network/fetch.js";
 import type { PublicHttpFetchOptions } from "../../../framework/network/fetch.js";
@@ -172,6 +176,7 @@ async function fetchSourceResponse(
     }
 
     const nextUrl = new URL(location, url).toString();
+    await discardResponseBody(response);
     try {
       await assertSafePublicHttpUrl(nextUrl, options.fetchPolicy?.hostResolver);
     } catch {
@@ -191,14 +196,18 @@ async function fetchSourcePage(
   const { response, finalUrl } = await fetchSourceResponse(url, options);
   const type = contentType(response);
   if (!response.ok) {
-    throw await buildHttpStatusError("Source evidence fetch failed with HTTP", response);
+    throw await buildHttpStatusError("Source evidence fetch failed with HTTP", response, {
+      timeoutMs: options.fetchPolicy?.timeoutMs,
+    });
   }
 
   if (!isSupportedContentType(type)) {
     throw new Error(`Unsupported source evidence content type: ${type || "unknown"}.`);
   }
 
-  const html = await readResponseText(response, options.fetchPolicy?.maxResponseBytes);
+  const html = await readResponseText(response, options.fetchPolicy?.maxResponseBytes, {
+    timeoutMs: options.fetchPolicy?.timeoutMs,
+  });
   const extracted = extractUrlText(html, options.maxChars ?? DEFAULT_MAX_CHARS);
 
   return {

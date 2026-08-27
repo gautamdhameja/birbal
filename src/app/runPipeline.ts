@@ -24,6 +24,10 @@ export function applyPipelineCliLimit(
       limit,
       maxResults: limit,
     },
+    failurePolicy: {
+      ...config.failurePolicy,
+      minItemsRequiredForSuccess: Math.min(config.failurePolicy.minItemsRequiredForSuccess, limit),
+    },
     metadata: {
       ...config.metadata,
       cliLimit: limit,

@@ -1,8 +1,9 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 import { z } from "zod";
 
+import { loadJsonConfig } from "../config/loadJsonConfig.js";
 import { URL_TEXT } from "../content/constants.js";
 import type { PipelineConfig } from "./types.js";
 
@@ -143,25 +144,9 @@ function resolvePipelineConfigPath(configPathOrName: string): string {
   return getDefaultPipelineConfigPath(configPathOrName.replaceAll("_", "-"));
 }
 
-function parsePipelineConfigJson(rawConfig: string): unknown {
-  try {
-    return JSON.parse(rawConfig);
-  } catch (error) {
-    throw new Error(
-      `${PIPELINE_CONFIG_ERRORS.INVALID_JSON} ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
-  }
-}
-
 export function loadPipelineConfig(configPathOrName: string): PipelineConfig {
-  const parsed = PipelineConfigFileSchema.safeParse(
-    parsePipelineConfigJson(readFileSync(resolvePipelineConfigPath(configPathOrName), "utf8")),
-  );
-  if (!parsed.success) {
-    throw new Error(`${PIPELINE_CONFIG_ERRORS.INVALID_CONFIG} ${parsed.error.message}`);
-  }
-
-  return parsed.data;
+  return loadJsonConfig(resolvePipelineConfigPath(configPathOrName), PipelineConfigFileSchema, {
+    invalidJson: PIPELINE_CONFIG_ERRORS.INVALID_JSON,
+    invalidConfig: PIPELINE_CONFIG_ERRORS.INVALID_CONFIG,
+  });
 }

@@ -201,6 +201,27 @@ describe("pipeline component registry", () => {
     );
   });
 
+  it("does not partially register a batch when a later component conflicts", () => {
+    const registry = new PipelineComponentRegistry();
+    const existingRenderer = { render: async () => "existing" };
+    registry.registerRenderer("renderer", existingRenderer);
+
+    assert.throws(
+      () =>
+        registry.registerMany({
+          collectors: {
+            new_collector: { collect: async () => [] },
+          },
+          renderers: {
+            renderer: { render: async () => "replacement" },
+          },
+        }),
+      /Pipeline component already registered: renderers\.renderer/,
+    );
+    assert.throws(() => registry.getCollector("new_collector"), /Unknown pipeline component/);
+    assert.equal(registry.getRenderer("renderer"), existingRenderer);
+  });
+
   it("can be configured to allow component replacement", () => {
     const firstScorer = {
       score: async () => ({ score: 1 }),

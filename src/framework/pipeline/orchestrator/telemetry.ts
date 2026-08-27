@@ -188,16 +188,21 @@ export function failPipelineRun(
   counts: PipelineCounts,
   errors: PipelineError[],
   errorSummary: string,
+  artifacts: PipelineResult["artifacts"] = [],
 ): PipelineResult {
   const result: PipelineResult = {
     pipelineId: config.pipelineId,
     runId,
     status: "failed",
-    artifacts: [],
+    artifacts,
     counts,
     errors,
     metadata: finishMetadata(metadata, dependencies.now()),
   };
+  if (artifacts.length > 0) {
+    return finishPipelineRun(dependencies, runId, result, startedAt);
+  }
+
   dependencies.runStore.failRun(runId, errorSummary);
   logPipelineFinished(dependencies.logger, result, startedAt);
   return result;

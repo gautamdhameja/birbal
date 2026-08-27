@@ -61,7 +61,8 @@ describe("shared LLM output repair", () => {
     });
     assert.equal(calls.length, 2);
     assert.equal(calls[1]?.options?.traceLabel, "test.structured.repair");
-    assert.match(calls[1]?.messages.at(-1)?.content ?? "", /not json/);
+    assert.equal(calls[1]?.messages.at(-2)?.content, "not json");
+    assert.doesNotMatch(calls[1]?.messages.at(-1)?.content ?? "", /not json/);
     assert.match(calls[1]?.messages.at(-1)?.content ?? "", /"required":\["answer"\]/);
   });
 

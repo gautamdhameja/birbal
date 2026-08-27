@@ -1,6 +1,11 @@
 import { fetchPublicHttpWithRetry } from "../network/fetch.js";
 import type { PublicHttpFetchOptions } from "../network/fetch.js";
-import { buildHttpStatusError, isHttpStatusError, readResponseText } from "../network/client.js";
+import {
+  buildHttpStatusError,
+  discardResponseBody,
+  isHttpStatusError,
+  readResponseText,
+} from "../network/client.js";
 import { HTTP } from "../network/constants.js";
 import {
   assertSafePublicHttpUrl,
@@ -169,7 +174,10 @@ export async function fetchUrlContent({
     if (!response.ok) {
       return errorResult(
         finalUrl,
-        await buildHttpStatusError(URL_TEXT.ERRORS.HTTP_FAILED_PREFIX, response),
+        await buildHttpStatusError(URL_TEXT.ERRORS.HTTP_FAILED_PREFIX, response, {
+          signal: fetchPolicy.signal,
+          timeoutMs: fetchPolicy.timeoutMs,
+        }),
         contentType,
       );
     }
@@ -190,7 +198,13 @@ export async function fetchUrlContent({
       canonicalUrl: extractedCanonicalUrl,
       detectedPaywall,
       ...extracted
-    } = extractUrlText(await readResponseText(response, fetchPolicy.maxResponseBytes), maxChars);
+    } = extractUrlText(
+      await readResponseText(response, fetchPolicy.maxResponseBytes, {
+        signal: fetchPolicy.signal,
+        timeoutMs: fetchPolicy.timeoutMs,
+      }),
+      maxChars,
+    );
     const canonicalUrl = resolveCanonicalUrl(extractedCanonicalUrl, finalUrl);
 
     return {
@@ -245,6 +259,7 @@ async function fetchUrlResponse(
     }
 
     const nextUrl = new URL(location, url).toString();
+    await discardResponseBody(response);
     try {
       await assertSafePublicHttpUrl(nextUrl, fetchPolicy.hostResolver);
     } catch {

@@ -46,6 +46,20 @@ type ComponentBuckets = {
   [K in ComponentKind]: ComponentBucket<ComponentKindMap[K]>;
 };
 
+const COMPONENT_KINDS = [
+  "collectors",
+  "contentFetchers",
+  "contentExtractors",
+  "scorers",
+  "classifiers",
+  "structuredExtractors",
+  "selectors",
+  "renderers",
+  "artifactWriters",
+  "finalizers",
+  "rubrics",
+] as const satisfies readonly ComponentKind[];
+
 export type PipelineComponentRegistryOptions = {
   allowOverwrite?: boolean;
 };
@@ -178,17 +192,24 @@ export class PipelineComponentRegistry {
   }
 
   registerMany(components: PipelineComponentRegistration): void {
-    this.registerEntries("collectors", components.collectors);
-    this.registerEntries("contentFetchers", components.contentFetchers);
-    this.registerEntries("contentExtractors", components.contentExtractors);
-    this.registerEntries("scorers", components.scorers);
-    this.registerEntries("classifiers", components.classifiers);
-    this.registerEntries("structuredExtractors", components.structuredExtractors);
-    this.registerEntries("selectors", components.selectors);
-    this.registerEntries("renderers", components.renderers);
-    this.registerEntries("artifactWriters", components.artifactWriters);
-    this.registerEntries("finalizers", components.finalizers);
-    this.registerEntries("rubrics", components.rubrics);
+    const registrations = COMPONENT_KINDS.map((kind) => [kind, components[kind]] as const);
+    this.validateRegistration(registrations);
+    for (const [kind, entries] of registrations) {
+      this.registerEntries(kind, entries);
+    }
+  }
+
+  private validateRegistration(
+    registrations: ReadonlyArray<readonly [ComponentKind, Record<string, unknown> | undefined]>,
+  ): void {
+    for (const [kind, entries] of registrations) {
+      for (const id of Object.keys(entries ?? {})) {
+        assertComponentId(id);
+        if (!this.options.allowOverwrite && this.bucket(kind).has(id)) {
+          throw new Error(`Pipeline component already registered: ${kind}.${id}`);
+        }
+      }
+    }
   }
 
   getCollector(id: string): SourceCollector {

@@ -284,9 +284,13 @@ export async function fetchWithTimeout(
   options: FetchTimeoutOptions = {},
 ): Promise<Response> {
   const timeoutMs = options.timeoutMs ?? HTTP.DEFAULT_TIMEOUT_MS;
+  if (init.signal?.aborted) {
+    throw new FetchAbortError();
+  }
+
   const controller = new AbortController();
   let timedOut = false;
-  let callerAborted = init.signal?.aborted ?? false;
+  let callerAborted = false;
   const timeout = setTimeout(() => {
     timedOut = true;
     controller.abort();

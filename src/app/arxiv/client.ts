@@ -178,10 +178,14 @@ async function fetchArxivSearch(
   );
 
   if (response.ok) {
-    return parseArxivAtomFeed(await readResponseText(response));
+    return parseArxivAtomFeed(
+      await readResponseText(response, undefined, { signal: options.signal }),
+    );
   }
 
-  throw await buildHttpStatusError(ARXIV.ERRORS.HTTP_FAILED_PREFIX, response);
+  throw await buildHttpStatusError(ARXIV.ERRORS.HTTP_FAILED_PREFIX, response, {
+    signal: options.signal,
+  });
 }
 
 export async function searchArxiv(options: ArxivSearchOptions): Promise<ArxivPaper[]> {

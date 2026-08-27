@@ -160,25 +160,15 @@ function parseModelOutput<T>(raw: string, schema: z.ZodType<T>): ParsedModelOutp
 }
 
 function buildRepairPrompt({
-  invalidOutput,
   repairInstructions,
   schemaDescription,
-  validationError,
 }: {
-  invalidOutput: string;
   repairInstructions?: string;
   schemaDescription: string;
-  validationError: string;
 }): string {
   return [
     repairInstructions ??
       "Your previous response failed JSON parsing or schema validation. Repair it.",
-    "",
-    "Invalid output:",
-    invalidOutput,
-    "",
-    "Validation error:",
-    validationError,
     "",
     "Target JSON schema description:",
     schemaDescription,
@@ -259,10 +249,8 @@ export async function completeStructuredWithRepair<T>({
     {
       role: "user",
       content: buildRepairPrompt({
-        invalidOutput: initialOutput,
         repairInstructions,
         schemaDescription: resolvedSchemaDescription,
-        validationError: initialParsed.validationError,
       }),
     },
   ];

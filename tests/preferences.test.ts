@@ -35,6 +35,10 @@ function writePreferencesConfig(value: unknown): string {
 }
 
 describe("user preferences", () => {
+  it("keeps the checked-in single-source daily target attainable", () => {
+    assert.equal(loadPreferences().maxItemsPerSource, 5);
+  });
+
   it("loads and validates preferences", () => {
     const configPath = writePreferencesConfig(preferences());
 

@@ -12,6 +12,7 @@ export type {
   AgentClarifyResponse,
   AgentFinalResponse,
   AgentHarnessConfig,
+  AgentLifecycleHooks,
   AgentLogger,
   AgentResponse,
   AgentRunOptions,

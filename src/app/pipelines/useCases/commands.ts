@@ -1,12 +1,7 @@
 import { searchWeb, type SearchWebResult } from "../../brave-search/client.js";
 import { loadSourceRegistry } from "../../config/sourceRegistry.js";
 import { OUTPUT } from "../../constants/runtime.js";
-import {
-  createSearchSnapshot,
-  listSearchSnapshotItems,
-  upsertSearchSnapshotItem,
-  updateSearchSnapshotResultCount,
-} from "../../db/searchSnapshots.js";
+import { listSearchSnapshotItems, saveSearchSnapshot } from "../../db/searchSnapshots.js";
 import { sqlitePipelineRunStore } from "../../db/pipelineRuns.js";
 import { runPipeline } from "../../../framework/pipeline/orchestrator.js";
 import type {
@@ -240,15 +235,13 @@ function persistSearchSnapshot(
   queryCount: number,
   metadata: unknown,
 ) {
-  const snapshot = createSearchSnapshot({
-    pipelineId: config.pipelineId,
-    queryCount,
-    metadata,
-  });
-
-  candidates.forEach((candidate, index) => {
-    upsertSearchSnapshotItem({
-      snapshotId: snapshot.id,
+  return saveSearchSnapshot(
+    {
+      pipelineId: config.pipelineId,
+      queryCount,
+      metadata,
+    },
+    candidates.map((candidate, index) => ({
       rank: index + 1,
       query: candidate.query,
       title: candidate.title,
@@ -257,11 +250,8 @@ function persistSearchSnapshot(
       publishedAt: candidate.publishedAt,
       sourceName: candidate.sourceName,
       raw: candidate.raw,
-    });
-  });
-  updateSearchSnapshotResultCount(snapshot.id, candidates.length);
-
-  return snapshot;
+    })),
+  );
 }
 
 async function processSnapshot(
@@ -294,6 +284,9 @@ export async function runUseCaseSearchSnapshotCommand(
     (query, maxResults, freshness) => searchWeb({ query, maxResults, freshness }),
     queries,
   );
+  if (result.candidates.length === 0 && result.searchErrors.length === result.searchedQueries) {
+    throw new Error("All use-case search queries failed; no snapshot was saved.");
+  }
   const snapshot = persistSearchSnapshot(config, result.candidates, result.searchedQueries, {
     searchErrors: result.searchErrors,
   });

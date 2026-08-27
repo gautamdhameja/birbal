@@ -36,6 +36,8 @@ export type SearchSnapshotItem = SearchSnapshotItemInput & {
   createdAt: string;
 };
 
+export type PersistedSearchSnapshotItem = Omit<SearchSnapshotItemInput, "snapshotId">;
+
 type SearchSnapshotRow = {
   id: string;
   pipeline_id: string;
@@ -125,6 +127,23 @@ export function updateSearchSnapshotResultCount(snapshotId: string, resultCount:
     id: snapshotId,
     resultCount,
   });
+}
+
+export function saveSearchSnapshot(
+  input: SearchSnapshotInput,
+  items: readonly PersistedSearchSnapshotItem[],
+): SearchSnapshot {
+  return getDb().transaction(() => {
+    const snapshot = createSearchSnapshot(input);
+    for (const item of items) {
+      upsertSearchSnapshotItem({
+        ...item,
+        snapshotId: snapshot.id,
+      });
+    }
+    updateSearchSnapshotResultCount(snapshot.id, items.length);
+    return { ...snapshot, resultCount: items.length };
+  })();
 }
 
 export function listSearchSnapshots(pipelineId: string, limit: number): SearchSnapshot[] {

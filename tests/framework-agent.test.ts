@@ -12,7 +12,7 @@ import {
   parseJsonAgentResponse,
   ToolRegistry,
 } from "../src/framework/index.js";
-import type { ChatMessage, ToolDefinition } from "../src/framework/index.js";
+import type { AgentLifecycleHooks, ChatMessage, ToolDefinition } from "../src/framework/index.js";
 
 describe("framework agent harness", () => {
   it("runs a model-tool-model loop without Birbal-specific components", async () => {
@@ -143,8 +143,55 @@ describe("framework agent harness", () => {
     assert.match(seenMessages[1]?.at(-1)?.content ?? "", /exactly one valid JSON object/);
   });
 
+  it("uses the configured user role for protocol repair messages", async () => {
+    const seenMessages: ChatMessage[][] = [];
+    const responses = ["not json", JSON.stringify({ type: "final", answer: "fixed" })];
+    const runHarness = createAgentHarness({
+      modelClient: {
+        complete: async (messages) => {
+          seenMessages.push([...messages]);
+          return responses.shift() ?? "";
+        },
+      },
+      toolRunner: async () => ({}),
+      buildSystemPrompt: () => "system",
+      renderToolsForPrompt: () => "",
+      parseResponse: parseJsonAgentResponse,
+      defaultMaxSteps: 2,
+      maxParseRepairAttempts: 1,
+      roles: {
+        system: "user",
+        user: "system",
+        assistant: "assistant",
+      },
+    });
+
+    assert.equal(await runHarness("repair"), "fixed");
+    assert.equal(seenMessages[1]?.at(-1)?.role, "system");
+  });
+
   it("emits lifecycle hooks around model and tool handoffs", async () => {
     const events: string[] = [];
+    const hooks: AgentLifecycleHooks = {
+      beforeModelCall: () => {
+        events.push("before_model");
+      },
+      afterModelCall: () => {
+        events.push("after_model");
+      },
+      onResponseParsed: () => {
+        events.push("parsed");
+      },
+      beforeToolCall: () => {
+        events.push("before_tool");
+      },
+      afterToolCall: () => {
+        events.push("after_tool");
+      },
+      onMaxSteps: () => {
+        events.push("max_steps");
+      },
+    };
     const runHarness = createAgentHarness({
       modelClient: {
         complete: async () =>
@@ -166,26 +213,7 @@ describe("framework agent harness", () => {
           })
           .parse(JSON.parse(raw)),
       defaultMaxSteps: 1,
-      hooks: {
-        beforeModelCall: () => {
-          events.push("before_model");
-        },
-        afterModelCall: () => {
-          events.push("after_model");
-        },
-        onResponseParsed: () => {
-          events.push("parsed");
-        },
-        beforeToolCall: () => {
-          events.push("before_tool");
-        },
-        afterToolCall: () => {
-          events.push("after_tool");
-        },
-        onMaxSteps: () => {
-          events.push("max_steps");
-        },
-      },
+      hooks,
     });
 
     await runHarness("trace hooks");

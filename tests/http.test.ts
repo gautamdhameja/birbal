@@ -83,6 +83,42 @@ describe("HTTP client helpers", () => {
     }
   });
 
+  it("times out stalled response bodies", async () => {
+    const response = new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("partial"));
+        },
+      }),
+    );
+
+    await assert.rejects(
+      readResponseText(response, undefined, { timeoutMs: 1 }),
+      FetchTimeoutError,
+    );
+  });
+
+  it("rejects pre-aborted callers without invoking fetch", async () => {
+    const originalFetch = globalThis.fetch;
+    const controller = new AbortController();
+    let calls = 0;
+    controller.abort();
+    globalThis.fetch = (() => {
+      calls += 1;
+      return Promise.resolve(new Response("unexpected"));
+    }) as typeof fetch;
+
+    try {
+      await assert.rejects(
+        fetchWithTimeout("https://example.com", { signal: controller.signal }),
+        FetchAbortError,
+      );
+      assert.equal(calls, 0);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("aborts fetch calls when the caller signal is aborted", async () => {
     const originalFetch = globalThis.fetch;
     const controller = new AbortController();

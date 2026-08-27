@@ -174,6 +174,7 @@ export async function runPipeline(
       deps.registry.getCollector(method.collectorId),
     ]),
   );
+  let artifacts: PipelineResult["artifacts"] = [];
 
   try {
     const collectionMethods = enabledCollectionMethods(config);
@@ -262,7 +263,7 @@ export async function runPipeline(
         counts,
       ),
     );
-    const artifacts = [artifact];
+    artifacts = [artifact];
     if (components.finalizers[0]) {
       await runTimedStage(context, "finalization", selectedItems.length, () =>
         finalizePipeline(selectedItems, artifact, components.finalizers[0], context),
@@ -296,6 +297,7 @@ export async function runPipeline(
       counts,
       errors,
       errorMessage(error),
+      artifacts,
     );
   }
 }

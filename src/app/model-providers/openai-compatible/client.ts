@@ -200,6 +200,7 @@ export function createOpenAICompatibleModelClient(
         const error = await buildHttpStatusError(
           MODEL_PROVIDERS.ERRORS.HTTP_FAILED_PREFIX,
           response,
+          { timeoutMs: config.requestTimeoutMs },
         );
         logCompletionFailed(modelCallId, config, parsedOptions, startedAt, error);
         throw error;
@@ -207,7 +208,7 @@ export function createOpenAICompatibleModelClient(
 
       let payload: unknown;
       try {
-        payload = await readResponseJson(response);
+        payload = await readResponseJson(response, { timeoutMs: config.requestTimeoutMs });
       } catch (error) {
         logCompletionFailed(modelCallId, config, parsedOptions, startedAt, error);
         const message = error instanceof Error ? error.message : String(error);

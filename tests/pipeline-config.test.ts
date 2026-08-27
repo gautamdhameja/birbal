@@ -148,7 +148,7 @@ describe("pipeline config", () => {
     );
   });
 
-  it("applies CLI limits only to final pipeline output", () => {
+  it("applies CLI limits to final output and its minimum-success policy", () => {
     const config = loadPipelineConfig("use-cases");
     const limited = applyPipelineCliLimit(config, 5);
 
@@ -157,6 +157,11 @@ describe("pipeline config", () => {
     assert.equal(limited.limits.maxCandidatesForExtraction, 50);
     assert.equal(limited.limits.maxResults, 5);
     assert.equal(limited.limits.limit, 5);
+    assert.equal(limited.failurePolicy.minItemsRequiredForSuccess, 5);
+
+    const tightlyLimited = applyPipelineCliLimit(config, 2);
+    assert.equal(tightlyLimited.limits.maxResults, 2);
+    assert.equal(tightlyLimited.failurePolicy.minItemsRequiredForSuccess, 2);
   });
 
   it("keeps configured pipeline source IDs present in the source registry", () => {

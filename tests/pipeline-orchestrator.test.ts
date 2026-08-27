@@ -2,7 +2,16 @@
 // Scope: Covers regressions through the Node.js test runner.
 
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -981,6 +990,57 @@ describe("pipeline orchestrator", () => {
     assert.equal(finalized, false);
   });
 
+  it("keeps artifact acknowledgement when finalization fails", async () => {
+    const registry = new PipelineComponentRegistry();
+    const artifact = { id: "written-artifact", type: "markdown", path: "digests/result.md" };
+    let persistedArtifacts: unknown[] = [];
+
+    registry.registerCollector("collector", {
+      collect: async () => [{ id: "first" }],
+    });
+    registry.registerSelector("selector", {
+      select: async (items) => items,
+    });
+    registry.registerRenderer("renderer", {
+      render: async () => "rendered",
+    });
+    registry.registerArtifactWriter("writer", {
+      write: async () => artifact,
+    });
+    registry.registerFinalizer("finalizer", {
+      finalize: async () => {
+        throw new Error("finalizer unavailable");
+      },
+    });
+
+    const result = await runPipeline(
+      writeConfig(
+        config({
+          contentFetchPolicy: { enabled: false },
+          scorerId: undefined,
+          classifierId: undefined,
+          structuredExtractorId: undefined,
+          finalizerId: "finalizer",
+        }),
+      ),
+      {
+        runStore: testRunStore("run-finalizer-failure", {
+          finishRun: (_runId, input) => {
+            persistedArtifacts = input.artifacts ?? [];
+          },
+        }),
+        loadSourceRegistry: testSourceRegistry,
+        logger: silentLogger(),
+        now: () => new Date("2026-05-23T08:00:00.000Z"),
+        registry,
+      },
+    );
+
+    assert.equal(result.status, "failed");
+    assert.deepEqual(result.artifacts, [artifact]);
+    assert.deepEqual(persistedArtifacts, [artifact]);
+  });
+
   it("sanitizes large error causes before returning pipeline errors", async () => {
     const registry = new PipelineComponentRegistry();
     const largeBody = "<html>".repeat(1_000);
@@ -1324,6 +1384,67 @@ describe("pipeline orchestrator", () => {
         join(process.cwd(), outputDirectory, "2026-05-23-080910.md"),
       );
       assert.equal(existsSync(result.artifacts[0]?.path ?? ""), true);
+    } finally {
+      rmSync(join(process.cwd(), outputDirectory), { force: true, recursive: true });
+    }
+  });
+
+  it("preserves the previous artifact when rendering output fails", async () => {
+    const registry = new PipelineComponentRegistry();
+    const outputDirectory = `.tmp-pipeline-output-${Date.now()}`;
+    const outputPath = join(process.cwd(), outputDirectory, "result.md");
+
+    registerFrameworkPipelineComponents(registry);
+    registry.registerCollector("collector", {
+      collect: async () => [{ id: "first" }],
+    });
+    registry.registerScorer("scorer", {
+      score: async () => ({ finalScore: 1 }),
+    });
+    registry.registerSelector("selector", {
+      select: async (items) => items,
+    });
+    registry.registerRenderer("renderer", {
+      render: async () =>
+        ({
+          toString() {
+            throw new Error("rendered output conversion failed");
+          },
+        }) as unknown as string,
+    });
+    mkdirSync(join(process.cwd(), outputDirectory));
+    writeFileSync(outputPath, "previous artifact");
+
+    try {
+      const result = await runPipeline(
+        writeConfig(
+          config({
+            contentFetchPolicy: { enabled: false },
+            classifierId: undefined,
+            structuredExtractorId: undefined,
+            output: {
+              format: "markdown",
+              artifactWriterId: "filesystem_artifact_writer",
+              directory: outputDirectory,
+              filenameTemplate: "result.md",
+            },
+          }),
+        ),
+        {
+          runStore: testRunStore("run-output-atomic"),
+          loadSourceRegistry: testSourceRegistry,
+          logger: silentLogger(),
+          now: () => new Date("2026-05-23T08:09:10.000Z"),
+          registry,
+        },
+      );
+
+      assert.equal(result.status, "failed");
+      assert.equal(readFileSync(outputPath, "utf8"), "previous artifact");
+      assert.deepEqual(
+        readdirSync(join(process.cwd(), outputDirectory)).filter((name) => name.endsWith(".tmp")),
+        [],
+      );
     } finally {
       rmSync(join(process.cwd(), outputDirectory), { force: true, recursive: true });
     }

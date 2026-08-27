@@ -152,10 +152,14 @@ export async function searchWeb(options: SearchWebOptions): Promise<SearchWebRes
       quotaState.rateLimited = true;
     }
 
-    throw await buildHttpStatusError(BRAVE_SEARCH.ERRORS.HTTP_FAILED_PREFIX, response);
+    throw await buildHttpStatusError(BRAVE_SEARCH.ERRORS.HTTP_FAILED_PREFIX, response, {
+      signal: options.signal,
+    });
   }
 
-  const parsed = BraveSearchResponseSchema.parse(await readResponseJson(response));
+  const parsed = BraveSearchResponseSchema.parse(
+    await readResponseJson(response, { signal: options.signal }),
+  );
   return (parsed.web?.results ?? []).map(normalizeBraveWebResult);
 }
 
