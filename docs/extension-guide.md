@@ -1,67 +1,15 @@
 # Extension Guide
 
-This guide explains how to add a new app or pipeline without changing the framework.
+## Add a research tool
 
-## Add A Tool
+1. Create a focused tool module under `src/app/tools/`.
+2. Define strict Zod argument and result schemas.
+3. Implement `run(args, context)` and honor the abort signal.
+4. Register the tool in `src/app/tools/registry.ts`.
+5. Add schema, happy-path, and failure-path coverage to `tests/tools.test.ts`.
 
-1. Create a tool definition under `src/app/tools/`.
-2. Define `argsSchema` and `resultSchema` with Zod.
-3. Implement `run()`.
-4. Register it in the Birbal tool registry.
-5. Add tests for validation and execution.
+## Add a model provider
 
-## Add A Pipeline Component
+Implement `ModelClient`, put provider configuration in its own module, validate environment input at the boundary, and register selection in `src/app/model-providers/default.ts`.
 
-Implement one of the framework interfaces:
-
-```ts
-const myCollector: SourceCollector = {
-  async collect(method, context) {
-    return [{ id: "item-1" }];
-  },
-};
-```
-
-Register it:
-
-```ts
-registry.registerCollector("my_collector", myCollector);
-```
-
-Reference it from pipeline config:
-
-```json
-{
-  "collectionMethods": [
-    {
-      "id": "my_collection",
-      "collectorId": "my_collector"
-    }
-  ]
-}
-```
-
-## Add A Pipeline
-
-1. Create `config/pipelines/my-pipeline.json`.
-2. Reference registered component IDs.
-3. Set source IDs, limits, content policy, and failure policy.
-4. Run a dry-run validation.
-5. Add tests for config and component behavior.
-
-```sh
-birbal pipeline my_pipeline --dry-run
-```
-
-## Add A Model Adapter
-
-Implement `ModelClient` in a provider-specific module. Keep provider auth, URLs, request shaping, response parsing, and error translation inside the adapter.
-
-Do not put provider-specific behavior in the agent harness.
-
-## Keep Boundaries Clean
-
-- Framework modules should stay generic.
-- App modules should adapt domain logic into framework interfaces.
-- Config should reference component IDs, not direct imports.
-- Structured model outputs should always be schema-validated.
+Framework modules must remain application-independent.

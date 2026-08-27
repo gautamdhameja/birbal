@@ -1,13 +1,7 @@
-# Framework Examples
+# Examples
 
-These examples exercise the reusable harness APIs without depending on Birbal's enterprise research pipelines.
+`minimal-agent.ts` shows how to compose the generic harness with a model client, tool registry, executor, and strict final/tool-call protocol.
 
-- `minimal-agent.ts` creates a tiny agent with a deterministic model client and a handwritten tool.
-- `static-pipeline.ts` creates a config-driven pipeline with in-memory components and an in-memory run store.
-
-Run them with:
-
-```sh
+```bash
 pnpm example:agent
-pnpm example:pipeline
 ```

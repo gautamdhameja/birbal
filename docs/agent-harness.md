@@ -1,62 +1,15 @@
 # Agent Harness
 
-The reusable agent harness lives in `src/framework/agent/`.
+`createAgentHarness()` composes a model client, tool runner, rendered tool definitions, response parser, prompt builder, lifecycle hooks, and model options.
 
-Its job is to manage the loop between a task, a model, a protocol parser, and a tool executor. The harness is dependency-injected, so it does not require Birbal's tools or llama.cpp specifically.
-
-## Protocol
-
-The default JSON protocol supports three response types:
+The protocol supports two response shapes:
 
 ```json
-{ "type": "final", "answer": "..." }
+{ "type": "tool_call", "tool": "search_web", "args": { "query": "agent evals" } }
 ```
 
 ```json
-{ "type": "clarify", "question": "..." }
+{ "type": "final", "answer": "## Reading list\n..." }
 ```
 
-```json
-{ "type": "tool_call", "tool": "get_time", "args": {} }
-```
-
-The model response is parsed and validated before the harness takes action. If the response is invalid, the harness returns a clear invalid-response message instead of executing unsafe or ambiguous behavior.
-
-## Creating A Harness
-
-```ts
-import { createAgentHarness, parseJsonAgentResponse } from "./src/framework/index.js";
-
-const runAgent = createAgentHarness({
-  modelClient,
-  toolRunner,
-  buildSystemPrompt: (tools) => `Return strict JSON only.\n\nTools:\n${tools}`,
-  renderToolsForPrompt,
-  parseResponse: parseJsonAgentResponse,
-  defaultMaxSteps: 8,
-});
-
-const answer = await runAgent("Use a tool to get the current time.");
-```
-
-## Lifecycle Hooks
-
-The harness exposes hooks for observability and integration:
-
-- `beforeModelCall`
-- `afterModelCall`
-- `onParseFailure`
-- `onResponseParsed`
-- `beforeToolCall`
-- `afterToolCall`
-- `onMaxSteps`
-
-Use hooks for tracing, metrics, debugging, or external run capture. Avoid putting core business behavior in hooks; that belongs in tools, components, or the model protocol.
-
-## Trace IDs
-
-Each agent run gets a `traceId`. Each model pass gets a `modelPassId`. Tool calls receive both IDs so logs can connect:
-
-```text
-harness -> model -> harness -> tool -> harness -> model
-```
+Invalid model responses receive one configurable repair attempt. Tool calls and results remain in message history. The harness validates step limits before the first model call and emits structured lifecycle events.

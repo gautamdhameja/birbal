@@ -3,10 +3,9 @@ export const SOURCE_REGISTRY = {
   FILE_NAME: "source-registry.json",
   SOURCE_TYPES: {
     COMMUNITY: "community",
-    ACADEMIC_FALLBACK: "academic_fallback",
+    ACADEMIC: "academic",
     VENDOR: "vendor",
-    CONSULTING: "consulting",
-    BUSINESS_PRESS: "business_press",
+    PRESS: "press",
   },
   ERRORS: {
     INVALID_JSON: "Source registry config is not valid JSON.",

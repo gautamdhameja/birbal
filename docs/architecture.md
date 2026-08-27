@@ -1,73 +1,27 @@
 # Architecture
 
-Birbal is split into a reusable framework layer and a concrete research app layer.
-
 ```text
-src/
-  framework/
-    agent/            reusable agent harness
-    tools/            generic tool registry and executor
-    llm/              model client types and structured repair
-    pipeline/         generic config-driven pipeline orchestration
-    content/          framework-level URL content fetching
-    network/          retry and timeout helpers
-    scoring/          rubric primitives
+src/framework/
+  agent/       reusable model-tool loop and protocol
+  tools/       typed registry and executor
+  llm/         model contracts and structured-output repair
+  content/     readable-text extraction
+  network/     safe HTTP, URL validation, retries, and timeouts
+  async/       bounded async mapping
+  config/      shared JSON config loading
 
-  app/
-    agent/            application adapter around the harness
-    model-providers/  provider selection and OpenAI-compatible transport
-    llama/            llama.cpp adapter
-    tools/            concrete tool definitions
-    pipelines/        concrete pipeline components
-    daily/            daily reading application logic
-    db/               SQLite persistence
+src/app/
+  agent/       Birbal prompt, parser, and harness composition
+  tools/       research tool definitions
+  research/    reading preferences and research result types
+  config/      curated source registry
+  arxiv/       arXiv client
+  hackernews/  Hacker News client
+  brave-search/ Brave Search client
+  source-search/ configured-domain search
+  model-providers/ provider selection and adapters
 ```
 
-The framework does not know about enterprise AI. It operates on generic interfaces and `unknown` payloads at component boundaries. The Birbal app registers concrete collectors, fetchers, scorers, extractors, selectors, and renderers.
+The framework never imports application modules. The app composes generic model, agent, and tool contracts with research-specific prompts and integrations.
 
-## Agent Flow
-
-```text
-User task
-   |
-   v
-Agent Harness
-   |
-   | system prompt + user task + rendered tools
-   v
-Model Adapter
-   |
-   | strict JSON response
-   v
-Protocol Parser
-   |
-   +-- final       -> return answer
-   +-- clarify     -> return clarification request
-   +-- tool_call   -> validate and execute tool
-                         |
-                         v
-                    tool_result JSON
-                         |
-                         v
-                    append to messages and continue
-```
-
-## Pipeline Flow
-
-```text
-Pipeline config
-   |
-   v
-Load source registry
-   |
-   v
-Resolve components
-   |
-   v
-Collect -> Fetch -> Extract/Score/Classify -> Select -> Render -> Write
-   |
-   v
-Run metadata and artifacts
-```
-
-Pipeline behavior comes from JSON config and registered components. The orchestrator is responsible for ordering, concurrency, failure policy, counts, errors, and run metadata.
+At runtime, the harness sends the system prompt and task to the model. A tool call is validated and executed, its result is appended to message history, and the loop continues until a final answer or step limit.

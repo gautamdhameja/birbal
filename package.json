@@ -1,7 +1,7 @@
 {
   "name": "birbal",
   "version": "1.0.0",
-  "description": "A local TypeScript AI research scout with a JSON agent harness and configurable enterprise AI pipelines.",
+  "description": "A local TypeScript research agent that returns source-linked reading lists.",
   "type": "module",
   "packageManager": "pnpm@10.15.0",
   "bin": {
@@ -10,14 +10,7 @@
   "scripts": {
     "cli": "tsx src/app/cli.ts",
     "dev": "tsx src/app/cli.ts agent",
-    "run-pipeline": "tsx src/app/cli.ts pipeline",
-    "daily": "tsx src/app/cli.ts daily",
-    "use-cases": "tsx src/app/cli.ts use-cases",
-    "evals": "tsx src/app/cli.ts evals",
-    "use-cases:search": "tsx src/app/cli.ts use-cases search",
-    "use-cases:process": "tsx src/app/cli.ts use-cases process",
     "example:agent": "tsx examples/minimal-agent.ts",
-    "example:pipeline": "tsx examples/static-pipeline.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
@@ -32,14 +25,12 @@
     "AI",
     "local-llm",
     "tools",
-    "research-scout",
-    "enterprise-ai",
-    "pipelines"
+    "research-agent",
+    "reading-list"
   ],
   "author": "Gautam Dhameja",
   "license": "MIT",
   "dependencies": {
-    "better-sqlite3": "^12.10.0",
     "cheerio": "^1.2.0",
     "commander": "^14.0.3",
     "dotenv": "^17.4.2",
@@ -55,7 +46,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.8.0",
     "eslint": "^10.4.0",
     "prettier": "^3.8.3",
@@ -68,7 +58,6 @@
       "undici": "7.29.0"
     },
     "onlyBuiltDependencies": [
-      "better-sqlite3",
       "esbuild"
     ]
   }

@@ -22,9 +22,9 @@
       "name": "arXiv",
       "domains": ["arxiv.org", "export.arxiv.org"],
       "priority": 10,
-      "sourceType": "academic_fallback",
+      "sourceType": "academic",
       "searchQueries": ["LLM agents", "agent evaluation", "RAG systems"],
-      "enabled": false
+      "enabled": true
     },
     {
       "id": "openai",
@@ -36,21 +36,21 @@
       "enabled": true
     },
     {
-      "id": "microsoft_customers",
-      "name": "Microsoft Customer Stories",
-      "domains": ["microsoft.com", "news.microsoft.com", "blogs.microsoft.com"],
+      "id": "microsoft_research",
+      "name": "Microsoft Research",
+      "domains": ["microsoft.com"],
       "priority": 2,
       "sourceType": "vendor",
-      "searchQueries": ["Azure OpenAI Copilot enterprise customer story workflow"],
+      "searchQueries": ["AI agents evaluation systems research"],
       "enabled": true
     },
     {
-      "id": "google_cloud_customers",
-      "name": "Google Cloud Customer Stories",
-      "domains": ["cloud.google.com", "googlecloudpresscorner.com"],
+      "id": "google_research",
+      "name": "Google Research",
+      "domains": ["research.google", "deepmind.google"],
       "priority": 3,
       "sourceType": "vendor",
-      "searchQueries": ["Vertex AI Gemini generative AI enterprise workflow customer story"],
+      "searchQueries": ["AI agents reasoning evaluation research"],
       "enabled": true
     },
     {
@@ -59,34 +59,16 @@
       "domains": ["anthropic.com"],
       "priority": 4,
       "sourceType": "vendor",
-      "searchQueries": ["Claude enterprise customer production workflow deployment"],
+      "searchQueries": ["Claude agents evaluations interpretability research"],
       "enabled": true
     },
     {
-      "id": "aws_case_studies",
-      "name": "AWS Case Studies",
-      "domains": ["aws.amazon.com"],
+      "id": "huggingface",
+      "name": "Hugging Face",
+      "domains": ["huggingface.co"],
       "priority": 5,
-      "sourceType": "vendor",
-      "searchQueries": ["generative AI enterprise customer story workflow"],
-      "enabled": true
-    },
-    {
-      "id": "consulting_and_business_press",
-      "name": "Consulting and Business Press",
-      "domains": [
-        "mckinsey.com",
-        "deloitte.com",
-        "bcg.com",
-        "pwc.com",
-        "accenture.com",
-        "reuters.com",
-        "ft.com",
-        "businessinsider.com"
-      ],
-      "priority": 6,
-      "sourceType": "business_press",
-      "searchQueries": ["generative AI enterprise case study workflow ROI"],
+      "sourceType": "community",
+      "searchQueries": ["open source agents evaluation models datasets"],
       "enabled": true
     }
   ]

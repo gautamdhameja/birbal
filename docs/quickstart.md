@@ -2,79 +2,25 @@
 
 ## Requirements
 
-- Node.js compatible with the project lockfile.
-- pnpm.
-- A local llama.cpp-compatible chat completions server, or an OpenAI API key.
-- A Brave Search API key if you want to run the research pipelines.
+- Node.js 20.18.1 or newer
+- pnpm 10
+- a llama.cpp-compatible server, or an OpenAI API key
+- a Brave Search API key for web and configured-domain search
 
-## Install
+## Run
 
-```sh
+```bash
 pnpm install
-pnpm link --global
+cp .env.example .env.local
+pnpm dev -- "Research recent LLM agent evaluation techniques"
 ```
 
-## Configure
+The default model provider is llama.cpp. To use OpenAI:
 
-Create `.env.local`:
-
-```sh
-MODEL_PROVIDER=llama_cpp
-MODEL_BASE_URL=http://127.0.0.1:8080
-MODEL_NAME=local
-BRAVE_SEARCH_API_KEY=your_key_here
-```
-
-The llama server must expose an OpenAI-style chat completions endpoint. Birbal does not start llama.cpp for you.
-
-To use hosted OpenAI instead:
-
-```sh
+```dotenv
 MODEL_PROVIDER=openai
-MODEL_API_KEY=your_key_here
-MODEL_NAME=gpt-...
-BRAVE_SEARCH_API_KEY=your_key_here
+OPENAI_API_KEY=...
+OPENAI_MODEL=...
 ```
 
-## Run The Agent Harness
-
-```sh
-birbal agent "Use a tool to get the current time and tell me what it is."
-```
-
-With trace logs:
-
-```sh
-birbal agent --trace "Use a tool to get the current time."
-```
-
-## Run The Pipeline App
-
-```sh
-birbal daily
-birbal use-cases
-```
-
-Dry-run a pipeline config without making network or model calls:
-
-```sh
-birbal pipeline use_cases --dry-run
-```
-
-The pnpm scripts remain available as repo-local wrappers around the same CLI.
-
-For the full command reference, see [CLI](cli.md).
-
-## Run Framework Examples
-
-```sh
-pnpm example:agent
-pnpm example:pipeline
-```
-
-## Verify The Project
-
-```sh
-pnpm check
-pnpm evals
-```
+Adjust `config/research.json` for reading preferences and `config/source-registry.json` for curated sources.

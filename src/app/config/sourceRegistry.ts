@@ -4,33 +4,21 @@ import { z } from "zod";
 
 import { loadJsonConfig } from "../../framework/config/loadJsonConfig.js";
 import { SOURCE_REGISTRY } from "../constants/source-registry.js";
-import { SOURCES } from "../constants/sources.js";
 
-const SourceRegistryItemSchema = z
-  .strictObject({
-    id: z.string().trim().min(1),
-    name: z.string().trim().min(1),
-    domains: z.array(z.string().trim().min(1)).min(1),
-    priority: z.number().int().min(1),
-    sourceType: z.enum([
-      SOURCE_REGISTRY.SOURCE_TYPES.COMMUNITY,
-      SOURCE_REGISTRY.SOURCE_TYPES.ACADEMIC_FALLBACK,
-      SOURCE_REGISTRY.SOURCE_TYPES.VENDOR,
-      SOURCE_REGISTRY.SOURCE_TYPES.CONSULTING,
-      SOURCE_REGISTRY.SOURCE_TYPES.BUSINESS_PRESS,
-    ]),
-    searchQueries: z.array(z.string().trim().min(1)).min(1),
-    enabled: z.boolean(),
-  })
-  .refine(
-    (source) =>
-      source.id !== SOURCES.ARXIV ||
-      source.sourceType === SOURCE_REGISTRY.SOURCE_TYPES.ACADEMIC_FALLBACK,
-    {
-      message: "arXiv must be configured as an academic fallback source.",
-      path: ["sourceType"],
-    },
-  );
+const SourceRegistryItemSchema = z.strictObject({
+  id: z.string().trim().min(1),
+  name: z.string().trim().min(1),
+  domains: z.array(z.string().trim().min(1)).min(1),
+  priority: z.number().int().min(1),
+  sourceType: z.enum([
+    SOURCE_REGISTRY.SOURCE_TYPES.COMMUNITY,
+    SOURCE_REGISTRY.SOURCE_TYPES.ACADEMIC,
+    SOURCE_REGISTRY.SOURCE_TYPES.VENDOR,
+    SOURCE_REGISTRY.SOURCE_TYPES.PRESS,
+  ]),
+  searchQueries: z.array(z.string().trim().min(1)).min(1),
+  enabled: z.boolean(),
+});
 
 const SourceRegistrySchema = z.strictObject({
   sources: z.array(SourceRegistryItemSchema).min(1),

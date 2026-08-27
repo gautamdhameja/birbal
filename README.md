@@ -1,159 +1,60 @@
 # Birbal
 
-Birbal is a local TypeScript agent harness framework with a working enterprise AI research scout built on top of it. The framework provides reusable primitives for model adapters, strict JSON agent protocols, handwritten tools, tool execution, structured output repair, config-driven pipelines, component registries, run metadata, content fetching, scoring, selection, and artifact writing.
+Birbal is a local TypeScript research agent. Give it a topic and it uses explicit search and page-fetch tools to return a concise, source-linked reading list.
 
-The Birbal app ships provider-neutral model wiring with llama.cpp as the default local adapter and hosted OpenAI as an optional adapter. The app workflows are a daily enterprise AI reading digest and an enterprise AI use-case scout. Runtime configuration comes from environment variables and JSON config files, and schemas are validated with Zod at the boundaries.
+The agent uses llama.cpp by default and can use hosted OpenAI through the same model interface. Runtime preferences and curated sources are JSON configuration; provider and network settings come from environment variables.
 
-## Harness Flow
+## Install
 
-```text
-User task
-   |
-   v
-+----------------------+
-| Agent Harness        |
-| - build system prompt|
-| - render tools       |
-| - keep message state |
-+----------+-----------+
-           |
-           | prompt + context + tool descriptions
-           v
-+----------------------+        JSON final answer
-| Model Adapter        |------------------------------+
-| llama.cpp / OpenAI   |                              |
-+----------+-----------+                              |
-           |                                          |
-           | JSON tool_call                           |
-           v                                          |
-+----------------------+                              |
-| Tool Executor        |                              |
-| - lookup tool        |                              |
-| - validate args      |                              |
-| - run tool           |                              |
-| - wrap errors        |                              |
-+----------+-----------+                              |
-           |                                          |
-           | JSON tool_result                         |
-           v                                          |
-+----------------------+                              |
-| Agent Harness        |<-----------------------------+
-| append result and    |
-| continue or finish   |
-+----------------------+
-```
-
-The model never calls tools directly. It emits a strict JSON object, the harness parses and validates it, and the tool executor handles the actual function call. Tool results are appended back into the conversation as JSON so the next model pass can decide whether to call another tool, ask for clarification, or return a final answer.
-
-## Pipeline Flow
-
-```text
-Pipeline config
-   |
-   v
-+-------------------------+
-| Pipeline Orchestrator   |
-+-----------+-------------+
-            |
-            v
- Collect candidates -> Fetch content -> Score / Extract -> Select -> Render -> Write artifact
-            |               |              |              |         |         |
-            v               v              v              v         v         v
-       source registry   fetch policy   rubrics/LLM   selectors  renderers  digests/
-```
-
-Pipeline behavior is data-driven by `config/pipelines/*.json`. Reusable framework code lives
-under `src/framework/`; the concrete application lives under `src/app/`, where its collectors,
-scorers, extractors, selectors, and renderers are registered.
-
-## Main Commands
-
-```sh
+```bash
 pnpm install
-pnpm link --global
-birbal agent "Use a tool to get the current time and tell me what it is."
-birbal daily
-birbal use-cases
-birbal use cases
-birbal evals
-pnpm example:agent
-pnpm example:pipeline
-pnpm evals
-pnpm check
+cp .env.example .env.local
 ```
 
-The pnpm scripts still work for repo-local development:
+For local inference, run a llama.cpp-compatible chat-completions server. For hosted OpenAI, set `MODEL_PROVIDER=openai`, `OPENAI_API_KEY`, and `OPENAI_MODEL`.
 
-```sh
-pnpm dev -- "Use a tool to get the current time and tell me what it is."
-pnpm daily
-pnpm use-cases
-pnpm evals
+## Research
+
+```bash
+pnpm dev -- "Research recent approaches to evaluating LLM agents"
+birbal "Compare current local inference engines"
+birbal agent "Find primary sources on retrieval evaluation"
 ```
 
-See [docs/cli.md](docs/cli.md) for the complete command reference.
+Use `--trace` to print tool definitions and structured handoff logs:
 
-Use `birbal evals` for deterministic harness and app evals. These run with scripted model responses and OpenInference-style traces, so they are useful for protocol and extraction regressions without spending tokens.
-
-Use `--trace` with the agent or pipeline commands for debug logs:
-
-```sh
-birbal agent --trace "Use a tool to get the current time."
-birbal pipeline use_cases --trace
+```bash
+birbal --trace "Research agent memory architectures"
 ```
+
+The answer is printed to stdout. Birbal does not persist results or publish files.
 
 ## Configuration
 
-Create `.env.local` for local runtime settings:
+- `config/research.json` controls interests, avoided topics, preferred difficulty, and the maximum reading-list size.
+- `config/source-registry.json` defines curated source IDs, domains, and suggested queries.
+- `.env.local` and `.env` configure the model provider, Brave Search, logging, and network limits.
 
-```sh
-MODEL_PROVIDER=llama_cpp
-MODEL_BASE_URL=http://localhost:8080
-MODEL_NAME=local-model
-BRAVE_SEARCH_API_KEY=...
+## Tools
+
+The agent can:
+
+- search arXiv;
+- search Hacker News;
+- search the web through Brave Search;
+- restrict Brave Search to a configured source;
+- fetch and extract readable text from a public URL;
+- inspect local time.
+
+All tool inputs and outputs are validated with Zod. Public URL fetching rejects private and unsafe network targets, revalidates DNS at connection time, bounds response size, and enforces abort and timeout behavior.
+
+## Development
+
+```bash
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
 ```
 
-To use the hosted OpenAI API instead of llama.cpp:
-
-```sh
-MODEL_PROVIDER=openai
-MODEL_API_KEY=...
-MODEL_NAME=gpt-...
-```
-
-The important JSON config files are:
-
-- `config/preferences.json`: research preferences and thresholds.
-- `config/source-registry.json`: searchable sources, domains, priorities, and queries.
-- `config/pipelines/daily.json`: daily digest pipeline.
-- `config/pipelines/use-cases.json`: enterprise use-case scout pipeline.
-
-## Project Layout
-
-- `src/framework/`: reusable harness, tools, LLM, pipeline, eval, content, network, and scoring modules.
-- `src/app/`: the concrete research application, including its CLI, integrations, pipelines, persistence, and configuration.
-- `src/app/evals/`: deterministic application-specific eval suites.
-- `src/app/model-providers/`: provider selection plus OpenAI-compatible model adapters.
-- `src/app/llama/`: llama.cpp-compatible model adapter.
-- `src/app/tools/`: Birbal's handwritten agent tools.
-- `src/app/pipelines/`: Birbal pipeline component registration and use-case/daily modules.
-- `src/app/db/`: SQLite persistence for items, scores, runs, and extracted use cases.
-- `examples/`: small framework examples that do not depend on the enterprise research app.
-- `docs/CODEBASE.md`: extended codebase documentation.
-
-Generated runtime data lives in `data/` and `digests/` and is ignored by Git.
-
-For prompt iteration on the use-case scout, search can be separated from model processing:
-
-```sh
-birbal use-cases search
-birbal use-cases process --snapshot latest
-```
-
-The search command stores a reusable URL snapshot in SQLite. The process command reuses that snapshot for fetch, extraction, verification, selection, and rendering without spending additional Brave Search calls.
-
-The full `birbal use-cases` command uses bounded adaptive search. It searches one configured query batch, processes the accumulated snapshot, and if the final selection is short of the requested report size it can search additional batches up to the configured retry limit.
-
-## Documentation
-
-The publishable documentation lives in `docs/`. It includes an mdBook-compatible `SUMMARY.md` and `book.toml`, plus pages covering quickstart, architecture, the agent harness, tools, model adapters, pipelines, configuration, security, operations, and framework extension.
+See [docs/index.md](docs/index.md) for the documentation map.

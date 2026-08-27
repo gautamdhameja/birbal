@@ -60,7 +60,7 @@ const runAgent = createAgentHarness({
     [
       "You are a minimal JSON agent.",
       "Use tools when useful.",
-      "Return only final/tool_call/clarify JSON.",
+      "Return only final/tool_call JSON.",
       "",
       renderedTools,
     ].join("\n"),

@@ -1,56 +1,6 @@
 # Tools
 
-Generic tool primitives live in `src/framework/tools/`. Birbal's concrete tool definitions live in `src/app/tools/`.
-
-## Tool Definition
-
-A tool is a typed function with Zod schemas:
-
-```ts
-import { z } from "zod";
-import type { ToolDefinition } from "./src/framework/index.js";
-
-const getTimeTool: ToolDefinition = {
-  name: "get_time",
-  description: "Get the current local time as an ISO string.",
-  argsSchema: z.strictObject({}),
-  resultSchema: z.strictObject({
-    now: z.string(),
-  }),
-  async run() {
-    return { now: new Date().toISOString() };
-  },
-};
-```
-
-## Registry
-
-`ToolRegistry` owns registration and prompt rendering:
-
-- `register(tool)`
-- `registerMany(tools)`
-- `list()`
-- `renderForPrompt()`
-- `get(name)`
-
-Tool rendering includes name, description, and JSON argument shape. This gives the model enough information to emit a valid `tool_call`.
-
-## Executor
-
-The framework tool executor:
-
-- Looks up a tool by name.
-- Validates arguments with Zod.
-- Runs the tool with an abort signal.
-- Validates the result schema.
-- Catches exceptions.
-- Returns structured errors.
-
-Unknown tool names and invalid arguments do not throw through the agent loop. They become tool results that the model can inspect.
-
-## Birbal Tools
-
-Current Birbal tools include:
+Birbal registers six typed tools:
 
 - `get_time`
 - `search_arxiv`
@@ -59,4 +9,6 @@ Current Birbal tools include:
 - `search_source_domain`
 - `fetch_url_text`
 
-These are handwritten tools. Birbal does not use agent SDK tool calling.
+Every tool has Zod argument and result schemas. `ToolRegistry` exposes `register`, `registerMany`, `list`, `renderForPrompt`, and `get`. `createToolExecutor` validates calls, enforces a timeout, validates results, and converts failures into structured error objects.
+
+Add a tool by defining its schemas and `run` function, then registering it in `src/app/tools/registry.ts`.

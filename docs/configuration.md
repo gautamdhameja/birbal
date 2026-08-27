@@ -1,68 +1,18 @@
 # Configuration
 
-Birbal uses environment variables for runtime clients and JSON files for app behavior.
+## Research preferences
 
-## Environment Variables
+`config/research.json` contains:
 
-Common local variables:
+- `interests`
+- `avoid`
+- `preferredDifficulty`
+- `maxReadingListItems`
 
-```sh
-MODEL_PROVIDER=llama_cpp
-MODEL_BASE_URL=http://127.0.0.1:8080
-MODEL_NAME=local
-MODEL_REQUEST_TIMEOUT_MS=120000
-BRAVE_SEARCH_API_KEY=...
-LOG_LEVEL=info
-LOG_PRETTY=true
-```
+## Curated sources
 
-Environment variables are loaded from `.env.local` and `.env`.
+`config/source-registry.json` gives each source an ID, display name, domain list, priority, source type, suggested queries, and enabled flag. The source-domain tool accepts these IDs and filters results back to configured domains.
 
-Use hosted OpenAI instead of the local model with:
+## Environment
 
-```sh
-MODEL_PROVIDER=openai
-MODEL_BASE_URL=https://api.openai.com
-MODEL_API_KEY=...
-MODEL_NAME=gpt-...
-MODEL_REQUEST_TIMEOUT_MS=120000
-```
-
-## Source Registry
-
-`config/source-registry.json` defines research sources:
-
-- `id`
-- `name`
-- `domains`
-- `priority`
-- `sourceType`
-- `searchQueries`
-- `enabled`
-
-Pipeline collectors use this registry to know which domains and queries belong to each source.
-
-## Preferences
-
-`config/preferences.json` defines research preferences, avoid terms, difficulty, source mix, and thresholds.
-
-## Pipeline Configs
-
-Pipeline configs live under `config/pipelines/`.
-
-Current configs:
-
-- `daily.json`
-- `use-cases.json`
-
-You can dry-run a config:
-
-```sh
-birbal pipeline use_cases --dry-run
-```
-
-You can pass a custom path:
-
-```sh
-birbal pipeline --config ./my-pipeline.json --dry-run
-```
+`.env.local` takes precedence over `.env`. Environment variables configure the model provider, model URL and ID, API keys, search quota, HTTP limits, and logging.

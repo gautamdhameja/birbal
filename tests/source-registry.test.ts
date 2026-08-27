@@ -9,7 +9,6 @@ import { describe, it } from "node:test";
 
 import { loadSourceRegistry } from "../src/app/config/sourceRegistry.js";
 import { SOURCE_REGISTRY } from "../src/app/constants/source-registry.js";
-import { SOURCES } from "../src/app/constants/sources.js";
 
 function writeSourceRegistryConfig(value: unknown): string {
   const configPath = join(
@@ -65,7 +64,7 @@ describe("source registry", () => {
     const configPath = writeSourceRegistryConfig({
       sources: [
         {
-          id: SOURCES.HACKER_NEWS,
+          id: "hackernews",
           name: "Hacker News",
           domains: [],
           priority: 1,

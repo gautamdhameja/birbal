@@ -7,6 +7,7 @@ Desktop.ini
 dist/
 coverage/
 docs/book/
+# Legacy local outputs remain ignored. The research-only agent does not create them.
 digests/
 data/*.db
 data/*.db-shm
