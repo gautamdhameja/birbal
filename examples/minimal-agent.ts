@@ -1,6 +1,3 @@
-// Purpose: Demonstrates minimal agent usage for framework adopters.
-// Scope: Keeps the example small enough to copy and adapt.
-
 import { z } from "zod";
 
 import {

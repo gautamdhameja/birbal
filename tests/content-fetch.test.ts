@@ -1,6 +1,3 @@
-// Purpose: Tests content fetch behavior.
-// Scope: Covers regressions through the Node.js test runner.
-
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
@@ -113,25 +110,54 @@ describe("framework URL content fetcher", () => {
     assert.equal(largerCapResult.contentLength, 20);
   });
 
-  it("revalidates host DNS during the actual content fetch connection", async () => {
+  it("rejects private DNS results during the actual content fetch connection", async () => {
     let resolutionCount = 0;
-    const rebindingResolver = async () => {
+    const privateResolver = async () => {
       resolutionCount += 1;
-      return resolutionCount === 1
-        ? [{ address: "93.184.216.34", family: 4 as const }]
-        : [{ address: "127.0.0.1", family: 4 as const }];
+      return [{ address: "127.0.0.1", family: 4 as const }];
     };
 
     const result = await fetchUrlContent({
       url: "https://example.com/report",
       fetchPolicy: {
-        hostResolver: rebindingResolver,
+        hostResolver: privateResolver,
         retries: 0,
       },
     });
 
     assert.equal(result.fetchStatus, CONTENT_FETCH_STATUSES.FAILED);
     assert.match(result.error?.message ?? "", /URL host is not safe/);
-    assert.equal(resolutionCount, 2);
+    assert.equal(resolutionCount, 1);
+  });
+
+  it("rejects credentials and non-HTTP URLs before invoking a transport", async () => {
+    for (const url of ["https://user:secret@example.com/report", "file:///etc/passwd"]) {
+      let resolutionCount = 0;
+      let transportCount = 0;
+      const hostResolver = async () => {
+        resolutionCount += 1;
+        return publicHostResolver();
+      };
+      const transport = async () => {
+        transportCount += 1;
+        return new Response("unexpected");
+      };
+
+      const defaultTransportResult = await fetchUrlContent({
+        url,
+        fetchPolicy: { hostResolver },
+      });
+      const injectedTransportResult = await fetchUrlContent({
+        url,
+        fetchPolicy: { hostResolver, transport },
+      });
+
+      for (const result of [defaultTransportResult, injectedTransportResult]) {
+        assert.equal(result.fetchStatus, CONTENT_FETCH_STATUSES.FAILED);
+        assert.match(result.error?.message ?? "", /URL host is not safe/);
+      }
+      assert.equal(resolutionCount, 0);
+      assert.equal(transportCount, 0);
+    }
   });
 });

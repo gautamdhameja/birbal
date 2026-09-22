@@ -178,7 +178,7 @@ export function createArchitectureLabResearchRunner({
     ),
 }: ResearchRunnerDependencies): ArchitectureLabResearchOperation {
   const buildSystemPrompt = createArchitectureLabSystemPromptBuilder(prompt);
-  const legacyResponseSchema = createResponseSchema(z.string());
+  const jsonObjectResponseSchema = createResponseSchema(z.string());
   const caseSetupResponseSchema = createResponseSchema(createJsonStringCodec(SourceDossierSchema));
   const architectureEvidenceResponseSchema = createResponseSchema(
     createJsonStringCodec(ArchitectureEvidenceSchema),
@@ -206,7 +206,7 @@ export function createArchitectureLabResearchRunner({
         ? request.phase === "case_setup"
           ? caseSetupResponseSchema
           : architectureEvidenceResponseSchema
-        : legacyResponseSchema;
+        : jsonObjectResponseSchema;
     const runResearch = createAgentHarness({
       modelClient,
       toolRunner,

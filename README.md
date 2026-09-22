@@ -2,7 +2,7 @@
 
 Birbal is a local TypeScript agent harness for research and artificial intelligence (AI) architecture learning. Use it to generate a source-linked reading list or practice designing an AI system in an interactive Architecture Case Lab.
 
-The project demonstrates the main components of an agent harness: model adapters, structured model output, validated tools, a bounded model-tool loop, application-level orchestration, and host-neutral input and output ports.
+The project demonstrates the main components of an agent harness: model clients, structured model output, validated tools, a bounded model-tool loop, application-level orchestration, and host-neutral input and output ports.
 
 ## Choose a workflow
 
@@ -17,7 +17,7 @@ Before you run Birbal, install or configure the following software and services:
 
 - Node.js 22.13.0 or later.
 - pnpm 10.
-- A llama.cpp-compatible chat-completions server or an OpenAI API key.
+- A llama.cpp-compatible chat-completions server, Apple Foundation Models through `fm serve`, or an OpenAI API key.
 - A Brave Search API key for general web and configured-domain searches.
 
 ## Install Birbal
@@ -62,6 +62,16 @@ MODEL_NAME=your-model-name
 ```
 
 Birbal uses `https://api.openai.com` as the default OpenAI base URL. Set `MODEL_BASE_URL` only when you need a different endpoint.
+
+### Use Apple Foundation Models
+
+Start `fm serve`, then set the provider in `.env.local`:
+
+```dotenv
+MODEL_PROVIDER=apple
+```
+
+Birbal uses the standard local defaults: `http://127.0.0.1:1976`, model `system`, JSON Schema response formatting, and the Apple schema dialect. Override `MODEL_BASE_URL`, `MODEL_NAME`, `MODEL_RESPONSE_FORMAT`, or `MODEL_JSON_SCHEMA_DIALECT` only when your server requires different values.
 
 ### Enable web search
 

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { isDebugEnabled } from "../logging/types.js";
 import { preview } from "../logging/preview.js";
 import { FRAMEWORK_TOOLS } from "./constants.js";
 import type { ToolRegistry } from "./registry.js";
@@ -38,7 +39,7 @@ function logDebug(
   payload: () => Record<string, unknown>,
   message: string,
 ): void {
-  if (logger) {
+  if (isDebugEnabled(logger)) {
     logger.debug(payload(), message);
   }
 }

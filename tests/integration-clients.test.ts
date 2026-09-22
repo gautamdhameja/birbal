@@ -1,6 +1,3 @@
-// Purpose: Proves integration clients own isolated state and accept narrow runtime dependencies.
-// Scope: Covers Brave, arXiv, Hacker News, and configured-source search without global mutation.
-
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 

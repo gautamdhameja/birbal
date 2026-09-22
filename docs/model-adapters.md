@@ -1,9 +1,11 @@
-# Model Adapters
+# Model Providers
 
-All providers implement the framework `ModelClient` contract.
+All providers use one OpenAI-compatible implementation of the framework `ModelClient` contract.
+Provider modules supply configuration only, so request validation, transport, logging, and response
+handling stay in one client.
 
-The default adapter uses a llama.cpp-compatible chat-completions endpoint. The Apple adapter uses
-the OpenAI-compatible endpoint exposed by `fm serve`. The OpenAI adapter uses hosted chat
+The default provider uses a llama.cpp-compatible chat-completions endpoint. The Apple provider uses
+the OpenAI-compatible endpoint exposed by `fm serve`. The OpenAI provider uses hosted chat
 completions and requires an API key. All three share request validation, timeout handling, response
 diagnostics, and JSON response-format support.
 

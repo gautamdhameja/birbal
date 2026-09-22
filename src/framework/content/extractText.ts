@@ -42,8 +42,13 @@ function extractCanonicalUrl($: ReturnType<typeof load>): string | undefined {
 }
 
 function detectPaywall(html: string, plainText: string): boolean {
-  const haystack = `${html} ${plainText}`.toLowerCase();
-  return URL_TEXT.PAYWALL_PATTERNS.some((pattern) => haystack.includes(pattern));
+  const lowerHtml = html.toLowerCase();
+  if (URL_TEXT.PAYWALL_PATTERNS.some((pattern) => lowerHtml.includes(pattern))) {
+    return true;
+  }
+
+  const lowerPlainText = plainText.toLowerCase();
+  return URL_TEXT.PAYWALL_PATTERNS.some((pattern) => lowerPlainText.includes(pattern));
 }
 
 export function extractUrlText(html: string, maxChars: number): ExtractedUrlText {

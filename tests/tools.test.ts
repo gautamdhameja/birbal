@@ -1,6 +1,3 @@
-// Purpose: Tests tools behavior.
-// Scope: Covers regressions through the Node.js test runner.
-
 import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
 
@@ -124,6 +121,31 @@ describe("tool registry", () => {
     assert.deepEqual(await runSecond("runtime_only", {}), {
       error: "Unknown tool: runtime_only",
     });
+  });
+
+  it("does not serialize debug previews when debug logging is disabled", async () => {
+    const args = {};
+    Object.defineProperty(args, "expensive", {
+      enumerable: true,
+      get: () => assert.fail("disabled debug logging should not inspect tool values"),
+    });
+    const registry = createToolRegistry([
+      {
+        name: "lazy_debug",
+        description: "Test lazy debug logging.",
+        argsSchema: z.unknown(),
+        resultSchema: z.literal("ok"),
+        run: async () => "ok" as const,
+      },
+    ]);
+    const run = createToolExecutor(registry, {
+      logger: {
+        debug: () => assert.fail("debug logging should be disabled"),
+        isLevelEnabled: () => false,
+      },
+    });
+
+    assert.equal(await run("lazy_debug", args), "ok");
   });
 
   it("creates a fresh default integration tool graph for every runtime", () => {

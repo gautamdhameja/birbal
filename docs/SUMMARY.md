@@ -8,7 +8,7 @@
 - [Architecture](architecture.md)
 - [Agent Harness](agent-harness.md)
 - [Tools](tools.md)
-- [Model Adapters](model-adapters.md)
+- [Model Providers](model-adapters.md)
 - [Configuration](configuration.md)
 - [Structured Output](structured-output.md)
 - [Security](security.md)

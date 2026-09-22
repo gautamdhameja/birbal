@@ -1,6 +1,3 @@
-// Purpose: Defines lint rules for Birbal source and test files.
-// Scope: Keeps TypeScript style checks centralized for local development.
-
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 

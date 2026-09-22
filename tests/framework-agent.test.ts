@@ -1,6 +1,3 @@
-// Purpose: Tests framework agent behavior.
-// Scope: Covers regressions through the Node.js test runner.
-
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
@@ -130,6 +127,56 @@ describe("framework agent harness", () => {
       await runHarness("loop"),
       "Agent stopped after reaching the maximum step limit of 1.",
     );
+  });
+
+  it("skips debug logging when the logger disables that level", async () => {
+    const runHarness = createAgentHarness({
+      modelClient: {
+        complete: async () => JSON.stringify({ type: "final", answer: "done" }),
+      },
+      toolRunner: async () => ({}),
+      buildSystemPrompt: () => "system",
+      renderToolsForPrompt: () => "",
+      parseResponse: parseJsonAgentResponse,
+      logger: {
+        debug: () => assert.fail("debug logging should be disabled"),
+        isLevelEnabled: () => false,
+      },
+      defaultMaxSteps: 1,
+    });
+
+    assert.equal(await runHarness("finish"), "done");
+  });
+
+  it("honors debug-level changes during a run", async () => {
+    let debugEnabled = false;
+    const events: unknown[] = [];
+    const runHarness = createAgentHarness({
+      modelClient: {
+        complete: async () => JSON.stringify({ type: "final", answer: "done" }),
+      },
+      toolRunner: async () => ({}),
+      buildSystemPrompt: () => "system",
+      renderToolsForPrompt: () => "",
+      parseResponse: parseJsonAgentResponse,
+      logger: {
+        debug: (payload) => events.push(payload.event),
+        isLevelEnabled: () => debugEnabled,
+      },
+      hooks: {
+        beforeModelCall: () => {
+          debugEnabled = true;
+        },
+      },
+      defaultMaxSteps: 1,
+    });
+
+    assert.equal(await runHarness("finish"), "done");
+    assert.deepEqual(events, [
+      "handoff.model_to_harness",
+      "agent.response.parsed",
+      "agent.run.final",
+    ]);
   });
 
   it("repairs one invalid protocol response before continuing the agent loop", async () => {

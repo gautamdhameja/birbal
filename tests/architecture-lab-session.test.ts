@@ -1,6 +1,3 @@
-// Purpose: Proves the Architecture Case Lab's bounded, host-neutral session lifecycle.
-// Scope: Covers U2 with scripted input and operation ports; no terminal or provider calls.
-
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 

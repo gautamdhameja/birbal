@@ -12,6 +12,8 @@
 
 ## Add a model provider
 
-Implement `ModelClient`, put provider configuration in its own module, validate environment input at the boundary, and register selection in `src/app/model-providers/default.ts`.
+For an OpenAI-compatible endpoint, add a focused provider configuration module and register it with
+the shared client in `src/app/model-providers/default.ts`. Implement a separate `ModelClient` only
+when the provider uses a different protocol. Validate environment input at the boundary.
 
 Framework modules must remain application-independent.

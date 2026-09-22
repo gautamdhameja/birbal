@@ -1,31 +1,25 @@
 import { MODEL_PROVIDERS } from "../constants/model-providers.js";
 import type { ModelClient } from "../../framework/llm/types.js";
-import { createLlamaCppModelAdapter } from "../llama/adapter.js";
-import { createAppleModelAdapter } from "./apple/adapter.js";
+import { getLlamaConfig } from "../llama/config.js";
+import { getAppleConfig } from "./apple/config.js";
 import { getConfiguredModelProviderId } from "./config.js";
-import type { ModelProviderId } from "./config.js";
-import { createOpenAIModelAdapter } from "./openai/adapter.js";
+import { getOpenAIConfig } from "./openai/config.js";
+import { createOpenAICompatibleModelClient } from "./openai-compatible/client.js";
 import type { OpenAICompatibleClientDependencies } from "./openai-compatible/types.js";
 
 export { getConfiguredModelProviderId };
-export type { ModelProviderId };
 
-function selectConfiguredModelClient(clients: Record<ModelProviderId, ModelClient>): ModelClient {
-  return clients[getConfiguredModelProviderId()];
-}
+const CONFIG_LOADERS = {
+  [MODEL_PROVIDERS.PROVIDERS.LLAMA_CPP]: getLlamaConfig,
+  [MODEL_PROVIDERS.PROVIDERS.APPLE]: getAppleConfig,
+  [MODEL_PROVIDERS.PROVIDERS.OPENAI]: getOpenAIConfig,
+};
 
 export function getDefaultModelClient(
   dependencies: OpenAICompatibleClientDependencies = {},
 ): ModelClient {
-  const clients: Record<ModelProviderId, ModelClient> = {
-    [MODEL_PROVIDERS.PROVIDERS.LLAMA_CPP]: createLlamaCppModelAdapter(dependencies),
-    [MODEL_PROVIDERS.PROVIDERS.APPLE]: createAppleModelAdapter(dependencies),
-    [MODEL_PROVIDERS.PROVIDERS.OPENAI]: createOpenAIModelAdapter(dependencies),
-  };
-
-  return {
-    complete(messages, options) {
-      return selectConfiguredModelClient(clients).complete(messages, options);
-    },
-  };
+  return createOpenAICompatibleModelClient(
+    () => CONFIG_LOADERS[getConfiguredModelProviderId()](),
+    dependencies,
+  );
 }

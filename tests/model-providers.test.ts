@@ -1,6 +1,3 @@
-// Purpose: Tests model provider selection and OpenAI provider config.
-// Scope: Covers provider-neutral wiring without making live network calls.
-
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { afterEach, describe, it } from "node:test";
@@ -21,9 +18,6 @@ import { getLlamaConfig } from "../src/app/llama/config.js";
 import { getAppleConfig } from "../src/app/model-providers/apple/config.js";
 import { getOpenAIConfig } from "../src/app/model-providers/openai/config.js";
 import { createStructuredModelCompletionOptions } from "../src/app/model-providers/response-format.js";
-import * as appleAdapterModule from "../src/app/model-providers/apple/adapter.js";
-import * as llamaAdapterModule from "../src/app/llama/adapter.js";
-import * as openAIAdapterModule from "../src/app/model-providers/openai/adapter.js";
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -40,14 +34,64 @@ describe("model provider selection", () => {
     assert.equal(getConfiguredModelProviderId(), MODEL_PROVIDERS.PROVIDERS.LLAMA_CPP);
   });
 
-  it("selects the OpenAI adapter when configured", () => {
+  it("routes the default client through the configured OpenAI provider", async () => {
+    let requestUrl = "";
+    let requestBody: unknown;
     process.env.MODEL_PROVIDER = MODEL_PROVIDERS.PROVIDERS.OPENAI;
+    process.env.MODEL_API_KEY = "test-key";
+    process.env.MODEL_NAME = "gpt-test";
 
     assert.equal(getConfiguredModelProviderId(), MODEL_PROVIDERS.PROVIDERS.OPENAI);
-    assert.equal(typeof getDefaultModelClient().complete, "function");
+    assert.equal(
+      await getDefaultModelClient({
+        transport: async (input, init) => {
+          requestUrl = String(input);
+          requestBody = JSON.parse(String(init?.body));
+          return new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), {
+            status: 200,
+          });
+        },
+      }).complete([{ role: "user", content: "hello" }], { maxOutputTokens: 42 }),
+      "ok",
+    );
+    assert.equal(requestUrl, "https://api.openai.com/v1/chat/completions");
+    assert.deepEqual(requestBody, {
+      model: "gpt-test",
+      messages: [{ role: "user", content: "hello" }],
+      stream: false,
+      max_completion_tokens: 42,
+    });
   });
 
-  it("selects the Apple Foundation Models adapter with fm serve defaults", async () => {
+  it("routes the default client through llama.cpp defaults", async () => {
+    let requestUrl = "";
+    let requestBody: unknown;
+    delete process.env.MODEL_PROVIDER;
+    delete process.env.MODEL_BASE_URL;
+    delete process.env.MODEL_NAME;
+
+    assert.equal(
+      await getDefaultModelClient({
+        transport: async (input, init) => {
+          requestUrl = String(input);
+          requestBody = JSON.parse(String(init?.body));
+          return new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), {
+            status: 200,
+          });
+        },
+      }).complete([{ role: "user", content: "hello" }], { maxOutputTokens: 42 }),
+      "ok",
+    );
+    assert.equal(requestUrl, "http://127.0.0.1:8080/v1/chat/completions");
+    assert.deepEqual(requestBody, {
+      model: "local",
+      messages: [{ role: "user", content: "hello" }],
+      stream: false,
+      max_tokens: 42,
+    });
+  });
+
+  it("selects the Apple Foundation Models provider with fm serve defaults", async () => {
     let requestUrl = "";
     let requestBody: unknown;
     process.env.MODEL_PROVIDER = MODEL_PROVIDERS.PROVIDERS.APPLE;
@@ -74,12 +118,6 @@ describe("model provider selection", () => {
       messages: [{ role: "user", content: "hello" }],
       stream: false,
     });
-  });
-
-  it("exposes model factories without module-level default adapters", () => {
-    assert.equal("llamaCppModelAdapter" in llamaAdapterModule, false);
-    assert.equal("appleModelAdapter" in appleAdapterModule, false);
-    assert.equal("openAIModelAdapter" in openAIAdapterModule, false);
   });
 });
 
@@ -456,6 +494,38 @@ describe("OpenAI-compatible provider config", () => {
         },
       ],
     );
+  });
+
+  it("does not build successful debug diagnostics when debug logging is disabled", async () => {
+    let nowCalls = 0;
+    const client = createOpenAICompatibleModelClient(
+      () => ({
+        providerId: MODEL_PROVIDERS.PROVIDERS.LLAMA_CPP,
+        baseUrl: "http://127.0.0.1:8080",
+        chatCompletionsPath: MODEL_PROVIDERS.CHAT_COMPLETIONS_PATH,
+        outputTokenParameter: MODEL_PROVIDERS.OUTPUT_TOKEN_PARAMETERS.MAX_TOKENS,
+        model: "local",
+        requestTimeoutMs: MODEL_PROVIDERS.DEFAULT_REQUEST_TIMEOUT_MS,
+      }),
+      {
+        now: () => {
+          nowCalls += 1;
+          return new Date("2026-08-27T10:00:00.000Z");
+        },
+        logger: {
+          debug: () => assert.fail("debug logging should be disabled"),
+          isLevelEnabled: () => false,
+          warn: () => assert.fail("a successful request should not warn"),
+        },
+        transport: async () =>
+          new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), {
+            status: 200,
+          }),
+      },
+    );
+
+    assert.equal(await client.complete([{ role: "user", content: "hello" }]), "ok");
+    assert.equal(nowCalls, 1);
   });
 });
 

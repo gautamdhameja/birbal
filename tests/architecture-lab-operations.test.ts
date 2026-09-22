@@ -1,6 +1,3 @@
-// Purpose: Proves the Architecture Case Lab's typed research and model boundary.
-// Scope: Covers U1 without live network or provider calls.
-
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";

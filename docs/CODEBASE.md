@@ -53,7 +53,8 @@ state graph.
 - `src/app/brave-search/`
 - `src/app/source-search/`
 - `src/app/url-text/`
-- `src/app/model-providers/`
+- `src/app/model-providers/` selects provider configuration and owns the shared OpenAI-compatible
+  model client. `src/app/llama/config.ts` supplies the llama.cpp defaults.
 
 Integration modules export factories rather than process-wide clients. Their I/O and state are
 bound once in `src/app/runtime/default.ts`; tool definitions depend only on injected operation

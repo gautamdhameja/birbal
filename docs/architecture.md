@@ -22,13 +22,14 @@ src/app/
   brave-search/ Brave Search client
   source-search/ configured-domain search
   url-text/    URL-fetch contracts, result schema, and application client
-  model-providers/ provider selection and adapters
+  model-providers/ provider selection, configuration, and shared client
 ```
 
 The framework never imports application modules. Application policy and tool definitions depend on
 narrow contracts, not concrete vendor clients. `src/app/runtime/default.ts` is the one place that
 constructs the default graph: it creates fresh integration clients, injects their operations into
-tools, registers those tools, selects a model adapter, creates a logger, and binds the agent.
+tools, registers those tools, selects the configured model client, creates a logger, and binds the
+agent.
 
 Runtime creation is the lifecycle boundary. Brave quota/circuit state, arXiv scheduling state, the
 tool registry, and logging configuration are isolated per runtime. Configuration loaders and clocks

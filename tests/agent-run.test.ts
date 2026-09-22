@@ -1,6 +1,3 @@
-// Purpose: Tests agent run behavior.
-// Scope: Covers regressions through the Node.js test runner.
-
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";

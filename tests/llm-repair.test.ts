@@ -1,6 +1,3 @@
-// Purpose: Tests llm repair behavior.
-// Scope: Covers regressions through the Node.js test runner.
-
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 

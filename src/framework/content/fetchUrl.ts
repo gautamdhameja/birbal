@@ -11,6 +11,7 @@ import {
   assertSafePublicHttpUrl,
   type HostResolver,
   httpUrlErrorMessage,
+  isSafePublicHttpUrl,
   unsafeHttpUrlErrorMessage,
 } from "../network/url.js";
 import { normalizeUrl } from "../network/normalizeUrl.js";
@@ -150,6 +151,20 @@ function errorResult(url: string, error: unknown, contentType = ""): FetchUrlCon
   );
 }
 
+async function assertSafeFetchTarget(
+  url: string,
+  fetchPolicy: UrlContentFetchPolicy,
+): Promise<void> {
+  if (fetchPolicy.transport) {
+    await assertSafePublicHttpUrl(url, fetchPolicy.hostResolver);
+    return;
+  }
+
+  if (!isSafePublicHttpUrl(url)) {
+    throw new Error(unsafeHttpUrlErrorMessage());
+  }
+}
+
 export async function fetchUrlContent({
   url,
   maxChars = URL_TEXT.DEFAULT_MAX_CHARS,
@@ -167,7 +182,7 @@ export async function fetchUrlContent({
     if (fetchPolicy.maxResponseBytes !== undefined) {
       assertValidMaxResponseBytes(fetchPolicy.maxResponseBytes);
     }
-    await assertSafePublicHttpUrl(url, fetchPolicy.hostResolver);
+    await assertSafeFetchTarget(url, fetchPolicy);
     const { response, finalUrl } = await fetchUrlResponse(url, fetchPolicy);
     const contentType = responseContentType(response);
 
@@ -260,11 +275,7 @@ async function fetchUrlResponse(
 
     const nextUrl = new URL(location, url).toString();
     await discardResponseBody(response);
-    try {
-      await assertSafePublicHttpUrl(nextUrl, fetchPolicy.hostResolver);
-    } catch {
-      throw new Error(unsafeHttpUrlErrorMessage());
-    }
+    await assertSafeFetchTarget(nextUrl, fetchPolicy);
 
     return fetchUrlResponse(nextUrl, fetchPolicy, redirectCount + 1);
   }

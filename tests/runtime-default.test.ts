@@ -1,6 +1,3 @@
-// Purpose: Covers the production application's default composition decisions.
-// Scope: Exercises runtime option mapping through narrow injected boundary ports.
-
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 

@@ -5,6 +5,7 @@ import {
   NOOP_DEBUG_WARN_LOGGER,
   type DebugWarnLogger,
 } from "../../../framework/logging/debug-warn.js";
+import { isDebugEnabled } from "../../../framework/logging/types.js";
 import { HTTP } from "../../../framework/network/constants.js";
 import { fetchWithTimeout } from "../../../framework/network/fetch.js";
 import type {
@@ -52,6 +53,10 @@ function logCompletionStarted(
   options: CompleteOptions,
   startedAt: Date,
 ): void {
+  if (!isDebugEnabled(logger)) {
+    return;
+  }
+
   logger.debug(
     {
       event: MODEL_LOG_EVENTS.STARTED,
@@ -82,6 +87,10 @@ function logCompletionFinished(
   usage?: OpenAICompatibleTokenUsage,
   now: () => Date = () => new Date(),
 ): void {
+  if (!isDebugEnabled(logger)) {
+    return;
+  }
+
   const finishedAt = now();
   logger.debug(
     {

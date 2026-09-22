@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { z } from "zod";
 
+import { isDebugEnabled } from "../logging/types.js";
 import { preview } from "../logging/preview.js";
 import type { ChatMessage } from "../llm/types.js";
 import { FRAMEWORK_AGENT } from "./constants.js";
@@ -34,6 +35,16 @@ function buildToolResultMessage({
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function logDebug(
+  logger: AgentHarnessConfig["logger"],
+  payload: () => Record<string, unknown>,
+  message: string,
+): void {
+  if (isDebugEnabled(logger)) {
+    logger.debug(payload(), message);
+  }
 }
 
 function buildProtocolRepairMessage(error: string, role: ChatMessage["role"]): ChatMessage {
@@ -80,28 +91,30 @@ export function createAgentHarness<TParsedResponse extends AgentResponse = Agent
       },
     ];
 
-    config.logger?.debug(
-      {
+    logDebug(
+      config.logger,
+      () => ({
         event: FRAMEWORK_AGENT.LOG_EVENTS.RUN_START,
         traceId,
         taskPreview: preview(task),
         maxSteps,
-      },
+      }),
       FRAMEWORK_AGENT.LOG_MESSAGES.RUN_START,
     );
 
     for (let step = 0; step < maxSteps; step += 1) {
       const modelPassId = randomUUID();
 
-      config.logger?.debug(
-        {
+      logDebug(
+        config.logger,
+        () => ({
           event: FRAMEWORK_AGENT.LOG_EVENTS.HARNESS_TO_MODEL,
           traceId,
           modelPassId,
           step,
           messageCount: history.length,
           lastMessageLength: history.at(-1)?.content.length ?? 0,
-        },
+        }),
         FRAMEWORK_AGENT.LOG_MESSAGES.HARNESS_TO_MODEL,
       );
 
@@ -119,14 +132,15 @@ export function createAgentHarness<TParsedResponse extends AgentResponse = Agent
         raw,
       });
 
-      config.logger?.debug(
-        {
+      logDebug(
+        config.logger,
+        () => ({
           event: FRAMEWORK_AGENT.LOG_EVENTS.MODEL_TO_HARNESS,
           traceId,
           modelPassId,
           step,
           rawLength: raw.length,
-        },
+        }),
         FRAMEWORK_AGENT.LOG_MESSAGES.MODEL_TO_HARNESS,
       );
 
@@ -140,15 +154,16 @@ export function createAgentHarness<TParsedResponse extends AgentResponse = Agent
       } catch (error) {
         const message = getErrorMessage(error);
 
-        config.logger?.debug(
-          {
+        logDebug(
+          config.logger,
+          () => ({
             event: FRAMEWORK_AGENT.LOG_EVENTS.RESPONSE_PARSE_FAILED,
             traceId,
             modelPassId,
             step,
             rawLength: raw.length,
             error: message,
-          },
+          }),
           FRAMEWORK_AGENT.LOG_MESSAGES.RESPONSE_PARSE_FAILED,
         );
 
@@ -168,8 +183,9 @@ export function createAgentHarness<TParsedResponse extends AgentResponse = Agent
           });
           history.push(buildProtocolRepairMessage(message, roles.user));
 
-          config.logger?.debug(
-            {
+          logDebug(
+            config.logger,
+            () => ({
               event: FRAMEWORK_AGENT.LOG_EVENTS.RESPONSE_PARSE_REPAIR,
               traceId,
               modelPassId,
@@ -177,7 +193,7 @@ export function createAgentHarness<TParsedResponse extends AgentResponse = Agent
               parseRepairAttempts,
               maxParseRepairAttempts,
               rawPreview: preview(raw),
-            },
+            }),
             FRAMEWORK_AGENT.LOG_MESSAGES.RESPONSE_PARSE_REPAIR,
           );
 
@@ -196,14 +212,15 @@ export function createAgentHarness<TParsedResponse extends AgentResponse = Agent
         content: raw,
       });
 
-      config.logger?.debug(
-        {
+      logDebug(
+        config.logger,
+        () => ({
           event: FRAMEWORK_AGENT.LOG_EVENTS.RESPONSE_PARSED,
           traceId,
           modelPassId,
           step,
           parsedType: parsed.type,
-        },
+        }),
         FRAMEWORK_AGENT.LOG_MESSAGES.RESPONSE_PARSED,
       );
       await config.hooks?.onResponseParsed?.({
@@ -214,28 +231,30 @@ export function createAgentHarness<TParsedResponse extends AgentResponse = Agent
       });
 
       if (parsed.type === "final") {
-        config.logger?.debug(
-          {
+        logDebug(
+          config.logger,
+          () => ({
             event: FRAMEWORK_AGENT.LOG_EVENTS.RUN_FINAL,
             traceId,
             modelPassId,
             step,
             answerPreview: preview(parsed.answer),
-          },
+          }),
           FRAMEWORK_AGENT.LOG_MESSAGES.RUN_FINAL,
         );
         return parsed.answer;
       }
 
-      config.logger?.debug(
-        {
+      logDebug(
+        config.logger,
+        () => ({
           event: FRAMEWORK_AGENT.LOG_EVENTS.HARNESS_TO_TOOL,
           traceId,
           modelPassId,
           step,
           tool: parsed.tool,
           argsPreview: preview(parsed.args),
-        },
+        }),
         FRAMEWORK_AGENT.LOG_MESSAGES.HARNESS_TO_TOOL,
       );
 
@@ -260,15 +279,16 @@ export function createAgentHarness<TParsedResponse extends AgentResponse = Agent
         result,
       });
 
-      config.logger?.debug(
-        {
+      logDebug(
+        config.logger,
+        () => ({
           event: FRAMEWORK_AGENT.LOG_EVENTS.TOOL_TO_HARNESS,
           traceId,
           modelPassId,
           step,
           tool: parsed.tool,
           resultPreview: preview(result),
-        },
+        }),
         FRAMEWORK_AGENT.LOG_MESSAGES.TOOL_TO_HARNESS,
       );
 
@@ -280,24 +300,26 @@ export function createAgentHarness<TParsedResponse extends AgentResponse = Agent
       });
       history.push(toolResultMessage);
 
-      config.logger?.debug(
-        {
+      logDebug(
+        config.logger,
+        () => ({
           event: FRAMEWORK_AGENT.LOG_EVENTS.APPEND_TOOL_RESULT,
           traceId,
           modelPassId,
           step,
           messageLength: toolResultMessage.content.length,
-        },
+        }),
         FRAMEWORK_AGENT.LOG_MESSAGES.APPEND_TOOL_RESULT,
       );
     }
 
-    config.logger?.debug(
-      {
+    logDebug(
+      config.logger,
+      () => ({
         event: FRAMEWORK_AGENT.LOG_EVENTS.MAX_STEPS,
         traceId,
         maxSteps,
-      },
+      }),
       FRAMEWORK_AGENT.LOG_MESSAGES.MAX_STEPS,
     );
     await config.hooks?.onMaxSteps?.({
