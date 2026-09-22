@@ -2,11 +2,15 @@ export const MODEL_PROVIDERS = {
   DEFAULT_PROVIDER: "llama_cpp",
   PROVIDERS: {
     LLAMA_CPP: "llama_cpp",
+    APPLE: "apple",
     OPENAI: "openai",
   },
   CHAT_COMPLETIONS_PATH: "/v1/chat/completions",
   DEFAULT_REQUEST_TIMEOUT_MS: 120_000,
   DEFAULT_LLAMA_BASE_URL: "http://127.0.0.1:8080",
+  DEFAULT_LLAMA_MODEL: "local",
+  DEFAULT_APPLE_BASE_URL: "http://127.0.0.1:1976",
+  DEFAULT_APPLE_MODEL: "system",
   DEFAULT_OPENAI_BASE_URL: "https://api.openai.com",
   TEMPERATURE_MIN: 0,
   TEMPERATURE_MAX: 2,
@@ -23,7 +27,6 @@ export const MODEL_PROVIDERS = {
     MAX_COMPLETION_TOKENS: "max_completion_tokens",
   },
   ERRORS: {
-    UNSUPPORTED_PROVIDER: "Unsupported model provider",
     REQUEST_FAILED_PREFIX: "Failed to reach model provider at",
     HTTP_FAILED_PREFIX: "Model provider request failed with HTTP",
     INVALID_JSON_PREFIX: "Model provider returned invalid JSON:",

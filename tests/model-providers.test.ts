@@ -2,8 +2,10 @@
 // Scope: Covers provider-neutral wiring without making live network calls.
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { afterEach, describe, it } from "node:test";
 
+import dotenv from "dotenv";
 import { z } from "zod";
 
 import { MODEL_PROVIDERS } from "../src/app/constants/model-providers.js";
@@ -16,8 +18,10 @@ import {
   createOpenAICompatibleModelClient,
 } from "../src/app/model-providers/openai-compatible/client.js";
 import { getLlamaConfig } from "../src/app/llama/config.js";
+import { getAppleConfig } from "../src/app/model-providers/apple/config.js";
 import { getOpenAIConfig } from "../src/app/model-providers/openai/config.js";
 import { createStructuredModelCompletionOptions } from "../src/app/model-providers/response-format.js";
+import * as appleAdapterModule from "../src/app/model-providers/apple/adapter.js";
 import * as llamaAdapterModule from "../src/app/llama/adapter.js";
 import * as openAIAdapterModule from "../src/app/model-providers/openai/adapter.js";
 
@@ -43,9 +47,72 @@ describe("model provider selection", () => {
     assert.equal(typeof getDefaultModelClient().complete, "function");
   });
 
+  it("selects the Apple Foundation Models adapter with fm serve defaults", async () => {
+    let requestUrl = "";
+    let requestBody: unknown;
+    process.env.MODEL_PROVIDER = MODEL_PROVIDERS.PROVIDERS.APPLE;
+    delete process.env.MODEL_API_KEY;
+    delete process.env.MODEL_BASE_URL;
+    delete process.env.MODEL_NAME;
+
+    assert.equal(getConfiguredModelProviderId(), MODEL_PROVIDERS.PROVIDERS.APPLE);
+    assert.equal(
+      await getDefaultModelClient({
+        transport: async (input, init) => {
+          requestUrl = String(input);
+          requestBody = JSON.parse(String(init?.body));
+          return new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), {
+            status: 200,
+          });
+        },
+      }).complete([{ role: "user", content: "hello" }]),
+      "ok",
+    );
+    assert.equal(requestUrl, "http://127.0.0.1:1976/v1/chat/completions");
+    assert.deepEqual(requestBody, {
+      model: "system",
+      messages: [{ role: "user", content: "hello" }],
+      stream: false,
+    });
+  });
+
   it("exposes model factories without module-level default adapters", () => {
     assert.equal("llamaCppModelAdapter" in llamaAdapterModule, false);
+    assert.equal("appleModelAdapter" in appleAdapterModule, false);
     assert.equal("openAIModelAdapter" in openAIAdapterModule, false);
+  });
+});
+
+describe("Apple Foundation Models provider config", () => {
+  afterEach(resetEnv);
+
+  it("loads fm serve defaults without requiring common model variables", () => {
+    delete process.env.MODEL_API_KEY;
+    delete process.env.MODEL_BASE_URL;
+    delete process.env.MODEL_NAME;
+
+    assert.deepEqual(getAppleConfig(), {
+      providerId: MODEL_PROVIDERS.PROVIDERS.APPLE,
+      baseUrl: MODEL_PROVIDERS.DEFAULT_APPLE_BASE_URL,
+      chatCompletionsPath: MODEL_PROVIDERS.CHAT_COMPLETIONS_PATH,
+      outputTokenParameter: MODEL_PROVIDERS.OUTPUT_TOKEN_PARAMETERS.MAX_TOKENS,
+      model: MODEL_PROVIDERS.DEFAULT_APPLE_MODEL,
+      requestTimeoutMs: MODEL_PROVIDERS.DEFAULT_REQUEST_TIMEOUT_MS,
+    });
+  });
+
+  it("allows common model variables to override Apple defaults", () => {
+    process.env.MODEL_BASE_URL = "http://127.0.0.1:2987";
+    process.env.MODEL_NAME = "custom-system";
+
+    assert.deepEqual(getAppleConfig(), {
+      providerId: MODEL_PROVIDERS.PROVIDERS.APPLE,
+      baseUrl: "http://127.0.0.1:2987",
+      chatCompletionsPath: MODEL_PROVIDERS.CHAT_COMPLETIONS_PATH,
+      outputTokenParameter: MODEL_PROVIDERS.OUTPUT_TOKEN_PARAMETERS.MAX_TOKENS,
+      model: "custom-system",
+      requestTimeoutMs: MODEL_PROVIDERS.DEFAULT_REQUEST_TIMEOUT_MS,
+    });
   });
 });
 
@@ -79,16 +146,36 @@ describe("OpenAI-compatible provider config", () => {
   afterEach(resetEnv);
 
   it("loads llama.cpp defaults with common model variables", () => {
-    process.env.MODEL_NAME = "local";
+    delete process.env.MODEL_BASE_URL;
+    delete process.env.MODEL_NAME;
 
     assert.deepEqual(getLlamaConfig(), {
       providerId: MODEL_PROVIDERS.PROVIDERS.LLAMA_CPP,
       baseUrl: MODEL_PROVIDERS.DEFAULT_LLAMA_BASE_URL,
       chatCompletionsPath: MODEL_PROVIDERS.CHAT_COMPLETIONS_PATH,
       outputTokenParameter: MODEL_PROVIDERS.OUTPUT_TOKEN_PARAMETERS.MAX_TOKENS,
-      model: "local",
+      model: MODEL_PROVIDERS.DEFAULT_LLAMA_MODEL,
       requestTimeoutMs: MODEL_PROVIDERS.DEFAULT_REQUEST_TIMEOUT_MS,
     });
+  });
+
+  it("lets a copied example environment switch cleanly to Apple defaults", () => {
+    process.env = {
+      ...ORIGINAL_ENV,
+      ...dotenv.parse(readFileSync(new URL("../.env.example", import.meta.url))),
+      MODEL_PROVIDER: MODEL_PROVIDERS.PROVIDERS.APPLE,
+    };
+
+    assert.equal(getConfiguredModelProviderId(), MODEL_PROVIDERS.PROVIDERS.APPLE);
+    assert.equal(getAppleConfig().baseUrl, MODEL_PROVIDERS.DEFAULT_APPLE_BASE_URL);
+    assert.equal(getAppleConfig().model, MODEL_PROVIDERS.DEFAULT_APPLE_MODEL);
+    assert.equal(
+      createStructuredModelCompletionOptions({
+        name: "result",
+        schema: z.strictObject({ result: z.string() }),
+      }).response_format?.type,
+      MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_SCHEMA,
+    );
   });
 
   it("composes the common chat completions path from the provider base URL", () => {
@@ -386,12 +473,75 @@ describe("structured model response format", () => {
   ]);
 
   it("keeps JSON object response format as the compatibility default", () => {
+    delete process.env.MODEL_PROVIDER;
     delete process.env.MODEL_RESPONSE_FORMAT;
 
     assert.deepEqual(
       createStructuredModelCompletionOptions({ name: "result", schema: ResultSchema })
         .response_format,
       { type: MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT },
+    );
+  });
+
+  it("uses Apple JSON schema defaults for the Apple provider", () => {
+    process.env.MODEL_PROVIDER = MODEL_PROVIDERS.PROVIDERS.APPLE;
+    delete process.env.MODEL_RESPONSE_FORMAT;
+    delete process.env.MODEL_JSON_SCHEMA_DIALECT;
+
+    assert.deepEqual(
+      createStructuredModelCompletionOptions({ name: "result", schema: ResultSchema })
+        .response_format,
+      {
+        type: MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_SCHEMA,
+        json_schema: {
+          name: "result",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: { result: { type: "string" } },
+            required: ["result"],
+            additionalProperties: false,
+            title: "Result",
+            "x-order": ["result"],
+          },
+        },
+      },
+    );
+  });
+
+  it("respects an explicit JSON object override for the Apple provider", () => {
+    process.env.MODEL_PROVIDER = MODEL_PROVIDERS.PROVIDERS.APPLE;
+    process.env.MODEL_RESPONSE_FORMAT = MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT;
+    process.env.MODEL_JSON_SCHEMA_DIALECT = "unsupported";
+
+    assert.deepEqual(
+      createStructuredModelCompletionOptions({ name: "result", schema: ResultSchema })
+        .response_format,
+      { type: MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT },
+    );
+  });
+
+  it("respects an explicit standard JSON schema dialect for the Apple provider", () => {
+    process.env.MODEL_PROVIDER = MODEL_PROVIDERS.PROVIDERS.APPLE;
+    process.env.MODEL_JSON_SCHEMA_DIALECT = MODEL_PROVIDERS.JSON_SCHEMA_DIALECTS.STANDARD;
+    delete process.env.MODEL_RESPONSE_FORMAT;
+
+    assert.deepEqual(
+      createStructuredModelCompletionOptions({ name: "result", schema: ResultSchema })
+        .response_format,
+      {
+        type: MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_SCHEMA,
+        json_schema: {
+          name: "result",
+          strict: false,
+          schema: {
+            type: "object",
+            properties: { result: { type: "string" } },
+            required: ["result"],
+            additionalProperties: false,
+          },
+        },
+      },
     );
   });
 

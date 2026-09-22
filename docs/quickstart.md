@@ -4,7 +4,7 @@
 
 - Node.js 22.13.0 or newer
 - pnpm 10
-- a llama.cpp-compatible server, or an OpenAI API key
+- a llama.cpp-compatible server, Apple Foundation Models through `fm serve`, or an OpenAI API key
 - a Brave Search API key for web and configured-domain search
 
 ## Install and configure
@@ -21,6 +21,16 @@ MODEL_PROVIDER=openai
 MODEL_API_KEY=...
 MODEL_NAME=...
 ```
+
+To use the Apple system Foundation Model, start `fm serve` and set:
+
+```dotenv
+MODEL_PROVIDER=apple
+```
+
+Birbal then uses the standard `fm serve` defaults: `http://127.0.0.1:1976`, model `system`, and the
+Apple JSON Schema dialect. Set `MODEL_BASE_URL`, `MODEL_NAME`, `MODEL_RESPONSE_FORMAT`, or
+`MODEL_JSON_SCHEMA_DIALECT` only when your server requires different values.
 
 Adjust `config/research.json` for reading preferences and `config/source-registry.json` for curated sources.
 

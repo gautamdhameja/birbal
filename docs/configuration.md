@@ -31,17 +31,25 @@ bundled files.
 
 `MODEL_REQUEST_TIMEOUT_MS` applies to model-provider requests only.
 
-`MODEL_RESPONSE_FORMAT` controls structured model requests. It defaults to `json_object`; set it
-to `json_schema` for endpoints that require an explicit schema. Birbal derives each request schema
-from the Zod contract that validates that model call, so agent and Architecture Case Lab requests
-receive their own schemas.
+`MODEL_PROVIDER` accepts `llama_cpp`, `apple`, or `openai`. The default provider is `llama_cpp`.
+The Apple provider targets the OpenAI-compatible endpoint from `fm serve` and defaults
+`MODEL_BASE_URL` to `http://127.0.0.1:1976` and `MODEL_NAME` to `system`. Llama.cpp and OpenAI still
+use the same environment variables; llama.cpp defaults `MODEL_BASE_URL` to
+`http://127.0.0.1:8080` and `MODEL_NAME` to `local`, while OpenAI requires `MODEL_NAME` and
+`MODEL_API_KEY`.
 
-`MODEL_JSON_SCHEMA_DIALECT` defaults to `standard`. Set it to `apple` when using `fm serve`; this
-adapts root union schemas to the Foundation Models schema representation. The setting is ignored
-unless `MODEL_RESPONSE_FORMAT=json_schema`. The `standard` dialect converts root unions to a root
-object and uses non-strict provider enforcement because Birbal tool contracts can contain optional
-properties; Birbal still validates every returned value against the original Zod schema. The
-`apple` dialect keeps strict enforcement and adds the metadata required by Foundation Models.
+`MODEL_RESPONSE_FORMAT` controls structured model requests. It defaults to `json_object` for
+llama.cpp and OpenAI, and to `json_schema` for the Apple provider. Birbal derives each request
+schema from the Zod contract that validates that model call, so agent and Architecture Case Lab
+requests receive their own schemas. An explicit setting overrides the provider default.
+
+`MODEL_JSON_SCHEMA_DIALECT` defaults to `apple` for the Apple provider and `standard` for other
+providers. The Apple dialect adapts root union schemas to the Foundation Models schema
+representation. The setting is ignored unless `MODEL_RESPONSE_FORMAT=json_schema`. The `standard`
+dialect converts root unions to a root object and uses non-strict provider enforcement because
+Birbal tool contracts can contain optional properties; Birbal still validates every returned value
+against the original Zod schema. The `apple` dialect keeps strict enforcement and adds the metadata
+required by Foundation Models.
 `BRAVE_SEARCH_MAX_CALLS_PER_PROCESS` retains its historical name for configuration compatibility,
 but its quota applies independently to each newly created runtime's Brave Search client.
 

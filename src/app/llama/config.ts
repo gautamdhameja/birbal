@@ -7,6 +7,7 @@ export function getLlamaConfig() {
     getOpenAICompatibleProviderConfig({
       providerId: MODEL_PROVIDERS.PROVIDERS.LLAMA_CPP,
       defaultBaseUrl: MODEL_PROVIDERS.DEFAULT_LLAMA_BASE_URL,
+      defaultModel: MODEL_PROVIDERS.DEFAULT_LLAMA_MODEL,
     }),
   );
 }

@@ -3,18 +3,19 @@ import { z } from "zod";
 import type { ModelCompleteOptions } from "../../framework/llm/types.js";
 import { STRUCTURED_MODEL_COMPLETION_DEFAULTS } from "../constants/model-completion.js";
 import { MODEL_PROVIDERS } from "../constants/model-providers.js";
-import { trimmedEnv } from "./config.js";
+import { createAppleJsonSchema } from "./apple/json-schema.js";
+import { getConfiguredModelProviderId, trimmedEnv } from "./config.js";
+import { toInputJsonSchema, topLevelUnionOptions } from "./json-schema.js";
 
-const ResponseFormatEnvSchema = z
-  .enum([
-    MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT,
-    MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_SCHEMA,
-  ])
-  .default(MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT);
+const ResponseFormatEnvSchema = z.enum([
+  MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT,
+  MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_SCHEMA,
+]);
 
-const JsonSchemaDialectEnvSchema = z
-  .enum([MODEL_PROVIDERS.JSON_SCHEMA_DIALECTS.STANDARD, MODEL_PROVIDERS.JSON_SCHEMA_DIALECTS.APPLE])
-  .default(MODEL_PROVIDERS.JSON_SCHEMA_DIALECTS.STANDARD);
+const JsonSchemaDialectEnvSchema = z.enum([
+  MODEL_PROVIDERS.JSON_SCHEMA_DIALECTS.STANDARD,
+  MODEL_PROVIDERS.JSON_SCHEMA_DIALECTS.APPLE,
+]);
 
 type StructuredModelCompletionOptions = {
   name: string;
@@ -22,10 +23,14 @@ type StructuredModelCompletionOptions = {
 };
 
 function configuredResponseFormat() {
+  const isAppleProvider = getConfiguredModelProviderId() === MODEL_PROVIDERS.PROVIDERS.APPLE;
   const responseFormat = parseEnvValue(
     "MODEL_RESPONSE_FORMAT",
     ResponseFormatEnvSchema,
-    trimmedEnv("MODEL_RESPONSE_FORMAT"),
+    trimmedEnv("MODEL_RESPONSE_FORMAT") ??
+      (isAppleProvider
+        ? MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_SCHEMA
+        : MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT),
   );
   if (responseFormat === MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT) {
     return { responseFormat } as const;
@@ -36,7 +41,10 @@ function configuredResponseFormat() {
     jsonSchemaDialect: parseEnvValue(
       "MODEL_JSON_SCHEMA_DIALECT",
       JsonSchemaDialectEnvSchema,
-      trimmedEnv("MODEL_JSON_SCHEMA_DIALECT"),
+      trimmedEnv("MODEL_JSON_SCHEMA_DIALECT") ??
+        (isAppleProvider
+          ? MODEL_PROVIDERS.JSON_SCHEMA_DIALECTS.APPLE
+          : MODEL_PROVIDERS.JSON_SCHEMA_DIALECTS.STANDARD),
     ),
   } as const;
 }
@@ -49,18 +57,9 @@ function parseEnvValue<T>(name: string, schema: z.ZodType<T>, value: string | un
   return parsed.data;
 }
 
-function rawJsonSchema(schema: z.ZodType): Record<string, unknown> {
-  const { $schema: _dialect, ...jsonSchema } = z.toJSONSchema(schema, { io: "input" });
-  return jsonSchema;
-}
-
 function standardJsonSchema(schema: z.ZodType): Record<string, unknown> {
-  const jsonSchema = rawJsonSchema(schema);
-  const unionOptions = Array.isArray(jsonSchema.anyOf)
-    ? jsonSchema.anyOf
-    : Array.isArray(jsonSchema.oneOf)
-      ? jsonSchema.oneOf
-      : undefined;
+  const jsonSchema = toInputJsonSchema(schema);
+  const unionOptions = topLevelUnionOptions(jsonSchema);
   if (!unionOptions || !unionOptions.every(isObjectSchema)) {
     return jsonSchema;
   }
@@ -116,87 +115,6 @@ function isObjectSchema(value: unknown): value is {
   );
 }
 
-function schemaTypeName(name: string): string {
-  const normalized = name
-    .split(/[^A-Za-z0-9]+/)
-    .filter(Boolean)
-    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
-    .join("");
-  return /^\d/.test(normalized) ? `Schema${normalized}` : normalized || "StructuredResponse";
-}
-
-function addAppleObjectMetadata(value: unknown, name: string): unknown {
-  if (Array.isArray(value)) {
-    return value.map((item, index) => addAppleObjectMetadata(item, `${name}Option${index + 1}`));
-  }
-  if (!value || typeof value !== "object") {
-    return value;
-  }
-
-  const source = value as Record<string, unknown>;
-  const result = Object.fromEntries(
-    Object.entries(source).map(([key, nestedValue]) => {
-      if (key === "properties" && nestedValue && typeof nestedValue === "object") {
-        return [
-          key,
-          Object.fromEntries(
-            Object.entries(nestedValue).map(([propertyName, propertySchema]) => [
-              propertyName,
-              addAppleObjectMetadata(propertySchema, `${name}${schemaTypeName(propertyName)}`),
-            ]),
-          ),
-        ];
-      }
-      if (key === "items") {
-        return [key, addAppleObjectMetadata(nestedValue, `${name}Item`)];
-      }
-      return [key, nestedValue];
-    }),
-  );
-  if (
-    result.type === "object" &&
-    result.properties &&
-    typeof result.properties === "object" &&
-    !Array.isArray(result.properties)
-  ) {
-    if (!Array.isArray(result.required)) {
-      result.required = [];
-    }
-    result.title = typeof result.title === "string" ? result.title : name;
-    result["x-order"] = Object.keys(result.properties);
-  }
-  return result;
-}
-
-function appleJsonSchema(name: string, schema: z.ZodType): Record<string, unknown> {
-  const jsonSchema = rawJsonSchema(schema);
-  const rootName = schemaTypeName(name);
-  const unionOptions = Array.isArray(jsonSchema.anyOf)
-    ? jsonSchema.anyOf
-    : Array.isArray(jsonSchema.oneOf)
-      ? jsonSchema.oneOf
-      : undefined;
-  if (!unionOptions) {
-    return addAppleObjectMetadata(jsonSchema, rootName) as Record<string, unknown>;
-  }
-
-  const definitions = Object.fromEntries(
-    unionOptions.map((option, index) => {
-      const definitionName = `${rootName}Option${index + 1}`;
-      const definition = addAppleObjectMetadata(option, definitionName) as Record<string, unknown>;
-      return [definitionName, definition];
-    }),
-  );
-
-  return {
-    anyOf: unionOptions.map((_option, index) => ({
-      $ref: `#/$defs/${rootName}Option${index + 1}`,
-    })),
-    title: rootName,
-    $defs: definitions,
-  };
-}
-
 export function createStructuredModelCompletionOptions({
   name,
   schema,
@@ -218,7 +136,9 @@ export function createStructuredModelCompletionOptions({
       json_schema: {
         name,
         strict: appleDialect,
-        schema: appleDialect ? appleJsonSchema(name, schema) : standardJsonSchema(schema),
+        schema: appleDialect
+          ? createAppleJsonSchema(name, toInputJsonSchema(schema))
+          : standardJsonSchema(schema),
       },
     },
   };
