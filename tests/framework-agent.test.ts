@@ -7,6 +7,7 @@ import { describe, it } from "node:test";
 import { z } from "zod";
 
 import {
+  createFrameworkAgentResponseSchema,
   createAgentHarness,
   createToolExecutor,
   parseJsonAgentResponse,
@@ -15,6 +16,32 @@ import {
 import type { AgentLifecycleHooks, ChatMessage, ToolDefinition } from "../src/framework/index.js";
 
 describe("framework agent harness", () => {
+  it("builds the structured response contract from registered tool argument schemas", () => {
+    const argsSchema = z.strictObject({ value: z.string() });
+    const resultSchema = z.strictObject({ value: z.string() });
+    const tool: ToolDefinition<typeof argsSchema, typeof resultSchema> = {
+      name: "echo",
+      description: "Echo a value.",
+      argsSchema,
+      resultSchema,
+      run: async (args) => args,
+    };
+    const schema = createFrameworkAgentResponseSchema([tool]);
+
+    assert.deepEqual(
+      schema.parse({ type: "tool_call", tool: "echo", args: { value: "framework" } }),
+      { type: "tool_call", tool: "echo", args: { value: "framework" } },
+    );
+    assert.throws(
+      () => schema.parse({ type: "tool_call", tool: "echo", args: { other: "value" } }),
+      /value/,
+    );
+    assert.deepEqual(schema.parse({ type: "final", answer: "done" }), {
+      type: "final",
+      answer: "done",
+    });
+  });
+
   it("runs a model-tool-model loop without Birbal-specific components", async () => {
     const registry = new ToolRegistry();
     const argsSchema = z.strictObject({

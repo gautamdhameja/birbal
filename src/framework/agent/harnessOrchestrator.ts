@@ -42,9 +42,8 @@ function buildProtocolRepairMessage(error: string, role: ChatMessage["role"]): C
     content: [
       `Your previous response was invalid: ${error}`,
       "Return exactly one valid JSON object and no surrounding text.",
-      "Use exactly one of these shapes:",
-      '{"type":"final","answer":"..."}',
-      '{"type":"tool_call","tool":"...","args":{}}',
+      'Use type "final" with an answer matching the configured response schema,',
+      'or use {"type":"tool_call","tool":"...","args":{}}.',
       "If you intended to call a tool, return only the tool_call object.",
     ].join("\n"),
   };

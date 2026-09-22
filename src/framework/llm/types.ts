@@ -5,9 +5,18 @@ export type ChatMessage = {
   content: string;
 };
 
-export type ModelResponseFormat = {
-  type: "json_object";
-};
+export type ModelResponseFormat =
+  | {
+      type: "json_object";
+    }
+  | {
+      type: "json_schema";
+      json_schema: {
+        name: string;
+        strict: boolean;
+        schema: Record<string, unknown>;
+      };
+    };
 
 export type ModelCompleteOptions = {
   temperature?: number;

@@ -12,6 +12,11 @@ export const MODEL_PROVIDERS = {
   TEMPERATURE_MAX: 2,
   RESPONSE_FORMATS: {
     JSON_OBJECT: "json_object",
+    JSON_SCHEMA: "json_schema",
+  },
+  JSON_SCHEMA_DIALECTS: {
+    STANDARD: "standard",
+    APPLE: "apple",
   },
   OUTPUT_TOKEN_PARAMETERS: {
     MAX_TOKENS: "max_tokens",

@@ -1,12 +1,18 @@
 import { createAgentHarness } from "../../framework/agent/harnessOrchestrator.js";
 import { FRAMEWORK_AGENT } from "../../framework/agent/constants.js";
-import { parseJsonAgentResponse } from "../../framework/agent/protocol.js";
-import type { AgentLogger, ToolRunner } from "../../framework/agent/types.js";
+import {
+  createJsonStringCodec,
+  FrameworkAgentFinalResponseSchema,
+  FrameworkAgentToolCallResponseSchema,
+  parseJsonAgentResponseWithSchema,
+} from "../../framework/agent/protocol.js";
+import type { AgentLogger, AgentResponse, ToolRunner } from "../../framework/agent/types.js";
 import { parseStrictJson } from "../../framework/llm/json.js";
 import { completeStructuredWithRepair } from "../../framework/llm/repair.js";
-import type { ModelClient } from "../../framework/llm/types.js";
-import { STRUCTURED_MODEL_COMPLETION_OPTIONS } from "../constants/model-completion.js";
+import type { ModelClient, ModelCompleteOptions } from "../../framework/llm/types.js";
+import { createStructuredModelCompletionOptions } from "../model-providers/response-format.js";
 import { ARCHITECTURE_LAB } from "./constants.js";
+import { MODEL_PROVIDERS } from "../constants/model-providers.js";
 import {
   assessSourceDossier,
   resolveReviewSources,
@@ -55,7 +61,7 @@ import type {
   SourceDossier,
 } from "./types.js";
 import type { DebugWarnLogger } from "../../framework/logging/debug-warn.js";
-import type { z } from "zod";
+import { z } from "zod";
 
 type ResearchRunnerDependencies = {
   modelClient: ModelClient;
@@ -63,6 +69,7 @@ type ResearchRunnerDependencies = {
   renderToolsForPrompt(): string;
   logger?: AgentLogger;
   prompt?: ArchitectureLabSystemPromptDependencies;
+  createResponseSchema?(finalAnswerSchema: z.ZodType<string>): z.ZodType<AgentResponse>;
 };
 
 type ResearchOperationPhase = Extract<
@@ -99,6 +106,7 @@ async function completePhase<T>({
   traceLabel,
   messages,
   schema,
+  modelOptions,
   completeFn,
   logger,
 }: {
@@ -106,6 +114,7 @@ async function completePhase<T>({
   traceLabel: string;
   messages: Parameters<typeof completeStructuredWithRepair<T>>[0]["messages"];
   schema: z.ZodType<T>;
+  modelOptions: ModelCompleteOptions;
   completeFn: ModelClient["complete"];
   logger?: DebugWarnLogger;
 }): Promise<ArchitectureLabResult<T>> {
@@ -115,7 +124,7 @@ async function completePhase<T>({
       schema,
       completeFn,
       completeOptions: {
-        ...STRUCTURED_MODEL_COMPLETION_OPTIONS,
+        ...modelOptions,
         traceLabel,
       },
       logger,
@@ -163,21 +172,48 @@ export function createArchitectureLabResearchRunner({
   renderToolsForPrompt,
   logger,
   prompt,
+  createResponseSchema = (finalAnswerSchema) =>
+    FrameworkAgentFinalResponseSchema.extend({ answer: finalAnswerSchema }).or(
+      FrameworkAgentToolCallResponseSchema,
+    ),
 }: ResearchRunnerDependencies): ArchitectureLabResearchOperation {
   const buildSystemPrompt = createArchitectureLabSystemPromptBuilder(prompt);
+  const legacyResponseSchema = createResponseSchema(z.string());
+  const caseSetupResponseSchema = createResponseSchema(createJsonStringCodec(SourceDossierSchema));
+  const architectureEvidenceResponseSchema = createResponseSchema(
+    createJsonStringCodec(ArchitectureEvidenceSchema),
+  );
+  const modelOptions = {
+    caseSetup: createStructuredModelCompletionOptions({
+      name: "architecture_lab_case_research_response",
+      schema: caseSetupResponseSchema,
+    }),
+    architectureEvidence: createStructuredModelCompletionOptions({
+      name: "architecture_lab_evidence_research_response",
+      schema: architectureEvidenceResponseSchema,
+    }),
+  };
   return async (request) => {
     const provenance = createResearchProvenanceLedger();
     const traceLabel =
       request.phase === "case_setup"
         ? ARCHITECTURE_LAB.TRACE_LABELS.CASE_RESEARCH
         : ARCHITECTURE_LAB.TRACE_LABELS.ARCHITECTURE_EVIDENCE;
+    const responseModelOptions =
+      request.phase === "case_setup" ? modelOptions.caseSetup : modelOptions.architectureEvidence;
+    const responseSchema =
+      responseModelOptions.response_format?.type === MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_SCHEMA
+        ? request.phase === "case_setup"
+          ? caseSetupResponseSchema
+          : architectureEvidenceResponseSchema
+        : legacyResponseSchema;
     const runResearch = createAgentHarness({
       modelClient,
       toolRunner,
       renderToolsForPrompt,
       buildSystemPrompt,
       parseResponse: (raw) =>
-        parseJsonAgentResponse(raw, {
+        parseJsonAgentResponseWithSchema(raw, responseSchema, {
           maxResponseChars: FRAMEWORK_AGENT.MAX_RESPONSE_CHARS,
         }),
       logger,
@@ -187,7 +223,7 @@ export function createArchitectureLabResearchRunner({
       defaultMaxSteps: ARCHITECTURE_LAB.RESEARCH_MAX_STEPS,
       maxParseRepairAttempts: 1,
       modelOptions: {
-        ...STRUCTURED_MODEL_COMPLETION_OPTIONS,
+        ...responseModelOptions,
         traceLabel,
       },
     });
@@ -240,6 +276,25 @@ export function createArchitectureLabOperations({
   now = () => new Date(),
   logger,
 }: ArchitectureLabOperationsDependencies): ArchitectureLabOperations {
+  const modelOptions = {
+    caseBrief: createStructuredModelCompletionOptions({
+      name: "architecture_lab_case_brief",
+      schema: CaseBriefSchema,
+    }),
+    openingSafety: createStructuredModelCompletionOptions({
+      name: "architecture_lab_opening_safety",
+      schema: OpeningSafetyCheckSchema,
+    }),
+    challenge: createStructuredModelCompletionOptions({
+      name: "architecture_lab_challenge",
+      schema: ArchitectureChallengeSchema,
+    }),
+    review: createStructuredModelCompletionOptions({
+      name: "architecture_lab_review",
+      schema: ArchitectureReviewSchema,
+    }),
+  };
+
   async function prepareCase(
     request: PrepareCaseRequest,
   ): Promise<ArchitectureLabResult<CaseBrief>> {
@@ -275,6 +330,7 @@ export function createArchitectureLabOperations({
       traceLabel: ARCHITECTURE_LAB.TRACE_LABELS.CASE_BRIEF,
       messages: buildCaseBriefMessages({ dossier: parsedDossier.data, selection }),
       schema: CaseBriefSchema,
+      modelOptions: modelOptions.caseBrief,
       completeFn,
       logger,
     });
@@ -310,6 +366,7 @@ export function createArchitectureLabOperations({
       traceLabel: ARCHITECTURE_LAB.TRACE_LABELS.OPENING_SAFETY,
       messages: buildOpeningSafetyMessages(request.opening),
       schema: OpeningSafetyCheckSchema,
+      modelOptions: modelOptions.openingSafety,
       completeFn,
       logger,
     });
@@ -334,6 +391,7 @@ export function createArchitectureLabOperations({
       traceLabel: ARCHITECTURE_LAB.TRACE_LABELS.CHALLENGE,
       messages: buildChallengeMessages(request),
       schema: ArchitectureChallengeSchema,
+      modelOptions: modelOptions.challenge,
       completeFn,
       logger,
     });
@@ -373,6 +431,7 @@ export function createArchitectureLabOperations({
       traceLabel: ARCHITECTURE_LAB.TRACE_LABELS.REVIEW,
       messages: buildReviewMessages(request),
       schema: ArchitectureReviewSchema,
+      modelOptions: modelOptions.review,
       completeFn,
       logger,
     });

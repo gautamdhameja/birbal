@@ -4,6 +4,8 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 
+import { z } from "zod";
+
 import { MODEL_PROVIDERS } from "../src/app/constants/model-providers.js";
 import {
   getConfiguredModelProviderId,
@@ -15,6 +17,7 @@ import {
 } from "../src/app/model-providers/openai-compatible/client.js";
 import { getLlamaConfig } from "../src/app/llama/config.js";
 import { getOpenAIConfig } from "../src/app/model-providers/openai/config.js";
+import { createStructuredModelCompletionOptions } from "../src/app/model-providers/response-format.js";
 import * as llamaAdapterModule from "../src/app/llama/adapter.js";
 import * as openAIAdapterModule from "../src/app/model-providers/openai/adapter.js";
 
@@ -131,6 +134,7 @@ describe("OpenAI-compatible provider config", () => {
       model: "gpt-test",
       messages: [{ role: "user", content: "hello" }],
       max_completion_tokens: 123,
+      stream: false,
     });
   });
 
@@ -166,8 +170,55 @@ describe("OpenAI-compatible provider config", () => {
       model: "local",
       messages: [{ role: "user", content: "hello" }],
       max_tokens: 123,
+      stream: false,
     });
     assert.equal(fetchCalls, 1);
+  });
+
+  it("sends JSON schema response formats with non-streaming responses", async () => {
+    let requestBody: unknown;
+    const client = createOpenAICompatibleModelClient(
+      () => ({
+        providerId: MODEL_PROVIDERS.PROVIDERS.LLAMA_CPP,
+        baseUrl: "http://127.0.0.1:1976",
+        chatCompletionsPath: MODEL_PROVIDERS.CHAT_COMPLETIONS_PATH,
+        outputTokenParameter: MODEL_PROVIDERS.OUTPUT_TOKEN_PARAMETERS.MAX_TOKENS,
+        model: "system",
+        requestTimeoutMs: MODEL_PROVIDERS.DEFAULT_REQUEST_TIMEOUT_MS,
+      }),
+      {
+        transport: async (_input, init) => {
+          requestBody = JSON.parse(String(init?.body));
+          return new Response(JSON.stringify({ choices: [{ message: { content: "{}" } }] }), {
+            status: 200,
+          });
+        },
+      },
+    );
+    const responseFormat = {
+      type: MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_SCHEMA,
+      json_schema: {
+        name: "result",
+        strict: true,
+        schema: {
+          type: "object",
+          properties: { result: { type: "string" } },
+          required: ["result"],
+          additionalProperties: false,
+        },
+      },
+    } as const;
+
+    await client.complete([{ role: "user", content: "hello" }], {
+      response_format: responseFormat,
+    });
+
+    assert.deepEqual(requestBody, {
+      model: "system",
+      messages: [{ role: "user", content: "hello" }],
+      stream: false,
+      response_format: responseFormat,
+    });
   });
 
   it("preserves detailed completion diagnostics without changing complete output", async () => {
@@ -317,6 +368,180 @@ describe("OpenAI-compatible provider config", () => {
           durationMs: 25,
         },
       ],
+    );
+  });
+});
+
+describe("structured model response format", () => {
+  afterEach(resetEnv);
+
+  const ResultSchema = z.strictObject({ result: z.string() });
+  const AgentResponseSchema = z.union([
+    z.strictObject({ type: z.literal("final"), answer: z.string() }),
+    z.strictObject({
+      type: z.literal("tool_call"),
+      tool: z.literal("echo"),
+      args: z.strictObject({ value: z.string().optional() }),
+    }),
+  ]);
+
+  it("keeps JSON object response format as the compatibility default", () => {
+    delete process.env.MODEL_RESPONSE_FORMAT;
+
+    assert.deepEqual(
+      createStructuredModelCompletionOptions({ name: "result", schema: ResultSchema })
+        .response_format,
+      { type: MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT },
+    );
+  });
+
+  it("ignores JSON schema dialect configuration in JSON object mode", () => {
+    process.env.MODEL_RESPONSE_FORMAT = MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT;
+    process.env.MODEL_JSON_SCHEMA_DIALECT = "unsupported";
+
+    assert.deepEqual(
+      createStructuredModelCompletionOptions({ name: "result", schema: ResultSchema })
+        .response_format,
+      { type: MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT },
+    );
+  });
+
+  it("builds a named JSON schema response format when configured", () => {
+    process.env.MODEL_RESPONSE_FORMAT = MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_SCHEMA;
+
+    assert.deepEqual(
+      createStructuredModelCompletionOptions({ name: "result", schema: ResultSchema })
+        .response_format,
+      {
+        type: MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_SCHEMA,
+        json_schema: {
+          name: "result",
+          strict: false,
+          schema: {
+            type: "object",
+            properties: {
+              result: { type: "string" },
+            },
+            required: ["result"],
+            additionalProperties: false,
+          },
+        },
+      },
+    );
+  });
+
+  it("normalizes standard root unions without claiming strict optional-field support", () => {
+    process.env.MODEL_RESPONSE_FORMAT = MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_SCHEMA;
+
+    assert.deepEqual(
+      createStructuredModelCompletionOptions({
+        name: "agent_response",
+        schema: AgentResponseSchema,
+      }).response_format,
+      {
+        type: MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_SCHEMA,
+        json_schema: {
+          name: "agent_response",
+          strict: false,
+          schema: {
+            type: "object",
+            properties: {
+              type: {
+                anyOf: [
+                  { type: "string", const: "final" },
+                  { type: "string", const: "tool_call" },
+                ],
+              },
+              answer: { type: "string" },
+              tool: { type: "string", const: "echo" },
+              args: {
+                type: "object",
+                properties: { value: { type: "string" } },
+                additionalProperties: false,
+              },
+            },
+            required: ["type"],
+            additionalProperties: false,
+          },
+        },
+      },
+    );
+  });
+
+  it("adapts root unions to the Apple Foundation Models schema dialect", () => {
+    process.env.MODEL_RESPONSE_FORMAT = MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_SCHEMA;
+    process.env.MODEL_JSON_SCHEMA_DIALECT = "apple";
+
+    assert.deepEqual(
+      createStructuredModelCompletionOptions({
+        name: "agent_response",
+        schema: AgentResponseSchema,
+      }).response_format,
+      {
+        type: MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_SCHEMA,
+        json_schema: {
+          name: "agent_response",
+          strict: true,
+          schema: {
+            anyOf: [
+              { $ref: "#/$defs/AgentResponseOption1" },
+              { $ref: "#/$defs/AgentResponseOption2" },
+            ],
+            title: "AgentResponse",
+            $defs: {
+              AgentResponseOption1: {
+                type: "object",
+                properties: {
+                  type: { type: "string", const: "final" },
+                  answer: { type: "string" },
+                },
+                required: ["type", "answer"],
+                additionalProperties: false,
+                title: "AgentResponseOption1",
+                "x-order": ["type", "answer"],
+              },
+              AgentResponseOption2: {
+                type: "object",
+                properties: {
+                  type: { type: "string", const: "tool_call" },
+                  tool: { type: "string", const: "echo" },
+                  args: {
+                    type: "object",
+                    properties: { value: { type: "string" } },
+                    required: [],
+                    additionalProperties: false,
+                    title: "AgentResponseOption2Args",
+                    "x-order": ["value"],
+                  },
+                },
+                required: ["type", "tool", "args"],
+                additionalProperties: false,
+                title: "AgentResponseOption2",
+                "x-order": ["type", "tool", "args"],
+              },
+            },
+          },
+        },
+      },
+    );
+  });
+
+  it("rejects unsupported response format configuration", () => {
+    process.env.MODEL_RESPONSE_FORMAT = "yaml";
+
+    assert.throws(
+      () => createStructuredModelCompletionOptions({ name: "result", schema: ResultSchema }),
+      /MODEL_RESPONSE_FORMAT/,
+    );
+  });
+
+  it("rejects unsupported JSON schema dialect configuration in JSON schema mode", () => {
+    process.env.MODEL_RESPONSE_FORMAT = MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_SCHEMA;
+    process.env.MODEL_JSON_SCHEMA_DIALECT = "unsupported";
+
+    assert.throws(
+      () => createStructuredModelCompletionOptions({ name: "result", schema: ResultSchema }),
+      /MODEL_JSON_SCHEMA_DIALECT/,
     );
   });
 });

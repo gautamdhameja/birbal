@@ -12,6 +12,19 @@ export const ChatMessageSchema = z.strictObject({
   content: z.string(),
 });
 
+const JsonObjectResponseFormatSchema = z.strictObject({
+  type: z.literal(MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT),
+});
+
+const JsonSchemaResponseFormatSchema = z.strictObject({
+  type: z.literal(MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_SCHEMA),
+  json_schema: z.strictObject({
+    name: z.string().trim().min(1),
+    strict: z.boolean(),
+    schema: z.record(z.string(), z.unknown()),
+  }),
+});
+
 export const CompleteOptionsSchema = z.strictObject({
   temperature: z
     .number()
@@ -20,9 +33,7 @@ export const CompleteOptionsSchema = z.strictObject({
     .optional(),
   maxOutputTokens: z.number().int().positive().optional(),
   response_format: z
-    .strictObject({
-      type: z.literal(MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_OBJECT),
-    })
+    .discriminatedUnion("type", [JsonObjectResponseFormatSchema, JsonSchemaResponseFormatSchema])
     .optional(),
   traceId: z.string().trim().min(1).optional(),
   traceLabel: z.string().trim().min(1).optional(),
@@ -35,6 +46,7 @@ export const OpenAICompatibleChatCompletionRequestSchema = z
     temperature: CompleteOptionsSchema.shape.temperature,
     max_tokens: CompleteOptionsSchema.shape.maxOutputTokens,
     max_completion_tokens: CompleteOptionsSchema.shape.maxOutputTokens,
+    stream: z.literal(false).optional(),
     response_format: CompleteOptionsSchema.shape.response_format,
   })
   .refine((request) => !(request.max_tokens && request.max_completion_tokens), {

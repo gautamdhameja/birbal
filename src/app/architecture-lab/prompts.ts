@@ -69,7 +69,7 @@ export function buildCaseResearchRequest(request: CaseResearchRequest): string {
     selectionInstruction,
     "Gather only the problem, affected actors, constraints, desired outcome, and source evidence.",
     "Do not gather or reveal architecture components, implementation steps, vendors, or a solution.",
-    "The final answer string must encode one SourceDossier JSON object matching the phase contract.",
+    "The final response answer must contain one SourceDossier payload in the representation required by the response schema.",
   ].join("\n");
 }
 
@@ -80,7 +80,7 @@ export function buildArchitectureEvidenceResearchRequest(
     "Phase: architecture_evidence.",
     "Research bounded, private evidence relevant to evaluating the learner's attempted design.",
     "Return claim-evidence records only. Do not modify, extend, or answer the learner transcript.",
-    "The final answer string must encode one ArchitectureEvidence JSON object matching the phase contract.",
+    "The final response answer must contain one ArchitectureEvidence payload in the representation required by the response schema.",
     dataEnvelope(ARCHITECTURE_LAB.DATA_BOUNDARIES.CASE_BRIEF, request.brief),
     dataEnvelope(ARCHITECTURE_LAB.DATA_BOUNDARIES.TRANSCRIPT, request.transcript),
   ].join("\n\n");

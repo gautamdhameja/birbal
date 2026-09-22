@@ -167,6 +167,7 @@ function buildChatCompletionRequest(
     messages,
     temperature: options.temperature,
     ...(options.maxOutputTokens ? { [config.outputTokenParameter]: options.maxOutputTokens } : {}),
+    stream: false,
     response_format: options.response_format,
   });
 }

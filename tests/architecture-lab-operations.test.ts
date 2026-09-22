@@ -5,7 +5,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, it } from "node:test";
+import { afterEach, describe, it } from "node:test";
+
+import { z } from "zod";
 
 import {
   createArchitectureLabOperations,
@@ -35,8 +37,15 @@ import type {
   SourceDossier,
 } from "../src/app/architecture-lab/types.js";
 import type { ChatMessage, ModelCompleteOptions } from "../src/framework/llm/types.js";
+import { createFrameworkAgentResponseSchema } from "../src/framework/agent/protocol.js";
+import type { ToolDefinition } from "../src/framework/tools/types.js";
 
 const NOW = new Date("2026-08-27T12:00:00.000Z");
+const ORIGINAL_ENV = { ...process.env };
+
+afterEach(() => {
+  process.env = { ...ORIGINAL_ENV };
+});
 
 const recentDossier: SourceDossier = {
   caseName: "AI support triage",
@@ -835,6 +844,80 @@ describe("Architecture Case Lab operations", () => {
     );
     assert.match(calls[0]?.[0]?.content ?? "", /name: search_web/);
     assert.match(calls[0]?.[1]?.content ?? "", /AI support triage/);
+  });
+
+  it("uses phase-specific final payload schemas in JSON schema mode", async () => {
+    process.env.MODEL_RESPONSE_FORMAT = "json_schema";
+    process.env.MODEL_JSON_SCHEMA_DIALECT = "standard";
+    const options: ModelCompleteOptions[] = [];
+    const responses = [
+      JSON.stringify({ type: "tool_call", tool: "search_web", args: { query: "case" } }),
+      JSON.stringify({ type: "final", answer: recentDossier }),
+      JSON.stringify({ type: "tool_call", tool: "search_web", args: { query: "evidence" } }),
+      JSON.stringify({ type: "final", answer: architectureEvidence }),
+    ];
+    const argsSchema = z.strictObject({ query: z.string() });
+    const resultSchema = z.unknown();
+    const searchTool: ToolDefinition<typeof argsSchema, typeof resultSchema> = {
+      name: "search_web",
+      description: "Search the web.",
+      argsSchema,
+      resultSchema,
+      run: async () => undefined,
+    };
+    const runResearch = createArchitectureLabResearchRunner({
+      modelClient: {
+        complete: async (_messages, callOptions) => {
+          options.push(callOptions ?? {});
+          return responses.shift()!;
+        },
+      },
+      toolRunner: async () => ({
+        results: [...recentDossier.sources, ...architectureEvidence.sources].map((source) => ({
+          title: source.title,
+          url: source.url,
+          description: source.excerpt,
+          publishedAt: source.publishedAt,
+        })),
+      }),
+      renderToolsForPrompt: () => "name: search_web",
+      createResponseSchema: (finalAnswerSchema) =>
+        createFrameworkAgentResponseSchema([searchTool], finalAnswerSchema),
+    });
+
+    const dossierResult = await runResearch({
+      phase: "case_setup",
+      selection: "learner",
+      caseName: "AI support triage",
+    });
+    const evidenceResult = await runResearch({
+      phase: "architecture_evidence",
+      brief: extractedBrief,
+      transcript,
+    });
+
+    assert.equal(dossierResult.ok, true);
+    assert.equal(evidenceResult.ok, true);
+    const caseFormat = options[0]?.response_format;
+    const evidenceFormat = options[2]?.response_format;
+    assert.equal(caseFormat?.type, "json_schema");
+    assert.equal(evidenceFormat?.type, "json_schema");
+    if (caseFormat?.type === "json_schema" && evidenceFormat?.type === "json_schema") {
+      assert.equal(caseFormat.json_schema.name, "architecture_lab_case_research_response");
+      assert.equal(evidenceFormat.json_schema.name, "architecture_lab_evidence_research_response");
+      assert.ok(
+        JSON.stringify(caseFormat.json_schema.schema).includes('"caseName"'),
+        "case research schema should constrain the dossier payload",
+      );
+      assert.ok(
+        JSON.stringify(evidenceFormat.json_schema.schema).includes('"claims"'),
+        "evidence research schema should constrain the evidence payload",
+      );
+      assert.ok(
+        JSON.stringify(caseFormat.json_schema.schema).includes('"search_web"'),
+        "research schema should retain tool-call variants",
+      );
+    }
   });
 
   it("rejects source URLs that were not returned by a research tool", async () => {

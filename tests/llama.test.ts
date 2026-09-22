@@ -39,6 +39,61 @@ describe("llama chat request schema", () => {
     );
   });
 
+  it("allows JSON schema response format requests without streaming", () => {
+    assert.deepEqual(
+      OpenAICompatibleChatCompletionRequestSchema.parse({
+        model: "system",
+        messages: [
+          {
+            role: AGENT.ROLES.USER,
+            content: "score this item",
+          },
+        ],
+        stream: false,
+        response_format: {
+          type: MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_SCHEMA,
+          json_schema: {
+            name: "score",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                score: { type: "number" },
+              },
+              required: ["score"],
+              additionalProperties: false,
+            },
+          },
+        },
+      }),
+      {
+        model: "system",
+        messages: [
+          {
+            role: AGENT.ROLES.USER,
+            content: "score this item",
+          },
+        ],
+        stream: false,
+        response_format: {
+          type: MODEL_PROVIDERS.RESPONSE_FORMATS.JSON_SCHEMA,
+          json_schema: {
+            name: "score",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                score: { type: "number" },
+              },
+              required: ["score"],
+              additionalProperties: false,
+            },
+          },
+        },
+      },
+    );
+  });
+
   it("rejects llama URLs with credentials", () => {
     assert.throws(
       () =>

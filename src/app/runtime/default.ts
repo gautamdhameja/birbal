@@ -14,6 +14,7 @@ import { createSourceDomainSearch } from "../source-search/domain.js";
 import { createResearchTools, createToolRegistry } from "../tools/registry.js";
 import { fetchUrlText } from "../url-text/client.js";
 import { createToolExecutor } from "../../framework/tools/executor.js";
+import { createFrameworkAgentResponseSchema } from "../../framework/agent/protocol.js";
 import type { ToolRegistry } from "../../framework/tools/registry.js";
 import { LOGGING } from "../constants/runtime.js";
 import type { BirbalRuntime, BirbalRuntimeOptions, DefaultRuntimeDependencies } from "./types.js";
@@ -45,6 +46,7 @@ export function createDefaultRuntime(
     options.trace ? { level: LOGGING.DEBUG_LEVEL, pretty: true } : {},
   );
   const registry = createDefaultToolRegistry();
+  const responseSchema = createFrameworkAgentResponseSchema(registry.list());
   const renderToolsForPrompt = () => registry.renderForPrompt();
   const modelClient = getDefaultModelClient({ logger });
   const toolRunner = createToolExecutor(registry, { logger });
@@ -54,6 +56,7 @@ export function createDefaultRuntime(
     buildSystemPrompt: createSystemPromptBuilder(),
     renderToolsForPrompt,
     logger,
+    responseSchema,
   });
   const labOperations = createArchitectureLabOperations({
     research: createArchitectureLabResearchRunner({
@@ -61,6 +64,8 @@ export function createDefaultRuntime(
       toolRunner,
       renderToolsForPrompt,
       logger,
+      createResponseSchema: (finalAnswerSchema) =>
+        createFrameworkAgentResponseSchema(registry.list(), finalAnswerSchema),
     }),
     completeFn: modelClient.complete,
     logger,

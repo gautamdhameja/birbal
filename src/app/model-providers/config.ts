@@ -9,7 +9,7 @@ type OpenAICompatibleProviderConfigOptions = {
   outputTokenParameter?: (typeof MODEL_PROVIDERS.OUTPUT_TOKEN_PARAMETERS)[keyof typeof MODEL_PROVIDERS.OUTPUT_TOKEN_PARAMETERS];
 };
 
-function trimmedEnv(name: string): string | undefined {
+export function trimmedEnv(name: string): string | undefined {
   const value = process.env[name]?.trim();
   return value ? value : undefined;
 }
